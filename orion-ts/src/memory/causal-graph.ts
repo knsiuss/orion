@@ -576,7 +576,8 @@ export class CausalGraph {
         return []
       }
 
-      const node = await prisma.causalNode.findFirst({ where: { userId, event: normalizedEvent } })
+      // Read path should follow the same normalization semantics as Stage-3 dedupe keys.
+      const node = await this.findNodeByEventOrKey(userId, normalizedEvent)
       if (!node) {
         return []
       }

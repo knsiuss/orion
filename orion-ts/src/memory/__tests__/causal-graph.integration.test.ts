@@ -67,6 +67,9 @@ describe("CausalGraph integration (mocked)", () => {
       create: MockFn<any>
       findFirst: MockFn<any>
     }
+    causalEdge: {
+      findMany: MockFn<any>
+    }
     hyperEdge: {
       findMany: MockFn<any>
       findFirst: MockFn<any>
@@ -93,6 +96,7 @@ describe("CausalGraph integration (mocked)", () => {
       .mockResolvedValueOnce({ id: "node-b" })
       .mockResolvedValue({ id: "node-x" })
     prismaMock.causalNode.findFirst.mockResolvedValue(null)
+    prismaMock.causalEdge.findMany.mockResolvedValue([])
 
     prismaMock.hyperEdge.findMany.mockResolvedValue([])
     prismaMock.hyperEdge.findFirst.mockResolvedValue(null)
@@ -245,5 +249,43 @@ describe("CausalGraph integration (mocked)", () => {
         nodeId: "node-b",
       },
     })
+  })
+
+  it("getDownstreamEffects resolves nodes by normalized eventKey when casing differs", async () => {
+    const graph = new CausalGraph()
+
+    prismaMock.causalNode.findFirst.mockResolvedValueOnce({
+      id: "node-a",
+      event: "Late Sleep",
+      eventKey: normalizeCausalEventKey("Late Sleep"),
+      createdAt: new Date(),
+    })
+    prismaMock.causalEdge.findMany.mockResolvedValueOnce([
+      {
+        strength: 0.8,
+        evidence: 3,
+        to: { event: "Missed Meeting" },
+      },
+    ])
+
+    const results = await graph.getDownstreamEffects("user-1", "  late sleep  ")
+
+    expect(prismaMock.causalNode.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        OR: [
+          { event: "late sleep" },
+          { eventKey: normalizeCausalEventKey("late sleep") },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+    })
+    expect(results).toEqual([
+      {
+        effect: "Missed Meeting",
+        strength: 0.8,
+        evidence: 3,
+      },
+    ])
   })
 })

@@ -156,3 +156,15 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
 - Regression verification after race hardening:
   - `pnpm typecheck` passes
   - `pnpm test:ci` => `15` test files passed / `47` tests passed
+
+## Follow-up Notes (pass 11)
+
+- Fixed causal-graph read-path lookup mismatch after dedupe-key rollout:
+  - `getDownstreamEffects()` previously matched only exact `event` string
+  - queries with different casing/trim (e.g. `" late sleep "`) could miss existing nodes
+  - now reuses normalized event/eventKey lookup helper used by write paths
+- Added regression test covering eventKey fallback for downstream effect lookup in:
+  - `src/memory/__tests__/causal-graph.integration.test.ts`
+- Regression verification after read-path fix:
+  - `pnpm typecheck` passes
+  - `pnpm test:ci` => `15` test files passed / `48` tests passed
