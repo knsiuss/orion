@@ -55,6 +55,8 @@ const DEFAULT_CHECKSUMS_FILENAME = "CHECKSUMS.sha256"
 const DEFAULT_BOOTSTRAP_MAX_CHARS = 65_536
 const DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS = 150_000
 const TRUNCATION_MARKER = "\n\n[...truncated]"
+const DEFAULT_USER_MD_HEADER = "# User Profile\n\n"
+const DEFAULT_MEMORY_MD_HEADER = "# Long-Term Memory\n\n---\n\n"
 
 const ALWAYS_INJECT = [
   DEFAULT_AGENTS_FILENAME,
@@ -138,6 +140,20 @@ function readString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
+function normalizeSingleLineValue(value: string): string {
+  return value.replace(/\r?\n+/g, " ").trim()
+}
+
+function normalizeMemoryFact(fact: string): string {
+  // Keep one markdown bullet per fact to avoid accidental format/instruction injection.
+  return fact
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" | ")
+}
+
 export class BootstrapLoader extends EventEmitter {
   private readonly workspaceDir: string
   private readonly maxPerFile: number
@@ -155,6 +171,39 @@ export class BootstrapLoader extends EventEmitter {
     this.workspaceDir = path.resolve(workspaceDir)
     this.maxPerFile = opts.maxPerFile ?? DEFAULT_BOOTSTRAP_MAX_CHARS
     this.maxTotal = opts.maxTotal ?? DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS
+  }
+
+  private async ensureWorkspaceDirExists(): Promise<void> {
+    await fs.mkdir(this.workspaceDir, { recursive: true })
+  }
+
+  private collectWarningsForLoadedFile(
+    loadedFile: BootstrapFile,
+    filename: string,
+    checksums: Map<string, string> | null,
+    integrityWarnings: string[],
+    securityWarnings: string[],
+  ): void {
+    if (!loadedFile.missing) {
+      if (checksums && loadedFile.checksumVerified === null) {
+        integrityWarnings.push(`${filename}: missing hash entry in ${DEFAULT_CHECKSUMS_FILENAME}.`)
+      }
+      if (loadedFile.checksumVerified === false) {
+        integrityWarnings.push(`${filename}: checksum mismatch (possible tampering or local edits).`)
+      }
+    }
+
+    if (loadedFile.securityFlags.length > 0) {
+      securityWarnings.push(`${filename}: ${loadedFile.securityFlags.join("; ")}`)
+    }
+  }
+
+  private async readWorkspaceEntries(): Promise<string[]> {
+    try {
+      return await fs.readdir(this.workspaceDir)
+    } catch {
+      return []
+    }
   }
 
   async load(mode: SessionMode = "dm"): Promise<BootstrapContext> {
@@ -193,6 +242,13 @@ export class BootstrapLoader extends EventEmitter {
 
         files.push(loadedFile)
         totalChars += loadedFile.chars
+        this.collectWarningsForLoadedFile(
+          loadedFile,
+          filename,
+          checksums,
+          integrityWarnings,
+          securityWarnings,
+        )
 
         log.warn("bootstrap total limit reached during file injection", {
           filename,
@@ -204,18 +260,13 @@ export class BootstrapLoader extends EventEmitter {
       files.push(loadedFile)
       totalChars += loadedFile.chars
 
-      if (!loadedFile.missing) {
-        if (checksums && loadedFile.checksumVerified === null) {
-          integrityWarnings.push(`${filename}: missing hash entry in ${DEFAULT_CHECKSUMS_FILENAME}.`)
-        }
-        if (loadedFile.checksumVerified === false) {
-          integrityWarnings.push(`${filename}: checksum mismatch (possible tampering or local edits).`)
-        }
-      }
-
-      if (loadedFile.securityFlags.length > 0) {
-        securityWarnings.push(`${filename}: ${loadedFile.securityFlags.join("; ")}`)
-      }
+      this.collectWarningsForLoadedFile(
+        loadedFile,
+        filename,
+        checksums,
+        integrityWarnings,
+        securityWarnings,
+      )
     }
 
     this.emit("agent:bootstrap", { mode, files: files.length, totalChars })
@@ -483,13 +534,9 @@ export class BootstrapLoader extends EventEmitter {
       await fs.access(direct)
       return direct
     } catch {
-      try {
-        const entries = await fs.readdir(this.workspaceDir)
-        const match = entries.find((entry) => entry.toLowerCase() === filename.toLowerCase())
-        return match ? path.join(this.workspaceDir, match) : null
-      } catch {
-        return null
-      }
+      const entries = await this.readWorkspaceEntries()
+      const match = entries.find((entry) => entry.toLowerCase() === filename.toLowerCase())
+      return match ? path.join(this.workspaceDir, match) : null
     }
   }
 
@@ -539,6 +586,7 @@ export class BootstrapLoader extends EventEmitter {
   }
 
   async updateUserMd(updates: Record<string, string>): Promise<void> {
+    await this.ensureWorkspaceDirExists()
     const existingPath = await this.resolvePath(DEFAULT_USER_FILENAME)
     const filepath = existingPath ?? path.join(this.workspaceDir, DEFAULT_USER_FILENAME)
 
@@ -546,16 +594,18 @@ export class BootstrapLoader extends EventEmitter {
     try {
       content = await fs.readFile(filepath, "utf-8")
     } catch {
-      content = "# User Profile\n\n"
+      content = DEFAULT_USER_MD_HEADER
     }
 
     for (const [key, value] of Object.entries(updates)) {
       const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
       const pattern = new RegExp(`^(${escapedKey}:\\s*).*$`, "im")
+      const normalizedValue = normalizeSingleLineValue(value)
       if (pattern.test(content)) {
-        content = content.replace(pattern, `$1${value}`)
+        // Use a replacer function so "$1" inside user values is treated literally.
+        content = content.replace(pattern, (_, prefix: string) => `${prefix}${normalizedValue}`)
       } else {
-        content += `\n${key}: ${value}`
+        content += `\n${key}: ${normalizedValue}`
       }
     }
 
@@ -565,17 +615,23 @@ export class BootstrapLoader extends EventEmitter {
   }
 
   async appendMemory(fact: string): Promise<void> {
+    await this.ensureWorkspaceDirExists()
     const existingPath = await this.resolvePath(DEFAULT_MEMORY_FILENAME)
     const filepath = existingPath ?? path.join(this.workspaceDir, DEFAULT_MEMORY_FILENAME)
 
     try {
       await fs.access(filepath)
     } catch {
-      await fs.writeFile(filepath, "# Long-Term Memory\n\n---\n\n", "utf-8")
+      await fs.writeFile(filepath, DEFAULT_MEMORY_MD_HEADER, "utf-8")
+    }
+
+    const normalizedFact = normalizeMemoryFact(fact)
+    if (normalizedFact.length === 0) {
+      return
     }
 
     const date = new Date().toISOString().slice(0, 10)
-    await fs.appendFile(filepath, `- [${date}] ${fact}\n`, "utf-8")
+    await fs.appendFile(filepath, `- [${date}] ${normalizedFact}\n`, "utf-8")
     this.invalidate(DEFAULT_MEMORY_FILENAME)
   }
 }

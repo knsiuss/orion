@@ -38,6 +38,8 @@ const VECTOR_DIMENSION = 768
 const LEGACY_VECTOR_DIMENSION = 1536
 const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
 const OLLAMA_EMBEDDING_MODEL = "nomic-embed-text"
+const EMBEDDING_REQUEST_TIMEOUT_MS = 8_000
+const PENDING_FEEDBACK_MAX_AGE_MS = 30 * 60 * 1000
 
 interface MemoryRow extends Record<string, unknown> {
   id: string
@@ -47,6 +49,31 @@ interface MemoryRow extends Record<string, unknown> {
   metadata: string
   createdAt: number
   utilityScore: number
+}
+
+async function fetchJsonWithTimeout<T>(
+  input: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<{ ok: boolean; status: number; data: T | null }> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      return { ok: false, status: response.status, data: null }
+    }
+
+    const data = (await response.json()) as T
+    return { ok: true, status: response.status, data }
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 export interface SearchResult {
@@ -87,7 +114,9 @@ async function openAIEmbed(text: string): Promise<number[] | null> {
   }
 
   try {
-    const response = await fetch("https://api.openai.com/v1/embeddings", {
+    const result = await fetchJsonWithTimeout<{ data?: Array<{ embedding?: number[] }> }>(
+      "https://api.openai.com/v1/embeddings",
+      {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${config.OPENAI_API_KEY}`,
@@ -97,15 +126,16 @@ async function openAIEmbed(text: string): Promise<number[] | null> {
         model: DEFAULT_EMBEDDING_MODEL,
         input: text,
       }),
-    })
+    },
+      EMBEDDING_REQUEST_TIMEOUT_MS,
+    )
 
-    if (!response.ok) {
-      log.warn("OpenAI embedding API failed", { status: response.status })
+    if (!result.ok) {
+      log.warn("OpenAI embedding API failed", { status: result.status })
       return null
     }
 
-    const data = (await response.json()) as { data?: Array<{ embedding?: number[] }> }
-    const embedding = data.data?.[0]?.embedding
+    const embedding = result.data?.data?.[0]?.embedding
 
     if (!embedding || embedding.length !== VECTOR_DIMENSION) {
       log.warn("Unexpected embedding dimension", { expected: VECTOR_DIMENSION, got: embedding?.length })
@@ -125,7 +155,9 @@ async function ollamaEmbed(text: string): Promise<number[] | null> {
     : "http://localhost:11434"
 
   try {
-    const response = await fetch(`${baseUrl.replace(/\/+$/, "")}/api/embeddings`, {
+    const result = await fetchJsonWithTimeout<{ embedding?: number[] }>(
+      `${baseUrl.replace(/\/+$/, "")}/api/embeddings`,
+      {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -134,15 +166,16 @@ async function ollamaEmbed(text: string): Promise<number[] | null> {
         model: OLLAMA_EMBEDDING_MODEL,
         prompt: text,
       }),
-    })
+    },
+      EMBEDDING_REQUEST_TIMEOUT_MS,
+    )
 
-    if (!response.ok) {
-      log.warn("Ollama embedding API failed", { status: response.status })
+    if (!result.ok) {
+      log.warn("Ollama embedding API failed", { status: result.status })
       return null
     }
 
-    const data = (await response.json()) as { embedding?: number[] }
-    const embedding = data.embedding
+    const embedding = result.data?.embedding
 
     if (!embedding || embedding.length !== VECTOR_DIMENSION) {
       log.warn("Unexpected embedding dimension", { expected: VECTOR_DIMENSION, got: embedding?.length })
@@ -232,6 +265,11 @@ export class MemoryStore {
 
     if (ollamaResult) {
       return ollamaResult
+    }
+
+    const openAIResult = await openAIEmbed(text)
+    if (openAIResult) {
+      return openAIResult
     }
 
     log.debug("using hash-based fallback embedding")
@@ -476,11 +514,20 @@ export class MemoryStore {
     timestamp: number
   }>()
 
+  private pruneStalePendingFeedback(now = Date.now()): void {
+    for (const [userId, entry] of this.pendingFeedback) {
+      if (now - entry.timestamp > PENDING_FEEDBACK_MAX_AGE_MS) {
+        this.pendingFeedback.delete(userId)
+      }
+    }
+  }
+
   /**
    * Called internally after each retrieve() to register pending feedback.
    * Gateway/pipeline calls consumePendingFeedback() on next turn.
    */
   registerPendingFeedback(userId: string, retrievedIds: string[], provisionalReward: number): void {
+    this.pruneStalePendingFeedback()
     this.pendingFeedback.set(userId, {
       retrievedIds,
       provisionalReward,
@@ -493,8 +540,14 @@ export class MemoryStore {
    * Returns null if no pending feedback exists.
    */
   consumePendingFeedback(userId: string): { retrievedIds: string[]; provisionalReward: number; timestamp: number } | null {
+    this.pruneStalePendingFeedback()
     const data = this.pendingFeedback.get(userId) ?? null
     this.pendingFeedback.delete(userId)
+
+    if (data && Date.now() - data.timestamp > PENDING_FEEDBACK_MAX_AGE_MS) {
+      return null
+    }
+
     return data
   }
 
@@ -503,6 +556,10 @@ export class MemoryStore {
    */
   clearFeedback(userId: string): void {
     this.pendingFeedback.delete(userId)
+  }
+
+  clearAllFeedback(): void {
+    this.pendingFeedback.clear()
   }
 }
 

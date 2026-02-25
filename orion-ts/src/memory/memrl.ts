@@ -104,6 +104,23 @@ function asNumber(value: unknown): number | null {
   return null
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
+function isFiniteVector(vector: number[]): boolean {
+  return Array.isArray(vector) && vector.length > 0 && vector.every((item) => Number.isFinite(item))
+}
+
+function normalizeSimilarityThreshold(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0.3
+  }
+  return clamp(value, 0, 1)
+}
+
 /**
  * Convert LanceDB distance/score to similarity score (0-1)
  */
@@ -196,11 +213,18 @@ export class MemRLUpdater {
    * - γ = discount factor
    */
   async updateFromFeedback(feedback: TaskFeedback): Promise<void> {
-    if (feedback.memoryIds.length === 0) {
+    if (!Array.isArray(feedback.memoryIds) || feedback.memoryIds.length === 0) {
       return
     }
 
-    const uniqueIds = Array.from(new Set(feedback.memoryIds.filter((id) => id.trim().length > 0)))
+    const uniqueIds = Array.from(
+      new Set(
+        feedback.memoryIds
+          .filter((id): id is string => typeof id === "string")
+          .map((id) => id.trim())
+          .filter((id) => id.length > 0),
+      ),
+    )
     if (uniqueIds.length === 0) {
       return
     }
@@ -244,7 +268,7 @@ export class MemRLUpdater {
         )
 
         // Update metadata with IEU triplet info
-        const metadata = (node.metadata as Record<string, unknown>) ?? {}
+        const metadata = asRecord(node.metadata)
         const updatedMetadata = {
           ...metadata,
           lastFeedback: {
@@ -252,7 +276,7 @@ export class MemRLUpdater {
             timestamp: new Date().toISOString(),
             taskSuccess: feedback.taskSuccess,
           },
-          intent: metadata.intent ?? extractIntent(metadata.experience as string ?? ""),
+          intent: metadata.intent ?? extractIntent(typeof metadata.experience === "string" ? metadata.experience : ""),
         }
 
         await prisma.memoryNode.update({
@@ -309,8 +333,13 @@ export class MemRLUpdater {
       return []
     }
 
+    if (!isFiniteVector(queryVector)) {
+      return []
+    }
+
     try {
       const sanitizedUserId = sanitizeUserId(userId)
+      const normalizedSimilarityThreshold = normalizeSimilarityThreshold(similarityThreshold)
       const candidateLimit = Math.max(limit * 3, limit)
 
       // Phase 1: Vector similarity search
@@ -326,7 +355,7 @@ export class MemRLUpdater {
           row,
           similarityScore: toSimilarityScore(row),
         }))
-        .filter((candidate) => candidate.similarityScore > similarityThreshold)
+        .filter((candidate) => candidate.similarityScore > normalizedSimilarityThreshold)
 
       if (phaseOne.length === 0) {
         return []
@@ -354,7 +383,7 @@ export class MemRLUpdater {
         const data = dataById.get(candidate.row.id)
         const persistedUtility = data?.utilityScore
         const persistedQ = data?.qValue
-        const metadata = (data?.metadata as Record<string, unknown>) ?? {}
+        const metadata = asRecord(data?.metadata)
         
         const utilityScore = clamp(
           persistedUtility
@@ -478,3 +507,9 @@ export class MemRLUpdater {
 
 // Singleton instance
 export const memrlUpdater = new MemRLUpdater()
+
+export const __memrlTestUtils = {
+  toSimilarityScore,
+  extractIntent,
+  normalizeSimilarityThreshold,
+}

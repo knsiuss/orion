@@ -3,7 +3,25 @@ import { affordanceChecker, type AffordanceResult } from "./affordance-checker.j
 
 const log = createLogger("security.prompt-filter")
 
-const DIRECT_INJECTION_PATTERNS = [
+const SANITIZED_PREFIX = "[CONTENT SANITIZED] "
+const MAX_LOG_LENGTH = 50
+const AFFORDANCE_WARN_THRESHOLD = 0.55
+
+interface RegexReplaceRule {
+  pattern: RegExp
+  replacement: string
+}
+
+interface DetectionRuleGroup {
+  reason: string
+  patterns: readonly RegExp[]
+}
+
+type DetectionResult =
+  | { detected: false }
+  | { detected: true; reason: string }
+
+const DIRECT_INJECTION_PATTERNS: readonly RegExp[] = [
   /ignore\s+(all\s+)?previous\s+instructions?/i,
   /disregard\s+(all\s+)?(previous\s+)?instructions?/i,
   /forget\s+(all\s+)?(your\s+)?instructions?/i,
@@ -14,7 +32,7 @@ const DIRECT_INJECTION_PATTERNS = [
   /bypass\s+(all\s+)?restrictions?/i,
 ]
 
-const JAILBREAK_PATTERNS = [
+const JAILBREAK_PATTERNS: readonly RegExp[] = [
   /\bDAN\b/i,
   /do\s+anything\s+now\b/i,
   /pretend\s+(you\s+are|to\s+be)\b/i,
@@ -24,26 +42,51 @@ const JAILBREAK_PATTERNS = [
   /role[ -]?play\s+(as|that)\b/i,
 ]
 
-const ROLE_HIJACK_PATTERNS = [
+const ROLE_HIJACK_PATTERNS: readonly RegExp[] = [
   /your\s+new\s+persona\b/i,
   /from\s+now\s+on\s+you\s+are\b/i,
   /adopt\s+(the\s+)?(persona|role|identity)\s+(of|as)\b/i,
   /change\s+(your\s+)?(persona|role|identity)\b/i,
 ]
 
-const DELIMITER_PATTERNS = [
+const DELIMITER_PATTERNS: readonly RegExp[] = [
   /<\|im_start\|>/i,
   /<\|im_end\|>/i,
   /\[SYSTEM\]/i,
   /\[USER\]/i,
   /\[ASSISTANT\]/i,
   /###\s*(SYSTEM|USER|ASSISTANT|INSTRUCTION)/i,
-  /\"\"\"[^\n]*instruction/i,
+  /"""[^\n]*instruction/i,
   /---+\s*(system|instruction)/i,
 ]
 
-const SANITIZED_PREFIX = "[CONTENT SANITIZED] "
-const MAX_LOG_LENGTH = 50
+const DETECTION_RULE_GROUPS: readonly DetectionRuleGroup[] = [
+  { reason: "Direct injection pattern detected", patterns: DIRECT_INJECTION_PATTERNS },
+  { reason: "Jailbreak pattern detected", patterns: JAILBREAK_PATTERNS },
+  { reason: "Role hijack pattern detected", patterns: ROLE_HIJACK_PATTERNS },
+  { reason: "Delimiter injection pattern detected", patterns: DELIMITER_PATTERNS },
+]
+
+const SANITIZE_STRUCTURE_RULES: readonly RegexReplaceRule[] = [
+  { pattern: /<\|[^|]+\|>/g, replacement: "" },
+  { pattern: /\[SYSTEM\]/gi, replacement: "[BLOCKED]" },
+  { pattern: /\[USER\]/gi, replacement: "[BLOCKED]" },
+  { pattern: /\[ASSISTANT\]/gi, replacement: "[BLOCKED]" },
+  { pattern: /###\s*(SYSTEM|USER|ASSISTANT|INSTRUCTION)/gi, replacement: "### BLOCKED" },
+  { pattern: /"""[^\n]*instruction/gi, replacement: '""" BLOCKED' },
+  { pattern: /---+\s*(system|instruction)/gi, replacement: "--- BLOCKED" },
+]
+
+// Intentionally limited to direct-override phrases. This keeps sanitization
+// conservative while still neutralizing the most common instruction-takeover text.
+const SANITIZE_DIRECT_INJECTION_RULES: readonly RegexReplaceRule[] = [
+  { pattern: /ignore\s+(all\s+)?previous\s+instructions?/gi, replacement: "[BLOCKED]" },
+  { pattern: /disregard\s+(all\s+)?(previous\s+)?instructions?/gi, replacement: "[BLOCKED]" },
+  { pattern: /forget\s+(all\s+)?(your\s+)?instructions?/gi, replacement: "[BLOCKED]" },
+  { pattern: /you\s+are\s+now\b/gi, replacement: "[BLOCKED]" },
+  { pattern: /new\s+instructions?\s*:/gi, replacement: "[BLOCKED]" },
+  { pattern: /system\s+prompt\s*:/gi, replacement: "[BLOCKED]" },
+]
 
 function truncateForLogging(content: string): string {
   if (content.length <= MAX_LOG_LENGTH) {
@@ -52,59 +95,36 @@ function truncateForLogging(content: string): string {
   return `${content.slice(0, MAX_LOG_LENGTH)}...`
 }
 
-function detectInjection(content: string): { detected: boolean; reason?: string } {
-  for (const pattern of DIRECT_INJECTION_PATTERNS) {
+function matchesAnyPattern(content: string, patterns: readonly RegExp[]): boolean {
+  for (const pattern of patterns) {
     if (pattern.test(content)) {
-      return { detected: true, reason: "Direct injection pattern detected" }
+      return true
     }
   }
+  return false
+}
 
-  for (const pattern of JAILBREAK_PATTERNS) {
-    if (pattern.test(content)) {
-      return { detected: true, reason: "Jailbreak pattern detected" }
-    }
-  }
-
-  for (const pattern of ROLE_HIJACK_PATTERNS) {
-    if (pattern.test(content)) {
-      return { detected: true, reason: "Role hijack pattern detected" }
-    }
-  }
-
-  for (const pattern of DELIMITER_PATTERNS) {
-    if (pattern.test(content)) {
-      return { detected: true, reason: "Delimiter injection pattern detected" }
+function detectInjection(content: string): DetectionResult {
+  for (const group of DETECTION_RULE_GROUPS) {
+    if (matchesAnyPattern(content, group.patterns)) {
+      return { detected: true, reason: group.reason }
     }
   }
 
   return { detected: false }
 }
 
-function sanitizeContent(content: string): string {
-  let sanitized = content
-
-  sanitized = sanitized.replace(/<\|[^|]+\|>/g, "")
-  sanitized = sanitized.replace(/\[SYSTEM\]/gi, "[BLOCKED]")
-  sanitized = sanitized.replace(/\[USER\]/gi, "[BLOCKED]")
-  sanitized = sanitized.replace(/\[ASSISTANT\]/gi, "[BLOCKED]")
-  sanitized = sanitized.replace(/###\s*(SYSTEM|USER|ASSISTANT|INSTRUCTION)/gi, "### BLOCKED")
-  sanitized = sanitized.replace(/\"\"\"[^\n]*instruction/gi, '""" BLOCKED')
-  sanitized = sanitized.replace(/---+\s*(system|instruction)/gi, "--- BLOCKED")
-
-  const injectionPatterns = [
-    /ignore\s+(all\s+)?previous\s+instructions?/gi,
-    /disregard\s+(all\s+)?(previous\s+)?instructions?/gi,
-    /forget\s+(all\s+)?(your\s+)?instructions?/gi,
-    /you\s+are\s+now\b/gi,
-    /new\s+instructions?\s*:/gi,
-    /system\s+prompt\s*:/gi,
-  ]
-
-  for (const pattern of injectionPatterns) {
-    sanitized = sanitized.replace(pattern, "[BLOCKED]")
+function applyReplaceRules(content: string, rules: readonly RegexReplaceRule[]): string {
+  let next = content
+  for (const rule of rules) {
+    next = next.replace(rule.pattern, rule.replacement)
   }
+  return next
+}
 
-  return sanitized
+function sanitizeContent(content: string): string {
+  const structuredSanitized = applyReplaceRules(content, SANITIZE_STRUCTURE_RULES)
+  return applyReplaceRules(structuredSanitized, SANITIZE_DIRECT_INJECTION_RULES)
 }
 
 export interface PromptFilterResult {
@@ -117,36 +137,53 @@ export interface PromptSafetyResult extends PromptFilterResult {
   affordance?: AffordanceResult
 }
 
-export function filterPrompt(prompt: string, userId: string): PromptFilterResult {
+interface FilterTextOptions {
+  userId?: string
+  logMessage: string
+  logErrorMessage: string
+  addSanitizedPrefix: boolean
+}
+
+function filterText(content: string, options: FilterTextOptions): PromptFilterResult {
   try {
-    const detection = detectInjection(prompt)
-
-    if (detection.detected && detection.reason) {
-      log.warn("Prompt injection detected", {
-        userId,
-        reason: detection.reason,
-        preview: truncateForLogging(prompt),
-      })
-
-      const sanitized = SANITIZED_PREFIX + sanitizeContent(prompt)
+    const detection = detectInjection(content)
+    if (!detection.detected) {
       return {
-        safe: false,
-        reason: detection.reason,
-        sanitized,
+        safe: true,
+        sanitized: content,
       }
     }
 
+    const preview = truncateForLogging(content)
+    const metadata = options.userId
+      ? { userId: options.userId, reason: detection.reason, preview }
+      : { reason: detection.reason, preview }
+    log.warn(options.logMessage, metadata)
+
+    const sanitizedBody = sanitizeContent(content)
     return {
-      safe: true,
-      sanitized: prompt,
+      safe: false,
+      reason: detection.reason,
+      sanitized: options.addSanitizedPrefix ? `${SANITIZED_PREFIX}${sanitizedBody}` : sanitizedBody,
     }
   } catch (error) {
-    log.error("filterPrompt error", error)
+    // Fail-open by design to preserve availability; downstream layers still
+    // apply affordance checks and output scanning.
+    log.error(options.logErrorMessage, error)
     return {
       safe: true,
-      sanitized: prompt,
+      sanitized: content,
     }
   }
+}
+
+export function filterPrompt(prompt: string, userId: string): PromptFilterResult {
+  return filterText(prompt, {
+    userId,
+    logMessage: "Prompt injection detected",
+    logErrorMessage: "filterPrompt error",
+    addSanitizedPrefix: true,
+  })
 }
 
 export async function filterPromptWithAffordance(
@@ -176,7 +213,7 @@ export async function filterPromptWithAffordance(
     }
   }
 
-  if (affordance.riskScore >= 0.55) {
+  if (affordance.riskScore >= AFFORDANCE_WARN_THRESHOLD) {
     log.warn("Prompt allowed with affordance warning", {
       userId,
       riskScore: affordance.riskScore,
@@ -193,32 +230,9 @@ export async function filterPromptWithAffordance(
 }
 
 export function filterToolResult(result: string): PromptFilterResult {
-  try {
-    const detection = detectInjection(result)
-
-    if (detection.detected && detection.reason) {
-      log.warn("Tool result injection detected", {
-        reason: detection.reason,
-        preview: truncateForLogging(result),
-      })
-
-      const sanitized = sanitizeContent(result)
-      return {
-        safe: false,
-        reason: detection.reason,
-        sanitized,
-      }
-    }
-
-    return {
-      safe: true,
-      sanitized: result,
-    }
-  } catch (error) {
-    log.error("filterToolResult error", error)
-    return {
-      safe: true,
-      sanitized: result,
-    }
-  }
+  return filterText(result, {
+    logMessage: "Tool result injection detected",
+    logErrorMessage: "filterToolResult error",
+    addSanitizedPrefix: false,
+  })
 }

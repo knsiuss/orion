@@ -39,6 +39,15 @@ export interface EngineMetrics {
 class EngineStatsTracker {
   private readonly records = new Map<string, CallRecord[]>()
 
+  reset(engineName?: string): void {
+    if (engineName) {
+      this.records.delete(engineName)
+      return
+    }
+
+    this.records.clear()
+  }
+
   record(engineName: string, latencyMs: number, success: boolean): void {
     if (!this.records.has(engineName)) {
       this.records.set(engineName, [])

@@ -1,5 +1,5 @@
 /**
- * MessagePipeline — The canonical Orion message processing pipeline.
+ * MessagePipeline - The canonical Orion message processing pipeline.
  *
  * This module is the single source of truth for how a user message is
  * processed from raw input to final response. Both the CLI transport
@@ -8,15 +8,14 @@
  *
  * Pipeline stages (in order):
  *   1. Input safety check (prompt filter + affordance)
- *   2. Link context enrichment (optional)
- *   3. Memory context retrieval (HiMeS + MemRL)
- *   4. Persona / dynamic context detection
- *   5. System prompt assembly (bootstrap + skills + dynamic context)
- *   6. LLM generation (orchestrator)
- *   7. Response critique and refinement (optional)
- *   8. Output safety scan
- *   9. Persistence (database + vector memory + session store)
- *  10. Async side effects (profiler, causal graph) — fire-and-forget
+ *   2. Memory context retrieval
+ *   3. Persona / dynamic context detection
+ *   4. System prompt assembly
+ *   5. LLM generation (orchestrator)
+ *   6. Response critique and refinement (optional)
+ *   7. Output safety scan
+ *   8. Persistence (database + vector memory + session store)
+ *   9. Async side effects (profiler, causal graph) - fire-and-forget
  *
  * @module core/message-pipeline
  */
@@ -24,25 +23,35 @@
 import config from "../config.js"
 import { saveMessage } from "../database/index.js"
 import { orchestrator } from "../engines/orchestrator.js"
-import { filterPromptWithAffordance } from "../security/prompt-filter.js"
-import { outputScanner } from "../security/output-scanner.js"
+import { memory, type BuildContextResult } from "../memory/store.js"
+import { profiler } from "../memory/profiler.js"
+import { causalGraph } from "../memory/causal-graph.js"
+import { sessionSummarizer } from "../memory/session-summarizer.js"
+import { filterPromptWithAffordance, type PromptSafetyResult } from "../security/prompt-filter.js"
+import { outputScanner, type OutputScanResult } from "../security/output-scanner.js"
+import { sessionStore } from "../sessions/session-store.js"
+import { createLogger } from "../logger.js"
 import { responseCritic } from "./critic.js"
 import { personaEngine } from "./persona.js"
 import { buildSystemPrompt } from "./system-prompt-builder.js"
-import { memory } from "../memory/store.js"
-import { profiler } from "../memory/profiler.js"
-import { causalGraph } from "../memory/causal-graph.js"
-import { sessionStore } from "../sessions/session-store.js"
-import { sessionSummarizer } from "../memory/session-summarizer.js"
-import { createLogger } from "../logger.js"
 
 const log = createLogger("core.pipeline")
+
+const BLOCKED_RESPONSE = "Gue tidak bisa bantu dengan itu."
+const PROVISIONAL_MEMORY_REWARD = 0.5
+const CRITIC_MAX_ITERATIONS = 2
+
+const SESSION_HISTORY_LOOKBACK = 100
+const DEFAULT_CONTEXT_WINDOW_TOKENS = 32_000
+const SESSION_COMPACTION_TRIGGER_RATIO = 0.75
+const SESSION_COMPACTION_KEEP_LAST_TURNS = 6
+const APPROX_CHARS_PER_TOKEN = 3
 
 /** Returned by the pipeline so callers can use the response and IDs for MemRL feedback. */
 export interface PipelineResult {
   /** The final, safety-scanned response to send to the user. */
   response: string
-  /** Memory node IDs that were retrieved — used to provide MemRL feedback. */
+  /** Memory node IDs that were retrieved - used to provide MemRL feedback. */
   retrievedMemoryIds: string[]
   /** Estimated provisional reward before user follow-up is known. */
   provisionalReward: number
@@ -53,6 +62,215 @@ export interface PipelineOptions {
   channel: string
   /** Session mode for system prompt assembly. */
   sessionMode?: "dm" | "group" | "subagent"
+}
+
+function blockedResult(): PipelineResult {
+  return {
+    response: BLOCKED_RESPONSE,
+    retrievedMemoryIds: [],
+    provisionalReward: 0,
+  }
+}
+
+function addSessionMessage(
+  userId: string,
+  channel: string,
+  role: "user" | "assistant",
+  content: string,
+): void {
+  sessionStore.addMessage(userId, channel, {
+    role,
+    content,
+    timestamp: Date.now(),
+  })
+}
+
+function buildUserMessageMetadata(
+  channel: string,
+  inputSafety: PromptSafetyResult,
+  rawText: string,
+  safeText: string,
+): Record<string, unknown> {
+  return {
+    role: "user",
+    channel,
+    category: "event",
+    level: 0,
+    security: {
+      affordance: inputSafety.affordance ?? null,
+      sanitized: safeText !== rawText,
+    },
+  }
+}
+
+function buildAssistantMessageMetadata(
+  channel: string,
+  scanResult: OutputScanResult,
+  rawAssistantResponse: string,
+  finalResponse: string,
+): Record<string, unknown> {
+  return {
+    role: "assistant",
+    channel,
+    category: "summary",
+    level: 0,
+    security: {
+      outputIssues: scanResult.issues,
+      sanitized: finalResponse !== rawAssistantResponse,
+    },
+  }
+}
+
+async function persistUserMessageAndBuildContext(
+  userId: string,
+  channel: string,
+  rawText: string,
+  safeText: string,
+  inputSafety: PromptSafetyResult,
+): Promise<BuildContextResult> {
+  const userMeta = buildUserMessageMetadata(channel, inputSafety, rawText, safeText)
+
+  // Persistence and retrieval are independent; run them together to avoid
+  // paying sequential latency for every user turn.
+  const [, context] = await Promise.all([
+    saveMessage(userId, "user", safeText, channel, userMeta),
+    memory.buildContext(userId, safeText),
+  ])
+
+  addSessionMessage(userId, channel, "user", safeText)
+  return context
+}
+
+function estimateSessionTokens(history: Array<{ content: string }>): number {
+  // A conservative char-based estimate is intentionally provider-agnostic and
+  // stable even when routing switches across model vendors/tokenizers.
+  return history.reduce((sum, message) => {
+    const chars = typeof message.content === "string" ? message.content.length : 0
+    return sum + Math.ceil(chars / APPROX_CHARS_PER_TOKEN)
+  }, 0)
+}
+
+function resolveContextWindowLimit(): number {
+  const configuredLimit = config.SESSION_CONTEXT_WINDOW_TOKENS ?? DEFAULT_CONTEXT_WINDOW_TOKENS
+  return Math.max(1, configuredLimit)
+}
+
+async function maybeCompactSessionHistory(userId: string, channel: string): Promise<void> {
+  if (!config.SESSION_COMPACTION_ENABLED) {
+    return
+  }
+
+  // Best effort only: compaction improves future turns but must not block the
+  // current response path if summarization is unavailable or fails.
+  try {
+    const sessionHistory = await sessionStore.getSessionHistory(userId, channel, SESSION_HISTORY_LOOKBACK)
+    if (sessionHistory.length === 0) {
+      return
+    }
+
+    const estimatedTokens = estimateSessionTokens(sessionHistory)
+    const contextWindowLimit = resolveContextWindowLimit()
+    const fillRatio = estimatedTokens / contextWindowLimit
+
+    if (fillRatio < SESSION_COMPACTION_TRIGGER_RATIO) {
+      return
+    }
+
+    log.info("session compaction triggered", {
+      userId,
+      channel,
+      estimatedTokens,
+      fillRatio: fillRatio.toFixed(2),
+    })
+
+    await sessionSummarizer.compress(userId, channel, SESSION_COMPACTION_KEEP_LAST_TURNS)
+  } catch (err) {
+    log.warn("session compaction failed, continuing with full session", { userId, err })
+  }
+}
+
+async function buildPersonaDynamicContext(
+  userId: string,
+  safeText: string,
+): Promise<string | undefined> {
+  if (!config.PERSONA_ENABLED) {
+    return undefined
+  }
+
+  const [profile, profileSummary] = await Promise.all([
+    profiler.getProfile(userId),
+    profiler.formatForContext(userId),
+  ])
+
+  const mood = personaEngine.detectMood(safeText, profile?.currentTopics ?? [])
+  const expertise = personaEngine.detectExpertise(profile, safeText)
+  const topicCategory = personaEngine.detectTopicCategory(safeText)
+
+  return personaEngine.buildDynamicContext(
+    {
+      userMood: mood,
+      userExpertise: expertise,
+      topicCategory,
+      urgency: mood === "stressed",
+    },
+    profileSummary,
+  )
+}
+
+function buildGenerationPrompt(systemContext: string, safeText: string): string {
+  return systemContext ? `${systemContext}\n\nUser: ${safeText}` : safeText
+}
+
+function scanAssistantResponse(userId: string, rawResponse: string): {
+  response: string
+  scanResult: OutputScanResult
+} {
+  const scanResult = outputScanner.scan(rawResponse)
+  if (!scanResult.safe) {
+    log.warn("assistant output sanitized", { userId, issues: scanResult.issues })
+  }
+
+  return {
+    response: scanResult.sanitized,
+    scanResult,
+  }
+}
+
+async function persistAssistantResponse(
+  userId: string,
+  channel: string,
+  response: string,
+  rawAssistantResponse: string,
+  scanResult: OutputScanResult,
+): Promise<void> {
+  const assistantMeta = buildAssistantMessageMetadata(
+    channel,
+    scanResult,
+    rawAssistantResponse,
+    response,
+  )
+
+  await Promise.all([
+    saveMessage(userId, "assistant", response, channel, assistantMeta),
+    memory.save(userId, response, assistantMeta),
+  ])
+
+  addSessionMessage(userId, channel, "assistant", response)
+}
+
+function launchAsyncSideEffects(userId: string, safeText: string): void {
+  // These are deferred because they improve future context quality and should
+  // never delay delivery of the current reply.
+  void profiler.extractFromMessage(userId, safeText, "user")
+    .then(({ facts, opinions }) => profiler.updateProfile(userId, facts, opinions))
+    .catch((err) => log.warn("profiler async extraction failed", { userId, err }))
+
+  void causalGraph.extractAndUpdate(userId, safeText)
+    .catch((err) => log.warn("causal graph async update failed", { userId, err }))
+}
+
+function computeProvisionalReward(retrievedMemoryIds: string[]): number {
+  return retrievedMemoryIds.length > 0 ? PROVISIONAL_MEMORY_REWARD : 0
 }
 
 /**
@@ -70,76 +288,28 @@ export async function processMessage(
 ): Promise<PipelineResult> {
   const { channel, sessionMode = "dm" } = options
 
-  // ── Stage 1: Input safety ──────────────────────────────────────────────────
+  // Stage 1: Input safety
   const inputSafety = await filterPromptWithAffordance(rawText, userId)
   if (!inputSafety.safe && inputSafety.affordance?.shouldBlock) {
     log.warn("message blocked by affordance checker", { userId, channel })
-    return {
-      response: "Gue tidak bisa bantu dengan itu.",
-      retrievedMemoryIds: [],
-      provisionalReward: 0,
-    }
+    return blockedResult()
   }
   const safeText = inputSafety.sanitized
 
-  // ── Stage 2: Memory context retrieval ─────────────────────────────────────
-  const [, { messages, systemContext, retrievedMemoryIds }] = await Promise.all([
-    saveMessage(userId, "user", safeText, channel, {
-      role: "user", channel, category: "event", level: 0,
-      security: { affordance: inputSafety.affordance ?? null, sanitized: safeText !== rawText },
-    }),
-    memory.buildContext(userId, safeText),
-  ])
-  sessionStore.addMessage(userId, channel, {
-    role: "user", content: safeText, timestamp: Date.now(),
-  })
+  // Stage 2: Persist user input and build retrieval context
+  const { messages, systemContext, retrievedMemoryIds } = await persistUserMessageAndBuildContext(
+    userId,
+    channel,
+    rawText,
+    safeText,
+    inputSafety,
+  )
 
-  // ── Stage 2.5: Session Compaction (if needed) ─────────────────────────────
-  // Phase I-3: Multimodal-safe token estimation with 75% context window trigger
-  if (config.SESSION_COMPACTION_ENABLED) {
-    try {
-      const currentSession = sessionStore.getOrCreateSession(userId, channel)
-      const sessionHistory = await sessionStore.getSessionHistory(userId, channel, 100)
-      
-      if (sessionHistory?.length > 0) {
-        // Phase I-3: Multimodal-safe token estimate
-        // Uses 3 chars per token (conservative, handles non-English)
-        const estimatedTokens = sessionHistory.reduce((sum, msg) => {
-          const chars = typeof msg.content === "string" ? msg.content.length : 0
-          return sum + Math.ceil(chars / 3)
-        }, 0)
+  // Stage 2.5: Opportunistic session compaction (best effort)
+  await maybeCompactSessionHistory(userId, channel)
 
-        const contextWindowLimit = config.SESSION_CONTEXT_WINDOW_TOKENS ?? 32_000
-        const fillRatio = estimatedTokens / contextWindowLimit
-
-        if (fillRatio >= 0.75) {
-          log.info("session compaction triggered", {
-            userId, channel, estimatedTokens, fillRatio: fillRatio.toFixed(2),
-          })
-          await sessionSummarizer.compress(userId, channel, 6) // keep last 6 turns verbatim
-        }
-      }
-    } catch (err) {
-      log.warn("session compaction failed, continuing with full session", { userId, err })
-    }
-  }
-
-  // ── Stage 3 + 4: Persona detection + system prompt assembly ───────────────
-  let dynamicContext: string | undefined
-  if (config.PERSONA_ENABLED) {
-    const [profile, profileSummary] = await Promise.all([
-      profiler.getProfile(userId),
-      profiler.formatForContext(userId),
-    ])
-    const mood = personaEngine.detectMood(safeText, profile?.currentTopics ?? [])
-    const expertise = personaEngine.detectExpertise(profile, safeText)
-    const topicCategory = personaEngine.detectTopicCategory(safeText)
-    dynamicContext = personaEngine.buildDynamicContext(
-      { userMood: mood, userExpertise: expertise, topicCategory, urgency: mood === "stressed" },
-      profileSummary,
-    )
-  }
-
+  // Stage 3 + 4: Persona detection and system prompt assembly
+  const dynamicContext = await buildPersonaDynamicContext(userId, safeText)
   const systemPrompt = await buildSystemPrompt({
     sessionMode,
     includeSkills: true,
@@ -147,12 +317,12 @@ export async function processMessage(
     extraContext: dynamicContext,
   })
 
-  // ── Stage 5: LLM generation ───────────────────────────────────────────────
-  const prompt = systemContext ? `${systemContext}\n\nUser: ${safeText}` : safeText
+  // Stage 5: LLM generation
+  const prompt = buildGenerationPrompt(systemContext, safeText)
   const raw = await orchestrator.generate("reasoning", { prompt, context: messages, systemPrompt })
 
-  // ── Stage 6: Critique and refinement ──────────────────────────────────────
-  const critiqued = await responseCritic.critiqueAndRefine(safeText, raw, 2)
+  // Stage 6: Critique and refinement
+  const critiqued = await responseCritic.critiqueAndRefine(safeText, raw, CRITIC_MAX_ITERATIONS)
   if (critiqued.refined) {
     log.debug("response refined by critic", {
       score: critiqued.critique.score,
@@ -160,36 +330,24 @@ export async function processMessage(
     })
   }
 
-  // ── Stage 7: Output safety scan ───────────────────────────────────────────
-  const scanResult = outputScanner.scan(critiqued.finalResponse)
-  if (!scanResult.safe) {
-    log.warn("assistant output sanitized", { userId, issues: scanResult.issues })
+  // Stage 7: Output safety scan
+  const { response, scanResult } = scanAssistantResponse(userId, critiqued.finalResponse)
+
+  // Stage 8: Persist assistant response
+  await persistAssistantResponse(
+    userId,
+    channel,
+    response,
+    critiqued.finalResponse,
+    scanResult,
+  )
+
+  // Stage 9: Async side effects (fire-and-forget)
+  launchAsyncSideEffects(userId, safeText)
+
+  return {
+    response,
+    retrievedMemoryIds,
+    provisionalReward: computeProvisionalReward(retrievedMemoryIds),
   }
-  const response = scanResult.sanitized
-
-  // ── Stage 8: Persist assistant response ───────────────────────────────────
-  const assistantMeta = {
-    role: "assistant", channel, category: "summary", level: 0,
-    security: { outputIssues: scanResult.issues, sanitized: response !== critiqued.finalResponse },
-  }
-  await Promise.all([
-    saveMessage(userId, "assistant", response, channel, assistantMeta),
-    memory.save(userId, response, assistantMeta),
-  ])
-  sessionStore.addMessage(userId, channel, {
-    role: "assistant", content: response, timestamp: Date.now(),
-  })
-
-  // ── Stage 9: Async side effects (fire-and-forget) ─────────────────────────
-  void profiler.extractFromMessage(userId, safeText, "user")
-    .then(({ facts, opinions }) => profiler.updateProfile(userId, facts, opinions))
-    .catch((err) => log.warn("profiler async extraction failed", { userId, err }))
-
-  void causalGraph.extractAndUpdate(userId, safeText)
-    .catch((err) => log.warn("causal graph async update failed", { userId, err }))
-
-  // Provisional MemRL reward — will be refined on next user turn
-  const provisionalReward = retrievedMemoryIds.length > 0 ? 0.5 : 0
-
-  return { response, retrievedMemoryIds, provisionalReward }
 }

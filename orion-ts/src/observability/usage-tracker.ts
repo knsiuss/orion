@@ -18,6 +18,8 @@ import { prisma } from "../database/index.js"
 import { createLogger } from "../logger.js"
 
 const log = createLogger("observability.usage")
+const DEFAULT_UNKNOWN_COST_PER_1M_TOKENS = 1
+const MIN_FLUSH_INTERVAL_MS = 250
 
 /**
  * Supported LLM providers for usage tracking
@@ -132,6 +134,8 @@ export class UsageTracker {
   private pricingTable: Map<string, ModelPricing> = new Map()
   private flushTimer: NodeJS.Timeout | null = null
   private isShuttingDown = false
+  private flushInFlight: Promise<void> | null = null
+  private flushQueued = false
 
   constructor(config: Partial<RingBufferConfig> = {}) {
     this.config = { ...DEFAULT_RING_BUFFER_CONFIG, ...config }
@@ -156,22 +160,23 @@ export class UsageTracker {
    * Start the periodic flush timer
    */
   private startFlushTimer(): void {
+    const flushIntervalMs = Math.max(MIN_FLUSH_INTERVAL_MS, this.config.flushIntervalMs)
     this.flushTimer = setInterval(() => {
       void this.flush()
-    }, this.config.flushIntervalMs)
+    }, flushIntervalMs)
+    this.flushTimer.unref?.()
   }
 
   /**
    * Stop the flush timer (for shutdown)
    */
-  stop(): void {
+  async stop(): Promise<void> {
     this.isShuttingDown = true
     if (this.flushTimer) {
       clearInterval(this.flushTimer)
       this.flushTimer = null
     }
-    // Final flush
-    void this.flush()
+    await this.flush()
   }
 
   /**
@@ -180,11 +185,15 @@ export class UsageTracker {
    * @param record - Usage record to track
    */
   async recordUsage(record: Omit<UsageRecord, "id" | "createdAt" | "estimatedCostUsd">): Promise<void> {
+    const promptTokens = Math.max(0, Math.floor(record.promptTokens))
+    const completionTokens = Math.max(0, Math.floor(record.completionTokens))
+    const latencyMs = Math.max(0, Math.floor(record.latencyMs))
+
     const estimatedCost = this.estimateCost(
       record.provider,
       record.model,
-      record.promptTokens,
-      record.completionTokens,
+      promptTokens,
+      completionTokens,
     )
 
     const fullRecord: UsageRecord = {
@@ -192,7 +201,10 @@ export class UsageTracker {
       id: crypto.randomUUID(),
       createdAt: new Date(),
       estimatedCostUsd: estimatedCost,
-      totalTokens: record.promptTokens + record.completionTokens,
+      promptTokens,
+      completionTokens,
+      latencyMs,
+      totalTokens: promptTokens + completionTokens,
     }
 
     if (this.config.enabled && !this.isShuttingDown) {
@@ -213,6 +225,27 @@ export class UsageTracker {
    * Flush ring buffer to database
    */
   private async flush(): Promise<void> {
+    if (this.flushInFlight) {
+      this.flushQueued = true
+      return this.flushInFlight
+    }
+
+    this.flushInFlight = this.flushLoop()
+    try {
+      await this.flushInFlight
+    } finally {
+      this.flushInFlight = null
+    }
+  }
+
+  private async flushLoop(): Promise<void> {
+    do {
+      this.flushQueued = false
+      await this.flushOnce()
+    } while (this.flushQueued)
+  }
+
+  private async flushOnce(): Promise<void> {
     if (this.ringBuffer.length === 0) {
       return
     }
@@ -221,7 +254,7 @@ export class UsageTracker {
     this.ringBuffer = []
 
     try {
-      // Batch insert using Prisma - create array of promises
+      // Batch insert via transaction for durability and lower round-trip overhead.
       const promises = batch.map((rec) =>
         prisma.usageEvent.create({
           data: {
@@ -294,24 +327,59 @@ export class UsageTracker {
     promptTokens: number,
     completionTokens: number,
   ): number {
-    // Try exact match first
-    let pricing = this.pricingTable.get(`${provider}:${model}`)
-    
-    // Fall back to wildcard for ollama
-    if (!pricing && provider === "ollama") {
-      pricing = this.pricingTable.get("ollama:*")
-    }
+    const normalizedProvider = provider.trim().toLowerCase()
+    const normalizedModel = model.trim().toLowerCase()
+
+    let pricing = this.resolvePricing(normalizedProvider, normalizedModel)
     
     if (!pricing) {
       // Default pricing if not found
       log.warn(`Unknown pricing for ${provider}:${model}, using defaults`)
-      return (promptTokens + completionTokens) * 0.000001 // $1 per 1M tokens
+      return ((promptTokens + completionTokens) / 1_000_000) * DEFAULT_UNKNOWN_COST_PER_1M_TOKENS
     }
 
     const promptCost = (promptTokens / 1000) * pricing.promptPricePer1k
     const completionCost = (completionTokens / 1000) * pricing.completionPricePer1k
     
     return promptCost + completionCost
+  }
+
+  private resolvePricing(provider: string, model: string): ModelPricing | undefined {
+    const exact = this.pricingTable.get(`${provider}:${model}`)
+    if (exact) {
+      return exact
+    }
+
+    const providerWildcard = this.pricingTable.get(`${provider}:*`)
+    if (providerWildcard) {
+      return providerWildcard
+    }
+
+    if (provider === "openrouter") {
+      const routedModel = model.includes("/") ? model.split("/").slice(1).join("/") : model
+      const candidateModels = [routedModel, model]
+      const candidateProviders: LLMProvider[] = ["anthropic", "openai", "google", "groq"]
+
+      for (const candidateProvider of candidateProviders) {
+        for (const candidateModel of candidateModels) {
+          const candidate = this.pricingTable.get(`${candidateProvider}:${candidateModel}`)
+          if (candidate) {
+            return candidate
+          }
+        }
+      }
+
+      for (const pricing of this.pricingTable.values()) {
+        if (pricing.provider === "ollama" || pricing.model === "*") {
+          continue
+        }
+        if (model.includes(pricing.model.toLowerCase())) {
+          return pricing
+        }
+      }
+    }
+
+    return undefined
   }
 
   /**
@@ -336,6 +404,8 @@ export class UsageTracker {
     byModel: Record<string, { requests: number; tokens: number; cost: number }>
     daily: Array<{ date: string; requests: number; tokens: number; cost: number }>
   }> {
+    await this.flush()
+
     const events = await prisma.usageEvent.findMany({
       where: {
         userId,
@@ -422,6 +492,8 @@ export class UsageTracker {
     uniqueUsers: number
     topUsers: Array<{ userId: string; requests: number; cost: number }>
   }> {
+    await this.flush()
+
     const events = await prisma.usageEvent.findMany({
       where: {
         timestamp: {
@@ -482,6 +554,13 @@ export class UsageTracker {
       maxSize: this.config.maxSize,
       enabled: this.config.enabled,
     }
+  }
+
+  resetForTests(): void {
+    this.ringBuffer = []
+    this.flushQueued = false
+    this.flushInFlight = null
+    this.isShuttingDown = false
   }
 }
 

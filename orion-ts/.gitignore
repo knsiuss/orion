@@ -22,3 +22,6 @@ workspace/skills/*
 !workspace/skills/.gitkeep
 !workspace/skills/templates/
 !workspace/skills/templates/**
+
+# Local documentation scratch notes (keep tracked docs clean)
+docs/_local/

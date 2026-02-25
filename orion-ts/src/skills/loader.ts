@@ -12,7 +12,7 @@ const SKILL_DIR_WORKSPACE = path.resolve(process.cwd(), "workspace", "skills")
 const SKILL_DIR_MANAGED = path.resolve(HOME_DIR, ".orion", "skills")
 const SKILL_DIR_BUNDLED = path.resolve(process.cwd(), "src", "skills", "bundled")
 
-const SKILL_DIRS_BY_PRECEDENCE = [
+const SKILL_DIRS_BY_PRECEDENCE: readonly string[] = [
   SKILL_DIR_WORKSPACE,
   SKILL_DIR_MANAGED,
   SKILL_DIR_BUNDLED,
@@ -63,38 +63,62 @@ interface ParsedFrontmatter {
   requiresConfigs: string[]
 }
 
-function parseFrontmatter(skillMdContent: string): ParsedFrontmatter | null {
-  const match = skillMdContent.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  if (!match) {
-    return null
+interface DiscoveredSkill {
+  meta: SkillMeta
+  content: string
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function normalizeName(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function normalizeToolKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "")
+}
+
+function expandHomePath(rawPath: string): string {
+  if (rawPath.startsWith("~/") || rawPath === "~") {
+    return path.resolve(HOME_DIR, rawPath.slice(2))
+  }
+  return path.resolve(rawPath)
+}
+
+function stripCommentsFromUnquotedScalar(raw: string): string {
+  let result = ""
+  let prev = ""
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index]
+    if (char === "#" && /\s/.test(prev || " ")) {
+      break
+    }
+    result += char
+    prev = char
   }
 
-  const yaml = match[1]
+  return result.trim()
+}
 
-  try {
-    const requiresBlock = extractYamlBlock(yaml, "requires")
-    const parsed: ParsedFrontmatter = {
-      name: parseScalar(yaml, "name"),
-      description: parseScalar(yaml, "description"),
-      version: parseScalar(yaml, "version"),
-      alwaysActive: parseBoolean(yaml, "alwaysActive"),
-      emoji: parseScalar(yaml, "emoji"),
-      os: parseList(yaml, "os"),
-      invokeKey: parseScalar(yaml, "invokeKey"),
-      requiresEnv: parseList(requiresBlock, "env"),
-      requiresBins: parseList(requiresBlock, "bins"),
-      requiresAnyBins: parseList(requiresBlock, "anyBins"),
-      requiresConfigs: parseList(requiresBlock, "configs"),
-    }
-
-    if (!parsed.name || parsed.name.trim().length === 0) {
-      return null
-    }
-
-    return parsed
-  } catch {
-    return null
+function sanitizeScalar(raw: string): string | undefined {
+  const trimmed = raw.trim()
+  if (!trimmed) {
+    return undefined
   }
+
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+    || (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    const inner = trimmed.slice(1, -1).trim()
+    return inner.length > 0 ? inner : undefined
+  }
+
+  const noComment = stripCommentsFromUnquotedScalar(trimmed)
+  return noComment.length > 0 ? noComment : undefined
 }
 
 function extractYamlBlock(yaml: string, key: string): string {
@@ -148,7 +172,46 @@ function parseBoolean(yaml: string, key: string): boolean {
     return false
   }
 
-  return value.trim().toLowerCase() === "true"
+  const normalized = value.trim().toLowerCase()
+  return normalized === "true" || normalized === "1" || normalized === "yes"
+}
+
+function splitInlineList(rawItems: string): string[] {
+  const result: string[] = []
+  let current = ""
+  let quote: "'" | '"' | null = null
+
+  for (let index = 0; index < rawItems.length; index += 1) {
+    const char = rawItems[index]
+
+    if ((char === "'" || char === '"')) {
+      if (!quote) {
+        quote = char
+      } else if (quote === char) {
+        quote = null
+      }
+      current += char
+      continue
+    }
+
+    if (char === "," && !quote) {
+      const item = sanitizeScalar(current)
+      if (item) {
+        result.push(item)
+      }
+      current = ""
+      continue
+    }
+
+    current += char
+  }
+
+  const finalItem = sanitizeScalar(current)
+  if (finalItem) {
+    result.push(finalItem)
+  }
+
+  return result
 }
 
 function parseList(yaml: string, key: string): string[] {
@@ -170,11 +233,7 @@ function parseList(yaml: string, key: string): string[] {
     const remainder = (match[2] ?? "").trim()
 
     if (remainder.startsWith("[") && remainder.endsWith("]")) {
-      const rawItems = remainder.slice(1, -1)
-      return rawItems
-        .split(",")
-        .map((item) => sanitizeScalar(item))
-        .filter((item): item is string => Boolean(item))
+      return splitInlineList(remainder.slice(1, -1))
     }
 
     if (remainder.length > 0 && !remainder.startsWith("#")) {
@@ -212,39 +271,42 @@ function parseList(yaml: string, key: string): string[] {
   return []
 }
 
-function sanitizeScalar(raw: string): string | undefined {
-  const noComment = raw.replace(/\s+#.*$/, "").trim()
-  if (!noComment) {
-    return undefined
+function parseFrontmatter(skillMdContent: string): ParsedFrontmatter | null {
+  const match = skillMdContent.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
+  if (!match) {
+    return null
   }
 
-  if (
-    (noComment.startsWith('"') && noComment.endsWith('"'))
-    || (noComment.startsWith("'") && noComment.endsWith("'"))
-  ) {
-    return noComment.slice(1, -1).trim()
+  const yaml = match[1]
+
+  try {
+    const requiresBlock = extractYamlBlock(yaml, "requires")
+    const parsed: ParsedFrontmatter = {
+      name: parseScalar(yaml, "name"),
+      description: parseScalar(yaml, "description"),
+      version: parseScalar(yaml, "version"),
+      alwaysActive: parseBoolean(yaml, "alwaysActive"),
+      emoji: parseScalar(yaml, "emoji"),
+      os: parseList(yaml, "os"),
+      invokeKey: parseScalar(yaml, "invokeKey"),
+      requiresEnv: parseList(requiresBlock, "env"),
+      requiresBins: parseList(requiresBlock, "bins"),
+      requiresAnyBins: parseList(requiresBlock, "anyBins"),
+      requiresConfigs: parseList(requiresBlock, "configs"),
+    }
+
+    if (!parsed.name || parsed.name.trim().length === 0) {
+      return null
+    }
+
+    return parsed
+  } catch {
+    return null
   }
-
-  return noComment
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-}
-
-function normalizeName(value: string): string {
-  return value.trim().toLowerCase()
-}
-
-function normalizeToolKey(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "")
-}
-
-function expandHomePath(rawPath: string): string {
-  if (rawPath.startsWith("~/") || rawPath === "~") {
-    return path.resolve(HOME_DIR, rawPath.slice(2))
-  }
-  return path.resolve(rawPath)
+function sortDirents(entries: readonly Dirent[]): Dirent[] {
+  return [...entries].sort((left, right) => String(left.name).localeCompare(String(right.name)))
 }
 
 export class SkillLoader {
@@ -258,93 +320,39 @@ export class SkillLoader {
   async buildSnapshot(): Promise<SkillSnapshot> {
     const seen = new Set<string>()
     const skills: SkillMeta[] = []
+    const nextContentCache = new Map<string, string>()
     const platform = this.getPlatformName()
 
     for (const dir of SKILL_DIRS_BY_PRECEDENCE) {
-      let entries: Dirent<string>[]
-      try {
-        entries = await fs.readdir(dir, { withFileTypes: true })
-      } catch {
+      const entries = await this.readDirectoryEntries(dir)
+      if (entries.length === 0) {
         continue
       }
 
-      const sortedEntries = [...entries].sort((left, right) => {
-        return String(left.name).localeCompare(String(right.name))
-      })
-
-      for (const entry of sortedEntries) {
+      for (const entry of sortDirents(entries)) {
         if (!entry.isDirectory()) {
           continue
         }
 
-        const folderName = String(entry.name)
-        const skillMdPath = path.resolve(dir, folderName, "SKILL.md")
-
-        let content = ""
-        try {
-          content = await fs.readFile(skillMdPath, "utf-8")
-        } catch {
+        const discovered = await this.discoverSkillFromDirectory(dir, entry, platform, seen)
+        if (!discovered) {
           continue
         }
 
-        const parsed = parseFrontmatter(content)
-        if (!parsed?.name) {
-          continue
-        }
-
-        const name = String(parsed.name)
-        const canonicalName = normalizeName(name)
-
-        if (seen.has(canonicalName)) {
-          continue
-        }
-
-        const osList = parsed.os.map((value) => value.toLowerCase())
-        if (osList.length > 0 && !osList.includes(platform)) {
-          log.debug("skill filtered by os", { name, skillOs: osList, platform })
-          continue
-        }
-
-        if (this.disabledSkills.has(canonicalName)) {
-          log.debug("skill disabled by config", { name })
-          continue
-        }
-
-        const skill: SkillMeta = {
-          name,
-          description: String(parsed.description ?? "").slice(0, 120),
-          location: skillMdPath,
-          alwaysActive: Boolean(parsed.alwaysActive),
-          os: osList,
-          requires: {
-            env: parsed.requiresEnv,
-            bins: parsed.requiresBins,
-            anyBins: parsed.requiresAnyBins,
-            configs: parsed.requiresConfigs,
-          },
-          invokeKey: parsed.invokeKey?.trim().length
-            ? parsed.invokeKey.trim()
-            : folderName,
-          emoji: parsed.emoji?.trim().length ? parsed.emoji.trim() : undefined,
-          version: parsed.version?.trim().length ? parsed.version.trim() : undefined,
-          enabled: true,
-        }
-
-        const meetsRequirements = await this.meetsRequirements(skill)
-        if (!meetsRequirements) {
-          continue
-        }
-
-        seen.add(canonicalName)
-        skills.push(skill)
-        this.contentCache.set(skillMdPath, content)
-        log.debug("skill discovered", { name: skill.name, alwaysActive: skill.alwaysActive })
+        seen.add(normalizeName(discovered.meta.name))
+        skills.push(discovered.meta)
+        nextContentCache.set(discovered.meta.location, discovered.content)
+        log.debug("skill discovered", {
+          name: discovered.meta.name,
+          alwaysActive: discovered.meta.alwaysActive,
+        })
       }
     }
 
     const alwaysActiveSkills = skills.filter((skill) => skill.alwaysActive)
     const indexedSkills = skills.filter((skill) => !skill.alwaysActive)
 
+    this.contentCache = nextContentCache
     this.snapshot = {
       skills,
       builtAt: Date.now(),
@@ -372,39 +380,29 @@ export class SkillLoader {
   async getIndexForPrompt(options: SkillEligibilityOptions = {}): Promise<string> {
     const snapshot = await this.getSnapshot()
     const eligible = this.filterByToolPolicy(snapshot.skills, options)
-    const indexedSkills = eligible.filter((skill) => !skill.alwaysActive)
-    return this.buildXmlIndex(indexedSkills)
+    return this.buildXmlIndex(eligible.filter((skill) => !skill.alwaysActive))
   }
 
   async getAlwaysActiveContent(options: SkillEligibilityOptions = {}): Promise<string> {
     const snapshot = await this.getSnapshot()
     const eligible = this.filterByToolPolicy(snapshot.skills, options)
-    const alwaysActiveSkills = eligible.filter((skill) => skill.alwaysActive)
-    return this.buildAlwaysActiveContent(alwaysActiveSkills)
+    return this.buildAlwaysActiveContent(eligible.filter((skill) => skill.alwaysActive))
   }
 
   async loadSkillContent(location: string): Promise<string | null> {
-    const resolved = path.resolve(location)
-
-    if (path.basename(resolved).toLowerCase() !== "skill.md") {
-      log.warn("blocked non-skill file request", { location })
+    const allowedPath = await this.resolveAllowedSkillFilePath(location)
+    if (!allowedPath) {
       return null
     }
 
-    const allowed = SKILL_DIRS_BY_PRECEDENCE.some((dir) => this.isWithinDirectory(resolved, dir))
-    if (!allowed) {
-      log.warn("blocked skill path traversal attempt", { location })
-      return null
-    }
-
-    const cached = this.contentCache.get(resolved)
+    const cached = this.contentCache.get(allowedPath)
     if (cached) {
       return cached
     }
 
     try {
-      const content = await fs.readFile(resolved, "utf-8")
-      this.contentCache.set(resolved, content)
+      const content = await fs.readFile(allowedPath, "utf-8")
+      this.contentCache.set(allowedPath, content)
       return content
     } catch {
       return null
@@ -412,27 +410,16 @@ export class SkillLoader {
   }
 
   startWatching(options: { enabled?: boolean; debounceMs?: number } = {}): void {
-    if (options.enabled === false) {
-      return
-    }
-
-    if (this.watchers.length > 0) {
+    if (options.enabled === false || this.watchers.length > 0) {
       return
     }
 
     this.watchDebounceMs = Math.max(100, options.debounceMs ?? DEFAULT_WATCH_DEBOUNCE_MS)
 
     for (const dir of SKILL_DIRS_BY_PRECEDENCE) {
-      try {
-        const watcher = watch(dir, { recursive: true }, () => this.scheduleSnapshotRefresh())
+      const watcher = this.createWatcher(dir)
+      if (watcher) {
         this.watchers.push(watcher)
-      } catch {
-        try {
-          const watcher = watch(dir, () => this.scheduleSnapshotRefresh())
-          this.watchers.push(watcher)
-        } catch {
-          continue
-        }
       }
     }
 
@@ -461,6 +448,11 @@ export class SkillLoader {
     }
   }
 
+  dispose(): void {
+    this.stopWatching()
+    this.invalidateSnapshot()
+  }
+
   setDisabledSkills(names: string[]): void {
     this.disabledSkills = new Set(names.map((name) => normalizeName(name)))
     this.invalidateSnapshot()
@@ -469,6 +461,93 @@ export class SkillLoader {
   invalidateSnapshot(): void {
     this.snapshot = null
     this.contentCache.clear()
+  }
+
+  private async readDirectoryEntries(dir: string): Promise<Dirent[]> {
+    try {
+      return await fs.readdir(dir, { withFileTypes: true })
+    } catch {
+      return []
+    }
+  }
+
+  private async discoverSkillFromDirectory(
+    dir: string,
+    entry: Dirent,
+    platform: string,
+    seen: Set<string>,
+  ): Promise<DiscoveredSkill | null> {
+    const folderName = String(entry.name)
+    const skillMdPath = path.resolve(dir, folderName, "SKILL.md")
+
+    let content: string
+    try {
+      content = await fs.readFile(skillMdPath, "utf-8")
+    } catch {
+      return null
+    }
+
+    const parsed = parseFrontmatter(content)
+    if (!parsed?.name) {
+      return null
+    }
+
+    const name = String(parsed.name)
+    const canonicalName = normalizeName(name)
+    if (seen.has(canonicalName)) {
+      return null
+    }
+
+    const osList = parsed.os.map((value) => value.toLowerCase())
+    if (osList.length > 0 && !osList.includes(platform)) {
+      log.debug("skill filtered by os", { name, skillOs: osList, platform })
+      return null
+    }
+
+    if (this.disabledSkills.has(canonicalName)) {
+      log.debug("skill disabled by config", { name })
+      return null
+    }
+
+    const skill = this.buildSkillMeta(parsed, folderName, skillMdPath)
+    if (!(await this.meetsRequirements(skill))) {
+      return null
+    }
+
+    return { meta: skill, content }
+  }
+
+  private buildSkillMeta(parsed: ParsedFrontmatter, folderName: string, skillMdPath: string): SkillMeta {
+    const invokeKey = parsed.invokeKey?.trim().length ? parsed.invokeKey.trim() : folderName
+    return {
+      name: parsed.name!,
+      description: String(parsed.description ?? "").slice(0, 120),
+      location: path.resolve(skillMdPath),
+      alwaysActive: Boolean(parsed.alwaysActive),
+      os: parsed.os.map((value) => value.toLowerCase()),
+      requires: {
+        env: parsed.requiresEnv,
+        bins: parsed.requiresBins,
+        anyBins: parsed.requiresAnyBins,
+        configs: parsed.requiresConfigs,
+      },
+      invokeKey,
+      emoji: parsed.emoji?.trim().length ? parsed.emoji.trim() : undefined,
+      version: parsed.version?.trim().length ? parsed.version.trim() : undefined,
+      enabled: true,
+    }
+  }
+
+  private createWatcher(dir: string): FSWatcher | null {
+    try {
+      return watch(dir, { recursive: true }, () => this.scheduleSnapshotRefresh())
+    } catch {
+      try {
+        return watch(dir, () => this.scheduleSnapshotRefresh())
+      } catch {
+        return null
+      }
+    }
   }
 
   private scheduleSnapshotRefresh(): void {
@@ -483,18 +562,14 @@ export class SkillLoader {
         log.warn("failed to refresh skill snapshot", { error })
       })
     }, this.watchDebounceMs)
+    this.watchTimer.unref?.()
   }
 
   private filterByToolPolicy(skills: SkillMeta[], options: SkillEligibilityOptions): SkillMeta[] {
     const providedTools = options.availableTools?.map((tool) => normalizeToolKey(tool)).filter(Boolean) ?? []
     const availableTools = new Set(providedTools)
 
-    if (availableTools.size === 0) {
-      return skills
-    }
-
-    const hasReadSkillTool = availableTools.has(normalizeToolKey("read_skill"))
-    if (hasReadSkillTool) {
+    if (availableTools.size === 0 || availableTools.has(normalizeToolKey("read_skill"))) {
       return skills
     }
 
@@ -520,17 +595,30 @@ export class SkillLoader {
     }
 
     const blocks: string[] = []
-
     for (const skill of skills) {
-      const content = this.contentCache.get(skill.location)
+      const content = await this.getCachedOrReadSkill(skill.location)
       if (!content) {
         continue
       }
-
       blocks.push(`## Skill: ${skill.name}\n\n${content}`)
     }
 
     return blocks.join("\n\n---\n\n")
+  }
+
+  private async getCachedOrReadSkill(location: string): Promise<string | null> {
+    const cached = this.contentCache.get(location)
+    if (cached) {
+      return cached
+    }
+
+    try {
+      const content = await fs.readFile(location, "utf-8")
+      this.contentCache.set(location, content)
+      return content
+    } catch {
+      return null
+    }
   }
 
   private buildXmlIndex(skills: SkillMeta[]): string {
@@ -568,7 +656,7 @@ export class SkillLoader {
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
+      .replace(/"/g, "&quot;")
       .replace(/'/g, "&apos;")
   }
 
@@ -577,78 +665,76 @@ export class SkillLoader {
       const value = process.env[envName]
       return typeof value !== "string" || value.trim().length === 0
     })
-
     if (missingEnv.length > 0) {
-      log.debug("skill filtered by missing env vars", {
-        name: skill.name,
-        missingEnv,
-      })
+      log.debug("skill filtered by missing env vars", { name: skill.name, missingEnv })
       return false
     }
 
-    const missingBins: string[] = []
-    for (const bin of skill.requires.bins) {
-      const exists = await this.binaryExists(bin)
-      if (!exists) {
-        missingBins.push(bin)
-      }
-    }
-
+    const missingBins = await this.findMissingRequiredBins(skill.requires.bins)
     if (missingBins.length > 0) {
-      log.debug("skill filtered by missing bins", {
+      log.debug("skill filtered by missing bins", { name: skill.name, missingBins })
+      return false
+    }
+
+    if (skill.requires.anyBins.length > 0 && !(await this.hasAnyBinary(skill.requires.anyBins))) {
+      log.debug("skill filtered by anyBins requirement", {
         name: skill.name,
-        missingBins,
+        candidates: skill.requires.anyBins,
       })
       return false
     }
 
-    if (skill.requires.anyBins.length > 0) {
-      let hasAnyBin = false
-      for (const candidate of skill.requires.anyBins) {
-        if (await this.binaryExists(candidate)) {
-          hasAnyBin = true
-          break
-        }
-      }
-
-      if (!hasAnyBin) {
-        log.debug("skill filtered by anyBins requirement", {
-          name: skill.name,
-          candidates: skill.requires.anyBins,
-        })
-        return false
-      }
-    }
-
-    const missingConfigs: string[] = []
-    for (const configPath of skill.requires.configs) {
-      try {
-        await fs.access(expandHomePath(configPath), constants.F_OK)
-      } catch {
-        missingConfigs.push(configPath)
-      }
-    }
-
+    const missingConfigs = await this.findMissingConfigPaths(skill.requires.configs)
     if (missingConfigs.length > 0) {
-      log.debug("skill filtered by missing config files", {
-        name: skill.name,
-        missingConfigs,
-      })
+      log.debug("skill filtered by missing config files", { name: skill.name, missingConfigs })
       return false
     }
 
     return true
   }
 
+  private async findMissingRequiredBins(bins: string[]): Promise<string[]> {
+    const missing: string[] = []
+    for (const bin of bins) {
+      if (!(await this.binaryExists(bin))) {
+        missing.push(bin)
+      }
+    }
+    return missing
+  }
+
+  private async hasAnyBinary(candidates: string[]): Promise<boolean> {
+    for (const candidate of candidates) {
+      if (await this.binaryExists(candidate)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  private async findMissingConfigPaths(configPaths: string[]): Promise<string[]> {
+    const missing: string[] = []
+
+    for (const configPath of configPaths) {
+      try {
+        await fs.access(expandHomePath(configPath), constants.F_OK)
+      } catch {
+        missing.push(configPath)
+      }
+    }
+
+    return missing
+  }
+
   private async binaryExists(bin: string): Promise<boolean> {
-    if (!bin.trim()) {
+    const raw = bin.trim()
+    if (!raw) {
       return false
     }
 
-    const raw = bin.trim()
     if (raw.includes("/") || raw.includes("\\")) {
       try {
-        await fs.access(raw, constants.F_OK)
+        await fs.access(expandHomePath(raw), constants.F_OK)
         return true
       } catch {
         return false
@@ -687,8 +773,39 @@ export class SkillLoader {
     return false
   }
 
-  private isWithinDirectory(targetPath: string, allowedDir: string): boolean {
-    const resolvedDir = path.resolve(allowedDir)
+  private async resolveAllowedSkillFilePath(location: string): Promise<string | null> {
+    const requested = path.resolve(location)
+
+    if (path.basename(requested).toLowerCase() !== "skill.md") {
+      log.warn("blocked non-skill file request", { location })
+      return null
+    }
+
+    let realRequested: string
+    try {
+      realRequested = await fs.realpath(requested)
+    } catch {
+      return null
+    }
+
+    for (const dir of SKILL_DIRS_BY_PRECEDENCE) {
+      if (await this.isWithinDirectoryRealPath(realRequested, dir)) {
+        return realRequested
+      }
+    }
+
+    log.warn("blocked skill path traversal attempt", { location })
+    return null
+  }
+
+  private async isWithinDirectoryRealPath(targetPath: string, allowedDir: string): Promise<boolean> {
+    let resolvedDir: string
+    try {
+      resolvedDir = await fs.realpath(allowedDir)
+    } catch {
+      return false
+    }
+
     const relative = path.relative(resolvedDir, targetPath)
     return relative.length > 0 && !relative.startsWith("..") && !path.isAbsolute(relative)
   }
@@ -706,3 +823,9 @@ export class SkillLoader {
 }
 
 export const skillLoader = new SkillLoader()
+
+export const __skillLoaderTestUtils = {
+  sanitizeScalar,
+  splitInlineList,
+  parseFrontmatter,
+}

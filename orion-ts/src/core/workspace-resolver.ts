@@ -1,10 +1,6 @@
 /**
  * Workspace Resolver - OC-12 Implementation
  *
- * Based on research:
- * - AWS AaaS Whitepaper 2026 (AI-as-a-Service architecture)
- * - Fast.io Multi-Tenant Guide
- *
  * Implements multi-tenant workspace resolution with:
  * - Tenant isolation (data, config, memory)
  * - Per-tenant configuration injection
@@ -22,33 +18,28 @@ import { createLogger } from "../logger.js"
 
 const log = createLogger("core.workspace-resolver")
 
+const TENANT_CACHE_MAX_AGE_MS = 5 * 60 * 1000
+
 /**
  * Tenant configuration interface
  */
 export interface TenantConfig {
-  /** Tenant identifier */
   tenantId: string
-  /** User identifier within tenant */
   userId: string
-  /** Display name */
   displayName?: string
-  /** Tenant tier (affects quotas) */
   tier: "free" | "pro" | "enterprise"
-  /** Resource limits */
   limits: {
     maxMessagesPerDay: number
     maxStorageMb: number
     maxSkills: number
     apiRateLimit: number
   }
-  /** Feature flags */
   features: {
     enableVoice: boolean
     enableVision: boolean
     enableCustomSkills: boolean
     enableApi: boolean
   }
-  /** Custom configuration overrides */
   customConfig?: Record<string, unknown>
 }
 
@@ -56,56 +47,53 @@ export interface TenantConfig {
  * Workspace context for a tenant
  */
 export interface WorkspaceContext {
-  /** Resolved workspace path */
   path: string
-  /** Tenant configuration */
   tenant: TenantConfig
-  /** Creation timestamp */
   createdAt: Date
-  /** Last access timestamp */
   lastAccessedAt: Date
+}
+
+type TenantConfigOverrides = Partial<Omit<TenantConfig, "tenantId" | "userId" | "limits" | "features">> & {
+  limits?: Partial<TenantConfig["limits"]>
+  features?: Partial<TenantConfig["features"]>
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+function safeDateFromUnknown(value: unknown, fallback: Date): Date {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value
+  }
+
+  const parsed = new Date(String(value ?? ""))
+  if (Number.isNaN(parsed.getTime())) {
+    return fallback
+  }
+  return parsed
 }
 
 /**
  * Multi-tenant workspace resolver
- *
- * Provides isolated workspaces per user/tenant with:
- * - Automatic directory structure creation
- * - Configuration injection
- * - Resource quota enforcement
- * - Tenant-level feature flags
  */
 export class WorkspaceResolver {
   private readonly saasMode: boolean
   private readonly saasDataDir: string
   private readonly tenantCache = new Map<string, WorkspaceContext>()
-  private readonly cacheMaxAgeMs = 5 * 60 * 1000 // 5 minutes
+  private readonly cacheMaxAgeMs = TENANT_CACHE_MAX_AGE_MS
+  private readonly cacheCleanupTimer: NodeJS.Timeout
 
   constructor() {
     this.saasMode = process.env.ORION_SAAS_MODE === "true"
     this.saasDataDir =
       process.env.ORION_SAAS_DATA_DIR ?? path.resolve(process.cwd(), "data/users")
 
-    // Start cache cleanup interval
-    setInterval(() => this.cleanupCache(), this.cacheMaxAgeMs)
+    this.cacheCleanupTimer = setInterval(() => this.cleanupCache(), this.cacheMaxAgeMs)
+    this.cacheCleanupTimer.unref?.()
   }
 
-  /**
-   * Resolve workspace for a user
-   *
-   * In SaaS mode:
-   * - Creates isolated directory per user
-   * - Provisions default files if missing
-   * - Enforces tenant configuration
-   *
-   * In single-tenant mode:
-   * - Returns shared workspace
-   *
-   * @param userId - User identifier
-   * @param tenantConfig - Optional tenant configuration (SaaS mode)
-   * @returns Workspace path
-   */
-  async resolve(userId: string, tenantConfig?: Partial<TenantConfig>): Promise<string> {
+  async resolve(userId: string, tenantConfig?: TenantConfigOverrides): Promise<string> {
     if (this.saasMode) {
       return this.resolveSaasWorkspace(userId, tenantConfig)
     }
@@ -113,14 +101,9 @@ export class WorkspaceResolver {
     return this.resolveSharedWorkspace()
   }
 
-  /**
-   * Get full workspace context including tenant config
-   *
-   * @param userId - User identifier
-   * @returns Workspace context or null if not found
-   */
   async getContext(userId: string): Promise<WorkspaceContext | null> {
-    const cached = this.tenantCache.get(userId)
+    const cacheKey = this.sanitizeUserId(userId)
+    const cached = this.tenantCache.get(cacheKey)
     if (cached && Date.now() - cached.lastAccessedAt.getTime() < this.cacheMaxAgeMs) {
       cached.lastAccessedAt = new Date()
       return cached
@@ -139,7 +122,7 @@ export class WorkspaceResolver {
     try {
       const context = await this.loadTenantContext(userId)
       if (context) {
-        this.tenantCache.set(userId, context)
+        this.tenantCache.set(cacheKey, context)
       }
       return context
     } catch (error) {
@@ -148,51 +131,35 @@ export class WorkspaceResolver {
     }
   }
 
-  /**
-   * Resolve workspace in SaaS/multi-tenant mode
-   */
   private async resolveSaasWorkspace(
     userId: string,
-    tenantConfig?: Partial<TenantConfig>,
+    tenantConfig?: TenantConfigOverrides,
   ): Promise<string> {
-    const sanitizedUserId = this.sanitizeUserId(userId)
-    const userDir = path.join(this.saasDataDir, sanitizedUserId, "workspace")
+    const workspaceDir = this.getTenantWorkspaceDir(userId)
+    await this.ensureTenantWorkspaceDirectories(workspaceDir)
+    await this.provisionDefaultFiles(workspaceDir)
 
-    // Create directory structure
-    await fs.mkdir(userDir, { recursive: true })
-    await fs.mkdir(path.join(userDir, "skills"), { recursive: true })
-    await fs.mkdir(path.join(userDir, "memory"), { recursive: true })
-    await fs.mkdir(path.join(userDir, "logs"), { recursive: true })
-    await fs.mkdir(path.join(userDir, "config"), { recursive: true })
+    const baseConfig = (await this.loadTenantConfig(userId)) ?? this.createDefaultTenantConfig(userId)
+    const resolvedTenantConfig = tenantConfig
+      ? this.mergeTenantConfig(baseConfig, tenantConfig)
+      : baseConfig
 
-    // Provision default files if missing
-    await this.provisionDefaultFiles(userDir)
-
-    // Save tenant config if provided
     if (tenantConfig) {
-      await this.saveTenantConfig(userId, {
-        ...this.createDefaultTenantConfig(userId),
-        ...tenantConfig,
-      })
+      await this.saveTenantConfig(userId, resolvedTenantConfig)
     }
 
-    // Update cache
+    const now = new Date()
     const context: WorkspaceContext = {
-      path: userDir,
-      tenant: tenantConfig
-        ? { ...this.createDefaultTenantConfig(userId), ...tenantConfig }
-        : (await this.loadTenantConfig(userId)) ?? this.createDefaultTenantConfig(userId),
-      createdAt: new Date(),
-      lastAccessedAt: new Date(),
+      path: workspaceDir,
+      tenant: resolvedTenantConfig,
+      createdAt: now,
+      lastAccessedAt: now,
     }
-    this.tenantCache.set(userId, context)
+    this.tenantCache.set(this.sanitizeUserId(userId), context)
 
-    return userDir
+    return workspaceDir
   }
 
-  /**
-   * Resolve shared workspace (single-tenant mode)
-   */
   private async resolveSharedWorkspace(): Promise<string> {
     const config = getOrionConfig()
     const workspace = path.resolve(process.cwd(), config.agents.defaults.workspace)
@@ -200,9 +167,28 @@ export class WorkspaceResolver {
     return workspace
   }
 
-  /**
-   * Provision default workspace files
-   */
+  private getTenantRootDir(userId: string): string {
+    return path.join(this.saasDataDir, this.sanitizeUserId(userId))
+  }
+
+  private getTenantWorkspaceDir(userId: string): string {
+    return path.join(this.getTenantRootDir(userId), "workspace")
+  }
+
+  private getTenantConfigPath(userId: string): string {
+    return path.join(this.getTenantRootDir(userId), "config", "tenant.json")
+  }
+
+  private async ensureTenantWorkspaceDirectories(workspaceDir: string): Promise<void> {
+    await fs.mkdir(workspaceDir, { recursive: true })
+    await Promise.all([
+      fs.mkdir(path.join(workspaceDir, "skills"), { recursive: true }),
+      fs.mkdir(path.join(workspaceDir, "memory"), { recursive: true }),
+      fs.mkdir(path.join(workspaceDir, "logs"), { recursive: true }),
+      fs.mkdir(path.join(workspaceDir, "config"), { recursive: true }),
+    ])
+  }
+
   private async provisionDefaultFiles(userDir: string): Promise<void> {
     const files = [
       { source: "workspace/SOUL.md", target: "SOUL.md" },
@@ -214,74 +200,80 @@ export class WorkspaceResolver {
       const targetPath = path.join(userDir, target)
       try {
         await fs.access(targetPath)
+        continue
       } catch {
-        const sourcePath = path.resolve(process.cwd(), source)
-        try {
-          await fs.copyFile(sourcePath, targetPath)
-          log.debug(`Provisioned ${target} for tenant`)
-        } catch {
-          // Source might not exist, skip
-        }
+        // File missing - provision from shared template if available.
+      }
+
+      const sourcePath = path.resolve(process.cwd(), source)
+      try {
+        await fs.copyFile(sourcePath, targetPath)
+        log.debug("Provisioned tenant workspace file", { target })
+      } catch {
+        // Source template may not exist in all deployments.
       }
     }
   }
 
-  /**
-   * Load tenant configuration from disk
-   */
   private async loadTenantConfig(userId: string): Promise<TenantConfig | null> {
-    const configPath = path.join(
-      this.saasDataDir,
-      this.sanitizeUserId(userId),
-      "config",
-      "tenant.json",
-    )
+    const configPath = this.getTenantConfigPath(userId)
 
     try {
       const raw = await fs.readFile(configPath, "utf-8")
-      return JSON.parse(raw) as TenantConfig
+      const parsed = JSON.parse(raw) as unknown
+      if (!isRecord(parsed)) {
+        return null
+      }
+
+      return this.mergeTenantConfig(
+        this.createDefaultTenantConfig(userId),
+        parsed as TenantConfigOverrides,
+      )
     } catch {
       return null
     }
   }
 
-  /**
-   * Save tenant configuration to disk
-   */
   private async saveTenantConfig(userId: string, config: TenantConfig): Promise<void> {
-    const configPath = path.join(
-      this.saasDataDir,
-      this.sanitizeUserId(userId),
-      "config",
-      "tenant.json",
-    )
-
+    const configPath = this.getTenantConfigPath(userId)
     await fs.mkdir(path.dirname(configPath), { recursive: true })
-    await fs.writeFile(configPath, JSON.stringify(config, null, 2))
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8")
   }
 
-  /**
-   * Load full tenant context including workspace path
-   */
   private async loadTenantContext(userId: string): Promise<WorkspaceContext | null> {
-    const config = await this.loadTenantConfig(userId)
-    if (!config) {
+    const tenant = await this.loadTenantConfig(userId)
+    if (!tenant) {
       return null
     }
 
-    const userDir = path.join(this.saasDataDir, this.sanitizeUserId(userId), "workspace")
+    const workspaceDir = this.getTenantWorkspaceDir(userId)
+    const configPath = this.getTenantConfigPath(userId)
+    let createdAt = new Date()
+    let lastAccessedAt = new Date()
+
+    try {
+      const [workspaceStat, configStat] = await Promise.all([
+        fs.stat(workspaceDir),
+        fs.stat(configPath).catch(() => null),
+      ])
+
+      createdAt = safeDateFromUnknown(workspaceStat.birthtime ?? workspaceStat.ctime, createdAt)
+      const latestActivity = configStat?.mtime && configStat.mtime > workspaceStat.mtime
+        ? configStat.mtime
+        : workspaceStat.mtime
+      lastAccessedAt = safeDateFromUnknown(latestActivity, lastAccessedAt)
+    } catch {
+      // If stats are unavailable, return a valid context with current timestamps.
+    }
 
     return {
-      path: userDir,
-      tenant: config,
-      createdAt: new Date(), // TODO: Read from filesystem
-      lastAccessedAt: new Date(),
+      path: workspaceDir,
+      tenant,
+      createdAt,
+      lastAccessedAt,
     }
   }
 
-  /**
-   * Create default tenant configuration
-   */
   private createDefaultTenantConfig(userId: string): TenantConfig {
     return {
       tenantId: userId,
@@ -291,7 +283,7 @@ export class WorkspaceResolver {
         maxMessagesPerDay: 100,
         maxStorageMb: 50,
         maxSkills: 3,
-        apiRateLimit: 60, // requests per minute
+        apiRateLimit: 60,
       },
       features: {
         enableVoice: false,
@@ -302,40 +294,46 @@ export class WorkspaceResolver {
     }
   }
 
-  /**
-   * Sanitize user ID for filesystem safety
-   */
-  private sanitizeUserId(userId: string): string {
-    return userId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64)
+  private mergeTenantConfig(base: TenantConfig, overrides: TenantConfigOverrides): TenantConfig {
+    const merged: TenantConfig = {
+      ...base,
+      ...overrides,
+      tenantId: base.tenantId,
+      userId: base.userId,
+      limits: {
+        ...base.limits,
+        ...(overrides.limits ?? {}),
+      },
+      features: {
+        ...base.features,
+        ...(overrides.features ?? {}),
+      },
+    }
+
+    if (base.customConfig || overrides.customConfig) {
+      merged.customConfig = {
+        ...(base.customConfig ?? {}),
+        ...(overrides.customConfig ?? {}),
+      }
+    }
+
+    return merged
   }
 
-  /**
-   * Check if running in SaaS mode
-   */
+  private sanitizeUserId(userId: string): string {
+    const sanitized = userId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64)
+    return sanitized.length > 0 ? sanitized : "user"
+  }
+
   isSaasMode(): boolean {
     return this.saasMode
   }
 
-  /**
-   * Check if user has access to a feature
-   *
-   * @param userId - User identifier
-   * @param feature - Feature name
-   * @returns true if feature is enabled
-   */
   async hasFeature(userId: string, feature: keyof TenantConfig["features"]): Promise<boolean> {
     const context = await this.getContext(userId)
     return context?.tenant.features[feature] ?? false
   }
 
-  /**
-   * Check if user is within resource limits
-   *
-   * @param userId - User identifier
-   * @param limit - Limit to check
-   * @param currentValue - Current usage value
-   * @returns true if within limits
-   */
   async checkLimit(
     userId: string,
     limit: keyof TenantConfig["limits"],
@@ -346,33 +344,21 @@ export class WorkspaceResolver {
       return false
     }
 
-    const limitValue = context.tenant.limits[limit]
-    return currentValue < limitValue
+    return currentValue < context.tenant.limits[limit]
   }
 
-  /**
-   * Update tenant configuration
-   *
-   * @param userId - User identifier
-   * @param updates - Configuration updates
-   */
   async updateTenantConfig(
     userId: string,
-    updates: Partial<Omit<TenantConfig, "tenantId" | "userId">>,
+    updates: TenantConfigOverrides,
   ): Promise<void> {
     const existing = await this.loadTenantConfig(userId)
-    const updated: TenantConfig = {
-      ...this.createDefaultTenantConfig(userId),
-      ...existing,
-      ...updates,
-      tenantId: userId,
-      userId,
-    }
+    const base = existing ?? this.createDefaultTenantConfig(userId)
+    const updated = this.mergeTenantConfig(base, updates)
 
     await this.saveTenantConfig(userId, updated)
 
-    // Update cache
-    const cached = this.tenantCache.get(userId)
+    const cacheKey = this.sanitizeUserId(userId)
+    const cached = this.tenantCache.get(cacheKey)
     if (cached) {
       cached.tenant = updated
       cached.lastAccessedAt = new Date()
@@ -381,11 +367,6 @@ export class WorkspaceResolver {
     log.info("Updated tenant config", { userId, tier: updated.tier })
   }
 
-  /**
-   * Get all active tenants (SaaS mode only)
-   *
-   * @returns Array of tenant IDs
-   */
   async listTenants(): Promise<string[]> {
     if (!this.saasMode) {
       return []
@@ -393,15 +374,12 @@ export class WorkspaceResolver {
 
     try {
       const entries = await fs.readdir(this.saasDataDir, { withFileTypes: true })
-      return entries.filter((e) => e.isDirectory()).map((e) => e.name)
+      return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name)
     } catch {
       return []
     }
   }
 
-  /**
-   * Clean up expired cache entries
-   */
   private cleanupCache(): void {
     const now = Date.now()
     for (const [userId, context] of this.tenantCache) {
@@ -412,16 +390,17 @@ export class WorkspaceResolver {
     }
   }
 
-  /**
-   * Get cache statistics
-   */
   getCacheStats(): { size: number; maxAge: number } {
     return {
       size: this.tenantCache.size,
       maxAge: this.cacheMaxAgeMs,
     }
   }
+
+  dispose(): void {
+    clearInterval(this.cacheCleanupTimer)
+    this.tenantCache.clear()
+  }
 }
 
-// Export singleton instance
 export const workspaceResolver = new WorkspaceResolver()

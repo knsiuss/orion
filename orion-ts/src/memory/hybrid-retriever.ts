@@ -17,6 +17,7 @@
 
 import { prisma } from "../database/index.js"
 import { createLogger } from "../logger.js"
+import { clamp, sanitizeUserId as sanitizeVectorUserId } from "../utils/index.js"
 import type { SearchResult } from "./store.js"
 
 const log = createLogger("memory.hybrid-retriever")
@@ -63,12 +64,9 @@ const DEFAULT_CONFIG: HybridConfig = {
   scoreThreshold: 0.1,
 }
 
-/**
- * Sanitize user ID for safe SQL queries
- */
-function sanitizeUserId(userId: string): string {
-  return userId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64)
-}
+const MIN_RRF_WEIGHT = 0.01
+const MAX_TOP_K = 200
+const MAX_FINAL_LIMIT = 50
 
 /**
  * Compute RRF score for a result
@@ -96,6 +94,50 @@ function parseFTSContent(raw: unknown): string {
   return String(raw ?? "")
 }
 
+function normalizePositiveInt(value: number, fallback: number, min = 1, max = Number.MAX_SAFE_INTEGER): number {
+  if (!Number.isFinite(value)) {
+    return fallback
+  }
+  return Math.min(max, Math.max(min, Math.floor(value)))
+}
+
+function normalizeWeight(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback
+  }
+  return clamp(value, MIN_RRF_WEIGHT, 1)
+}
+
+function normalizeHybridConfig(config: Partial<HybridConfig>, base: HybridConfig = DEFAULT_CONFIG): HybridConfig {
+  const next: HybridConfig = {
+    topK: normalizePositiveInt(config.topK ?? base.topK, base.topK, 1, MAX_TOP_K),
+    finalLimit: normalizePositiveInt(config.finalLimit ?? base.finalLimit, base.finalLimit, 1, MAX_FINAL_LIMIT),
+    rrfK: normalizePositiveInt(config.rrfK ?? base.rrfK, base.rrfK, 1, 10_000),
+    ftsWeight: normalizeWeight(config.ftsWeight ?? base.ftsWeight, base.ftsWeight),
+    vectorWeight: normalizeWeight(config.vectorWeight ?? base.vectorWeight, base.vectorWeight),
+    scoreThreshold: clamp(
+      Number.isFinite(config.scoreThreshold ?? base.scoreThreshold)
+        ? Number(config.scoreThreshold ?? base.scoreThreshold)
+        : base.scoreThreshold,
+      0,
+      1,
+    ),
+  }
+
+  // Keep candidate pool >= final output limit so "limit" settings stay intuitive.
+  next.topK = Math.max(next.topK, next.finalLimit)
+  return next
+}
+
+function buildFTSQuery(query: string): string {
+  const tokens = (query.match(/[a-zA-Z0-9_]+/g) ?? [])
+    .map((token) => token.trim())
+    .filter((token) => token.length > 2)
+    .slice(0, 8)
+
+  return tokens.map((token) => `${token}*`).join(" ")
+}
+
 /**
  * Hybrid Retriever combining FTS and Vector search with RRF
  * 
@@ -112,7 +154,7 @@ export class HybridRetriever {
   private config: HybridConfig
 
   constructor(config: Partial<HybridConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config }
+    this.config = normalizeHybridConfig(config)
   }
 
   /**
@@ -136,7 +178,10 @@ export class HybridRetriever {
     queryVector: number[],
     limit?: number,
   ): Promise<SearchResult[]> {
-    const finalLimit = limit ?? this.config.finalLimit
+    const finalLimit = normalizePositiveInt(limit ?? this.config.finalLimit, this.config.finalLimit, 1, MAX_FINAL_LIMIT)
+    if (!query.trim() || queryVector.length === 0) {
+      return []
+    }
     
     try {
       // Run both searches in parallel
@@ -173,15 +218,10 @@ export class HybridRetriever {
    */
   private async searchFTS(userId: string, query: string): Promise<RankedResult[]> {
     try {
-      const sanitizedUserId = sanitizeUserId(userId)
-      
-      // Prepare FTS query: split into words and add wildcards
-      const ftsQuery = query
-        .split(/\s+/)
-        .filter((w) => w.length > 2)
-        .map((w) => `${w}*`)
-        .join(" ")
-      
+      // Prisma parameterization already handles SQL quoting; do not sanitize userId here
+      // because MemoryNode.userId stores the raw value (see temporal-index/store).
+      const ftsQuery = buildFTSQuery(query)
+
       if (!ftsQuery) {
         return []
       }
@@ -195,8 +235,9 @@ export class HybridRetriever {
       }>>`
         SELECT m.id, m.content, rank
         FROM MemoryNode m
-        JOIN MemoryNodeFTS fts ON m.id = fts.rowid
-        WHERE m.userId = ${sanitizedUserId}
+        -- MemoryNode.id is a string primary key; FTS rowid maps to SQLite rowid, not m.id.
+        JOIN MemoryNodeFTS fts ON m.rowid = fts.rowid
+        WHERE m.userId = ${userId}
           AND MemoryNodeFTS MATCH ${ftsQuery}
         ORDER BY rank ASC
         LIMIT ${this.config.topK}
@@ -251,7 +292,7 @@ export class HybridRetriever {
       }
 
       const table = await db.openTable("memories")
-      const sanitizedUserId = sanitizeUserId(userId)
+      const sanitizedUserId = sanitizeVectorUserId(userId)
       
       const rawResults = await table
         .vectorSearch(queryVector)
@@ -260,7 +301,8 @@ export class HybridRetriever {
         .toArray() as Array<Record<string, unknown>>
 
       return rawResults
-        .filter((row) => row.content !== "__init__")
+        // Defense-in-depth: keep local filtering in case LanceDB where semantics drift.
+        .filter((row) => row.content !== "__init__" && String(row.userId ?? "") === sanitizedUserId)
         .map((row, index) => {
           // Extract distance/score from LanceDB result
           const distance = 
@@ -407,7 +449,7 @@ export class HybridRetriever {
    * Update configuration
    */
   setConfig(config: Partial<HybridConfig>): void {
-    this.config = { ...this.config, ...config }
+    this.config = normalizeHybridConfig(config, this.config)
   }
 
   /**
@@ -448,3 +490,8 @@ export class HybridRetriever {
 
 // Export singleton instance
 export const hybridRetriever = new HybridRetriever()
+
+export const __hybridRetrieverTestUtils = {
+  buildFTSQuery,
+  normalizeHybridConfig,
+}

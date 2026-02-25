@@ -15,6 +15,36 @@ Return strict JSON object with keys:
 Return empty arrays when unsure.
 Message: `
 
+const DEFAULT_HYPEREDGE_WEIGHT = 0.5
+const MAX_EVENT_LENGTH = 240
+const MAX_CATEGORY_LENGTH = 48
+const MAX_RELATION_LENGTH = 200
+const MAX_CONTEXT_LENGTH = 500
+
+interface ExtractedEvent {
+  event: string
+  category: string
+}
+
+interface ExtractedCause {
+  cause: string
+  effect: string
+  confidence: number
+}
+
+interface ExtractedHyperEdge {
+  nodes: string[]
+  relation: string
+  context: string
+  weight: number
+}
+
+interface ExtractedCausalPayload {
+  events: ExtractedEvent[]
+  causes: ExtractedCause[]
+  hyperEdges: ExtractedHyperEdge[]
+}
+
 function clamp(value: number, min = 0, max = 1): number {
   if (Number.isNaN(value)) {
     return min
@@ -46,7 +76,263 @@ function lexicalScore(query: string, candidate: string): number {
   return hits / queryTokens.size
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function normalizeText(value: unknown, maxLength: number): string {
+  if (typeof value !== "string") {
+    return ""
+  }
+  return value.trim().slice(0, maxLength)
+}
+
+function normalizeCategory(value: unknown): string {
+  const category = normalizeText(value, MAX_CATEGORY_LENGTH).toLowerCase()
+  return category || "other"
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function extractFirstJsonObject(raw: string): string | null {
+  const start = raw.indexOf("{")
+  if (start < 0) {
+    return null
+  }
+
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let i = start; i < raw.length; i += 1) {
+    const char = raw[i]
+
+    if (inString) {
+      if (escaped) {
+        escaped = false
+        continue
+      }
+      if (char === "\\") {
+        escaped = true
+        continue
+      }
+      if (char === "\"") {
+        inString = false
+      }
+      continue
+    }
+
+    if (char === "\"") {
+      inString = true
+      continue
+    }
+
+    if (char === "{") {
+      depth += 1
+      continue
+    }
+
+    if (char === "}") {
+      depth -= 1
+      if (depth === 0) {
+        return raw.slice(start, i + 1)
+      }
+    }
+  }
+
+  return null
+}
+
+function parseExtractionPayload(response: string): ExtractedCausalPayload | null {
+  const cleaned = response.replace(/```json|```/gi, "").trim()
+  const candidateJson = cleaned.startsWith("{") ? cleaned : (extractFirstJsonObject(cleaned) ?? cleaned)
+
+  try {
+    const parsed = JSON.parse(candidateJson) as unknown
+    if (!isRecord(parsed)) {
+      return null
+    }
+
+    const events: ExtractedEvent[] = []
+    const seenEvents = new Set<string>()
+    for (const rawEvent of Array.isArray(parsed.events) ? parsed.events : []) {
+      if (!isRecord(rawEvent)) {
+        continue
+      }
+      const event = normalizeText(rawEvent.event, MAX_EVENT_LENGTH)
+      if (!event) {
+        continue
+      }
+      const dedupeKey = event.toLowerCase()
+      if (seenEvents.has(dedupeKey)) {
+        continue
+      }
+      seenEvents.add(dedupeKey)
+      events.push({
+        event,
+        category: normalizeCategory(rawEvent.category),
+      })
+    }
+
+    const causes: ExtractedCause[] = []
+    const seenCauses = new Set<string>()
+    for (const rawCause of Array.isArray(parsed.causes) ? parsed.causes : []) {
+      if (!isRecord(rawCause)) {
+        continue
+      }
+      const cause = normalizeText(rawCause.cause, MAX_EVENT_LENGTH)
+      const effect = normalizeText(rawCause.effect, MAX_EVENT_LENGTH)
+      if (!cause || !effect || cause === effect) {
+        continue
+      }
+      const key = `${cause.toLowerCase()}::${effect.toLowerCase()}`
+      if (seenCauses.has(key)) {
+        continue
+      }
+      seenCauses.add(key)
+      causes.push({
+        cause,
+        effect,
+        confidence: clamp(toFiniteNumber(rawCause.confidence) ?? DEFAULT_HYPEREDGE_WEIGHT),
+      })
+    }
+
+    const hyperEdges: ExtractedHyperEdge[] = []
+    const seenHyperEdges = new Set<string>()
+    for (const rawHyperEdge of Array.isArray(parsed.hyperEdges) ? parsed.hyperEdges : []) {
+      if (!isRecord(rawHyperEdge)) {
+        continue
+      }
+
+      const normalizedNodes = Array.from(
+        new Set(
+          (Array.isArray(rawHyperEdge.nodes) ? rawHyperEdge.nodes : [])
+            .map((node) => normalizeText(node, MAX_EVENT_LENGTH))
+            .filter(Boolean),
+        ),
+      )
+
+      if (normalizedNodes.length < 2) {
+        continue
+      }
+
+      const relation = normalizeText(rawHyperEdge.relation, MAX_RELATION_LENGTH) || "related_events"
+      const context = normalizeText(rawHyperEdge.context, MAX_CONTEXT_LENGTH)
+      const dedupeKey = `${relation.toLowerCase()}::${[...normalizedNodes].sort((a, b) => a.localeCompare(b)).join("||")}`
+      if (seenHyperEdges.has(dedupeKey)) {
+        continue
+      }
+      seenHyperEdges.add(dedupeKey)
+      hyperEdges.push({
+        nodes: normalizedNodes,
+        relation,
+        context,
+        weight: clamp(toFiniteNumber(rawHyperEdge.weight) ?? DEFAULT_HYPEREDGE_WEIGHT),
+      })
+    }
+
+    return { events, causes, hyperEdges }
+  } catch {
+    return null
+  }
+}
+
+function buildHyperEdgeKey(nodes: string[], relation: string): string {
+  return `${relation.toLowerCase()}::${[...nodes].sort((a, b) => a.localeCompare(b)).join("||")}`
+}
+
+function sameStringSet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false
+  }
+  const leftSorted = [...left].sort((a, b) => a.localeCompare(b))
+  const rightSorted = [...right].sort((a, b) => a.localeCompare(b))
+  return leftSorted.every((value, index) => value === rightSorted[index])
+}
+
 export class CausalGraph {
+  private async resolveNodeIds(
+    userId: string,
+    nodeNames: string[],
+    categoryHints = new Map<string, string>(),
+  ): Promise<Map<string, string>> {
+    const normalizedNames = Array.from(
+      new Set(nodeNames.map((name) => normalizeText(name, MAX_EVENT_LENGTH)).filter(Boolean)),
+    )
+    if (normalizedNames.length === 0) {
+      return new Map()
+    }
+
+    const resolved = new Map<string, string>()
+    const existingNodes = await prisma.causalNode.findMany({
+      where: {
+        userId,
+        event: {
+          in: normalizedNames,
+        },
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    })
+
+    for (const node of existingNodes) {
+      if (!resolved.has(node.event)) {
+        resolved.set(node.event, node.id)
+      }
+    }
+
+    for (const nodeName of normalizedNames) {
+      if (resolved.has(nodeName)) {
+        continue
+      }
+
+      const created = await prisma.causalNode.create({
+        data: {
+          userId,
+          event: nodeName,
+          category: normalizeCategory(categoryHints.get(nodeName)),
+        },
+      })
+      resolved.set(nodeName, created.id)
+    }
+
+    return resolved
+  }
+
+  private async upsertCausalEdge(
+    userId: string,
+    fromId: string,
+    toId: string,
+    confidence: number,
+  ): Promise<void> {
+    const existingEdge = await prisma.causalEdge.findUnique({
+      where: { fromId_toId: { fromId, toId } },
+    })
+
+    if (existingEdge) {
+      await prisma.causalEdge.update({
+        where: { id: existingEdge.id },
+        data: {
+          strength: clamp(existingEdge.strength + 0.1),
+          evidence: existingEdge.evidence + 1,
+        },
+      })
+      return
+    }
+
+    await prisma.causalEdge.create({
+      data: {
+        userId,
+        fromId,
+        toId,
+        strength: clamp(confidence),
+      },
+    })
+  }
+
   async extractAndUpdate(userId: string, message: string): Promise<void> {
     if (message.length < 20) {
       return
@@ -56,107 +342,70 @@ export class CausalGraph {
       const prompt = EXTRACTION_PROMPT + message
       const response = await orchestrator.generate("fast", { prompt })
 
-      let parsed: {
-        events: Array<{ event: string; category: string }>
-        causes: Array<{ cause: string; effect: string; confidence: number }>
-        hyperEdges?: Array<{ nodes: string[]; relation: string; context: string; weight?: number }>
-      }
-
-      try {
-        const cleaned = response.replace(/```json|```/g, "").trim()
-        parsed = JSON.parse(cleaned)
-      } catch {
+      const parsed = parseExtractionPayload(response)
+      if (!parsed) {
         return
       }
 
-      if (!Array.isArray(parsed.events) || parsed.events.length === 0) {
+      if (parsed.events.length === 0 && parsed.causes.length === 0 && parsed.hyperEdges.length === 0) {
         return
       }
 
-      const nodeMap = new Map<string, string>()
-
+      const categoryHints = new Map(parsed.events.map((event) => [event.event, event.category]))
+      const allNodeNames = new Set<string>()
       for (const event of parsed.events) {
-        if (!event.event || !event.category) {
+        allNodeNames.add(event.event)
+      }
+      for (const cause of parsed.causes) {
+        allNodeNames.add(cause.cause)
+        allNodeNames.add(cause.effect)
+      }
+      for (const hyperEdge of parsed.hyperEdges) {
+        for (const node of hyperEdge.nodes) {
+          allNodeNames.add(node)
+        }
+      }
+
+      const nodeMap = await this.resolveNodeIds(userId, Array.from(allNodeNames), categoryHints)
+
+      for (const cause of parsed.causes) {
+        const fromId = nodeMap.get(cause.cause)
+        const toId = nodeMap.get(cause.effect)
+        if (!fromId || !toId) {
           continue
         }
-
-        const normalizedEvent = event.event.trim()
-        const existingNode = await prisma.causalNode.findFirst({
-          where: { userId, event: normalizedEvent },
-        })
-
-        if (existingNode) {
-          nodeMap.set(normalizedEvent, existingNode.id)
-        } else {
-          const node = await prisma.causalNode.create({
-            data: {
-              userId,
-              event: normalizedEvent,
-              category: event.category.toLowerCase(),
-            },
-          })
-          nodeMap.set(normalizedEvent, node.id)
-        }
+        await this.upsertCausalEdge(userId, fromId, toId, cause.confidence)
       }
 
-      if (Array.isArray(parsed.causes)) {
-        for (const cause of parsed.causes) {
-          if (!cause.cause || !cause.effect) {
-            continue
-          }
-
-          const fromId = nodeMap.get(cause.cause.trim())
-          const toId = nodeMap.get(cause.effect.trim())
-          if (!fromId || !toId) {
-            continue
-          }
-
-          const existingEdge = await prisma.causalEdge.findUnique({
-            where: { fromId_toId: { fromId, toId } },
+      const hyperEdgesToPersist = new Map<string, ExtractedHyperEdge>()
+      for (const hyperEdge of parsed.hyperEdges) {
+        const key = buildHyperEdgeKey(hyperEdge.nodes, hyperEdge.relation)
+        const existing = hyperEdgesToPersist.get(key)
+        if (!existing || hyperEdge.weight > existing.weight) {
+          hyperEdgesToPersist.set(key, {
+            ...hyperEdge,
+            context: hyperEdge.context || message.slice(0, 160),
           })
-
-          if (existingEdge) {
-            await prisma.causalEdge.update({
-              where: { id: existingEdge.id },
-              data: {
-                strength: clamp(existingEdge.strength + 0.1),
-                evidence: existingEdge.evidence + 1,
-              },
-            })
-          } else {
-            await prisma.causalEdge.create({
-              data: {
-                userId,
-                fromId,
-                toId,
-                strength: clamp(Number(cause.confidence ?? 0.5)),
-              },
-            })
-          }
-        }
-      }
-
-      if (Array.isArray(parsed.hyperEdges)) {
-        for (const hyperEdge of parsed.hyperEdges) {
-          if (!Array.isArray(hyperEdge.nodes) || hyperEdge.nodes.length < 2) {
-            continue
-          }
-
-          await this.addHyperEdge(
-            userId,
-            hyperEdge.nodes,
-            hyperEdge.relation ?? "related_events",
-            hyperEdge.context ?? message.slice(0, 160),
-          )
         }
       }
 
       if (parsed.events.length >= 3) {
+        const nodes = parsed.events.map((event) => event.event)
+        hyperEdgesToPersist.set(buildHyperEdgeKey(nodes, "co_occurs_in_message"), {
+          nodes,
+          relation: "co_occurs_in_message",
+          context: message.slice(0, 200),
+          weight: DEFAULT_HYPEREDGE_WEIGHT,
+        })
+      }
+
+      for (const hyperEdge of hyperEdgesToPersist.values()) {
         await this.addHyperEdge(
           userId,
-          parsed.events.map((event) => event.event),
-          "co_occurs_in_message",
-          message.slice(0, 200),
+          hyperEdge.nodes,
+          hyperEdge.relation,
+          hyperEdge.context,
+          hyperEdge.weight,
         )
       }
 
@@ -175,7 +424,12 @@ export class CausalGraph {
     event: string,
   ): Promise<Array<{ effect: string; strength: number; evidence: number }>> {
     try {
-      const node = await prisma.causalNode.findFirst({ where: { userId, event } })
+      const normalizedEvent = normalizeText(event, MAX_EVENT_LENGTH)
+      if (!normalizedEvent) {
+        return []
+      }
+
+      const node = await prisma.causalNode.findFirst({ where: { userId, event: normalizedEvent } })
       if (!node) {
         return []
       }
@@ -196,39 +450,75 @@ export class CausalGraph {
     }
   }
 
-  async addHyperEdge(userId: string, nodes: string[], relation: string, context: string): Promise<void> {
-    const normalizedNodes = Array.from(new Set(nodes.map((node) => node.trim()).filter(Boolean)))
+  async addHyperEdge(
+    userId: string,
+    nodes: string[],
+    relation: string,
+    context: string,
+    weight = DEFAULT_HYPEREDGE_WEIGHT,
+  ): Promise<void> {
+    const normalizedNodes = Array.from(
+      new Set(nodes.map((node) => normalizeText(node, MAX_EVENT_LENGTH)).filter(Boolean)),
+    )
     if (normalizedNodes.length < 2) {
       return
     }
 
     try {
-      const resolvedNodeIds: string[] = []
+      const nodeMap = await this.resolveNodeIds(userId, normalizedNodes)
+      const resolvedNodeIds = normalizedNodes
+        .map((nodeName) => nodeMap.get(nodeName))
+        .filter((nodeId): nodeId is string => typeof nodeId === "string")
 
-      for (const nodeName of normalizedNodes) {
-        const existing = await prisma.causalNode.findFirst({
-          where: { userId, event: nodeName },
-        })
+      if (resolvedNodeIds.length < 2) {
+        return
+      }
 
-        if (existing) {
-          resolvedNodeIds.push(existing.id)
-        } else {
-          const created = await prisma.causalNode.create({
-            data: {
-              userId,
-              event: nodeName,
-              category: "other",
+      const normalizedRelation = normalizeText(relation, MAX_RELATION_LENGTH) || "related_events"
+      const normalizedContext = normalizeText(context, MAX_CONTEXT_LENGTH)
+      const normalizedWeight = clamp(weight)
+
+      // Best-effort runtime dedupe: schema has no unique constraint for hyperedge member sets yet.
+      const existingCandidates = await prisma.hyperEdge.findMany({
+        where: {
+          userId,
+          relation: normalizedRelation,
+          members: {
+            some: {
+              nodeId: { in: resolvedNodeIds },
             },
-          })
-          resolvedNodeIds.push(created.id)
-        }
+          },
+        },
+        include: {
+          members: {
+            select: { nodeId: true },
+          },
+        },
+        take: 20,
+      })
+
+      const matchingEdge = existingCandidates.find((edge) => {
+        const memberIds = edge.members.map((member) => member.nodeId)
+        return sameStringSet(memberIds, resolvedNodeIds)
+      })
+
+      if (matchingEdge) {
+        await prisma.hyperEdge.update({
+          where: { id: matchingEdge.id },
+          data: {
+            weight: Math.max(matchingEdge.weight, normalizedWeight),
+            ...(normalizedContext ? { context: normalizedContext } : {}),
+          },
+        })
+        return
       }
 
       const hyperEdge = await prisma.hyperEdge.create({
         data: {
           userId,
-          relation: relation.slice(0, 200),
-          context: context.slice(0, 500),
+          relation: normalizedRelation,
+          context: normalizedContext,
+          weight: normalizedWeight,
         },
       })
 
@@ -447,6 +737,9 @@ export class CausalGraph {
     try {
       const nodes = await prisma.causalNode.findMany({
         where: { userId },
+        orderBy: {
+          createdAt: "desc",
+        },
         include: {
           effectEdges: {
             include: { to: true },
@@ -513,3 +806,10 @@ export class CausalGraph {
 }
 
 export const causalGraph = new CausalGraph()
+
+export const __causalGraphTestUtils = {
+  parseExtractionPayload,
+  extractFirstJsonObject,
+  buildHyperEdgeKey,
+  sameStringSet,
+}
