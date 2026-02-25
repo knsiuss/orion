@@ -89,3 +89,11 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
   - `src/memory/__tests__/causal-graph-dedupe-utils.test.ts`
 - Added CI workflow (Ubuntu + Windows) to run `typecheck` and `test:ci` outside sandbox:
   - `.github/workflows/ci.yml`
+
+## Follow-up Notes (pass 5)
+
+- Added Stage-1 Prisma schema + migration scaffold for graph dedupe keys (nullable, non-breaking):
+  - `prisma/schema.prisma` (`CausalNode.eventKey`, `HyperEdge.memberSetHash`)
+  - `prisma/migrations/20260225133000_add_causal_graph_dedupe_keys_stage1/migration.sql`
+- Backfill + unique constraint enforcement still follows the staged plan in:
+  - `docs/migrations/causal-graph-dedupe-plan.md`
