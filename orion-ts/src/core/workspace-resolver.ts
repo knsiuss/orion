@@ -322,7 +322,11 @@ export class WorkspaceResolver {
 
   private sanitizeUserId(userId: string): string {
     const sanitized = userId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64)
-    return sanitized.length > 0 ? sanitized : "user"
+    if (sanitized.length === 0) {
+      return "user"
+    }
+    // Avoid opaque directories like "___" when the raw id has no usable identifier chars.
+    return /[a-zA-Z0-9]/.test(sanitized) ? sanitized : "user"
   }
 
   isSaasMode(): boolean {

@@ -97,3 +97,14 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
   - `prisma/migrations/20260225133000_add_causal_graph_dedupe_keys_stage1/migration.sql`
 - Backfill + unique constraint enforcement still follows the staged plan in:
   - `docs/migrations/causal-graph-dedupe-plan.md`
+
+## Follow-up Notes (pass 6)
+
+- Runtime verification succeeded outside sandbox:
+  - `pnpm test:ci` => `15` test files passed / `45` tests passed
+- Local rollout steps executed:
+  - `pnpm exec prisma migrate deploy` applied `20260225133000_add_causal_graph_dedupe_keys_stage1`
+  - `pnpm dedupe:causal-graph:dry-run` completed successfully (local DB summary: `0` scanned graph rows)
+- Post-verification fixes:
+  - `workspace-resolver` now falls back to `user` when sanitized ID contains no alphanumeric chars (e.g. `!!!`)
+  - prompt-filter delimiter-abuse test now asserts stable contract (`injection pattern detected`) instead of brittle rule-order exact reason
