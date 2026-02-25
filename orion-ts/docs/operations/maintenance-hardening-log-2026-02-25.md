@@ -69,3 +69,11 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
 - `hybrid-retriever` FTS join now uses SQLite `rowid` (`m.rowid = fts.rowid`) to match FTS5 semantics.
 - `causal-graph` retrieval now trims/clips query input and skips keyword graph scans for empty queries.
 - Graph traversal suppresses duplicate edge processing during BFS to reduce repeated edge candidates.
+
+## Follow-up Notes (pass 3)
+
+- Added integration-style mocked tests for `causal-graph` and `hybrid-retriever` to lock regressions around:
+  - hyperedge weight persistence + dedupe update behavior
+  - raw Prisma `userId` parameter and short-token FTS query generation
+- Added schema migration plan for DB-level graph dedupe constraints:
+  - `docs/migrations/causal-graph-dedupe-plan.md`
