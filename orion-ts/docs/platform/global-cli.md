@@ -7,6 +7,7 @@ Date: 2026-02-26
 Provide a single command (`orion`) that feels closer to OpenClaw:
 
 - run from any directory
+- support a smart first-run `orion` entrypoint (launch setup when profile isn't configured)
 - link your Orion repo once
 - use simple commands like `orion wa scan`
 - validate readiness with `orion self-test`
@@ -39,14 +40,30 @@ This is now a **Phase 2 wrapper** (repo-linked runtime + profile state), not yet
 From your repo directory:
 
 ```bash
-cd C:\Users\test\OneDrive\Desktop\orion\orion-ts
-npm install -g .
+npm install -g C:\Users\test\OneDrive\Desktop\orion\orion-ts
+orion
 ```
+
+On first run, `orion` now behaves like an OpenClaw-style entrypoint:
+
+- if a linked repo/profile is missing, it prints the shortest next step (`orion link ...`)
+- if run inside an Orion repo and no link exists, it auto-detects and auto-links the repo
+- if the active profile is not configured yet, it launches the setup wizard automatically
+- if configured, it shows the next recommended commands (`dashboard`, `channels login`, `all`, `status`)
 
 Alternative (without global install), you can still run:
 
 ```bash
-node bin/orion.js --help
+node bin/orion.js
+```
+
+## Install (local machine, explicit)
+
+From your repo directory:
+
+```bash
+cd C:\Users\test\OneDrive\Desktop\orion\orion-ts
+npm install -g .
 ```
 
 ## First-time setup
@@ -125,6 +142,7 @@ Then scan QR from your phone:
 orion quickstart
 orion setup
 orion configure
+orion
 orion status
 orion dashboard
 orion logs gateway
@@ -156,6 +174,8 @@ orion onboard -- --channel telegram --provider groq
 - creates `permissions/permissions.yaml` template if missing
 - adds baseline env keys (database path, permissions file path, default user, log level)
 - enables `AUTO_START_GATEWAY=true` for WhatsApp Cloud mode if it is enabled but unset
+
+`orion all` and `orion gateway` now auto-run a profile-scoped `prisma migrate deploy` preflight (using your profile `DATABASE_URL`) before starting Orion, which prevents first-run `P2021` table-missing errors on fresh profiles.
 
 `--repo` and `--profile` are one-shot overrides for the current command. They do not rewrite your saved default link/profile unless you run `orion link`.
 

@@ -41,6 +41,7 @@ export function buildDiscordSelfTestChecks(
 export function buildWebchatSelfTestChecks(
   envMap: Record<string, string>,
 ): Array<{ level: "ok" | "warn" | "error"; label: string; detail: string }>
+export function isProfileEnvLikelyConfigured(envMap: Record<string, string>): boolean
 
 export function parseOrionCliArgs(argv: string[]): {
   repoOverride: string | null

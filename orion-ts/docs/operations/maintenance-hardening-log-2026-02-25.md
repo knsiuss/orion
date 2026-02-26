@@ -455,3 +455,18 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
   - `pnpm typecheck` passes
   - `pnpm test:ci` => `21` test files passed / `90` tests passed
   - local `orion all` smoke remains blocked in sandbox by `tsx/esbuild spawn EPERM` (environment limitation)
+
+## Follow-up Notes (pass 27)
+
+- OpenClaw-style CLI focus (first-run entrypoint UX):
+  - bare `orion` now acts as a smart entrypoint instead of always printing help
+  - if no linked repo exists but command is run inside/near an Orion repo, wrapper auto-detects and auto-links it
+  - if the active profile is not configured (no provider/channel setup), bare `orion` launches the setup wizard automatically (`quickstart`)
+  - if profile is already configured, bare `orion` prints concise next actions (`dashboard`, `channels login`, `all`, `status`)
+- CLI startup hardening for fresh profiles:
+  - `orion all` and `orion gateway` now auto-run profile-scoped `prisma migrate deploy` preflight before starting
+  - uses the active profile `DATABASE_URL` so fresh profile DBs do not fail with `P2021` missing-table errors on first run
+- Added/extended tests:
+  - `src/cli/__tests__/orion-global.test.ts` (`isProfileEnvLikelyConfigured` helper for smart entrypoint heuristics)
+- Documentation updates:
+  - `docs/platform/global-cli.md` (bare `orion` smart entrypoint + auto-migrate preflight notes)

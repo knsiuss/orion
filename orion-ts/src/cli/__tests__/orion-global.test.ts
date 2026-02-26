@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   buildDiscordSelfTestChecks,
+  isProfileEnvLikelyConfigured,
   buildTelegramSelfTestChecks,
   buildWebchatSelfTestChecks,
   buildWhatsAppSelfTestChecks,
@@ -205,6 +206,16 @@ describe("global orion CLI helpers", () => {
 
     expect(explicit[0]?.detail).toContain("127.0.0.1:9090")
     expect(fallback[0]?.detail).toContain("127.0.0.1:8080")
+  })
+
+  it("detects whether a profile env looks configured for first-run smart entrypoint", () => {
+    expect(isProfileEnvLikelyConfigured({})).toBe(false)
+    expect(isProfileEnvLikelyConfigured({ GROQ_API_KEY: "" })).toBe(false)
+    expect(isProfileEnvLikelyConfigured({ OLLAMA_BASE_URL: "http://127.0.0.1:11434" })).toBe(false)
+    expect(isProfileEnvLikelyConfigured({ GROQ_API_KEY: "gsk_test" })).toBe(true)
+    expect(isProfileEnvLikelyConfigured({ WHATSAPP_ENABLED: "true" })).toBe(true)
+    expect(isProfileEnvLikelyConfigured({ TELEGRAM_BOT_TOKEN: "123:abc" })).toBe(true)
+    expect(isProfileEnvLikelyConfigured({ DISCORD_BOT_TOKEN: "discord-token" })).toBe(true)
   })
 
   it("validates Orion repo by package name", async () => {
