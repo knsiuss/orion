@@ -30,6 +30,49 @@ function countCommaSeparatedValues(value) {
   return raw.split(",").map((item) => item.trim()).filter(Boolean).length
 }
 
+function parseFileDatabaseUrlPath(databaseUrl) {
+  const raw = typeof databaseUrl === "string" ? databaseUrl.trim() : ""
+  if (!raw || !raw.toLowerCase().startsWith("file:")) {
+    return null
+  }
+  const filePath = raw.slice("file:".length)
+  if (!filePath) {
+    return null
+  }
+  if (filePath.startsWith("./") || filePath.startsWith(".\\")) {
+    return path.resolve(process.cwd(), filePath)
+  }
+  return filePath
+}
+
+function buildMigrationFailureRecoveryHint(profileDir, databaseUrl, stderr = "", stdout = "") {
+  const combined = `${stderr ?? ""}\n${stdout ?? ""}`
+  const hasFailedMigrationState = /\bP3009\b|\bP3018\b/i.test(combined)
+  const dbPath = parseFileDatabaseUrlPath(databaseUrl)
+  if (!hasFailedMigrationState || !dbPath) {
+    return null
+  }
+
+  const normalizedProfileDir = path.resolve(profileDir)
+  const normalizedDbPath = path.resolve(dbPath)
+  const isProfileScopedDb = normalizedDbPath.startsWith(normalizedProfileDir)
+  if (!isProfileScopedDb) {
+    return null
+  }
+
+  return [
+    "Local profile DB has a failed migration record.",
+    "Quick recovery (keeps profile config, resets local DB data only):",
+    `- Stop Orion, then delete: ${normalizedDbPath}`,
+    "- Re-run: `orion status --fix --migrate`",
+    "",
+    "Safer alternative (fresh profile for testing):",
+    "- `orion --profile demo profile init`",
+    "- `orion --profile demo status --fix --migrate`",
+    "- `orion --profile demo dashboard --open`",
+  ].join("\n")
+}
+
 const CHANNEL_LOG_PATTERNS = {
   whatsapp: [
     /\[whatsapp-channel\]/i,
@@ -1478,8 +1521,11 @@ async function loadProfileEnvMap(profileDir) {
   return { profilePaths, envMap }
 }
 
-function summarizeMigrateOutput(stdout, stderr) {
+function summarizeMigrateOutput(stdout, stderr, exitCode = 0) {
   const combined = `${stdout ?? ""}\n${stderr ?? ""}`
+  if (exitCode !== 0) {
+    return "Profile DB migration failed."
+  }
   if (/No pending migrations/i.test(combined)) {
     return "Profile DB schema is up to date."
   }
@@ -1507,10 +1553,12 @@ async function maybeAutoMigrateProfileDb(repoDir, profileDir, triggerCommand) {
 
   if (result.code !== 0) {
     const preview = (result.stderr || result.stdout || "").trim()
-    throw new Error(`Profile DB migration failed before \`${triggerCommand}\`.\n${preview}`)
+    const hint = buildMigrationFailureRecoveryHint(profileDir, databaseUrl, result.stderr, result.stdout)
+    const suffix = hint ? `\n\nRecovery hint:\n${hint}` : ""
+    throw new Error(`Profile DB migration failed before \`${triggerCommand}\`.\n${preview}${suffix}`)
   }
 
-  console.log(summarizeMigrateOutput(result.stdout, result.stderr))
+  console.log(summarizeMigrateOutput(result.stdout, result.stderr, result.code))
 }
 
 async function runProfileDbMigrationPreflight(repoDir, profileDir, triggerCommand) {
@@ -1532,7 +1580,10 @@ async function runProfileDbMigrationPreflight(repoDir, profileDir, triggerComman
     },
   })
 
-  const summary = summarizeMigrateOutput(result.stdout, result.stderr)
+  const summary = summarizeMigrateOutput(result.stdout, result.stderr, result.code)
+  const recoveryHint = result.code === 0
+    ? null
+    : buildMigrationFailureRecoveryHint(profileDir, databaseUrl, result.stderr, result.stdout)
   return {
     attempted: true,
     ok: result.code === 0,
@@ -1540,6 +1591,7 @@ async function runProfileDbMigrationPreflight(repoDir, profileDir, triggerComman
     message: summary,
     stdout: result.stdout,
     stderr: result.stderr,
+    recoveryHint,
   }
 }
 
@@ -1645,6 +1697,7 @@ async function handleSelfTest(repoOverride, profileOverride, devMode = false, re
 
   console.log("")
   console.log(`Summary: ${errors} errors, ${warnings} warnings`)
+  const migrationFailed = options.migrate && migration && !migration.ok
   if (options.migrate && migration) {
     console.log("")
     if (migration.ok) {
@@ -1654,6 +1707,13 @@ async function handleSelfTest(repoOverride, profileOverride, devMode = false, re
       const preview = String(migration.stderr || migration.stdout || "").trim()
       if (preview) {
         console.log(preview)
+      }
+      if (migration.recoveryHint) {
+        console.log("")
+        console.log("Recovery hint:")
+        for (const line of String(migration.recoveryHint).split("\n")) {
+          console.log(line ? line : "")
+        }
       }
     }
   }
@@ -1668,14 +1728,13 @@ async function handleSelfTest(repoOverride, profileOverride, devMode = false, re
       console.log("Applied fixes: no changes needed")
     }
   }
-  if (errors === 0) {
+  if (errors === 0 && !migrationFailed) {
     console.log("")
     console.log("Next:")
     console.log("- `orion wa scan` (WhatsApp QR setup)")
     console.log("- `orion all` (start Orion)")
   }
 
-  const migrationFailed = options.migrate && migration && !migration.ok
   process.exit(errors > 0 || migrationFailed ? 1 : 0)
 }
 
