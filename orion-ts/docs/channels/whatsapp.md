@@ -30,6 +30,12 @@ Fastest command (recommended):
 pnpm wa:scan
 ```
 
+If you installed the global wrapper:
+
+```bash
+orion wa scan
+```
+
 or use the general wizard:
 
 ```bash
@@ -151,6 +157,12 @@ Fastest command:
 
 ```bash
 pnpm wa:cloud
+```
+
+Global wrapper equivalent:
+
+```bash
+orion wa cloud
 ```
 
 1. Create/configure a Meta app and WhatsApp Cloud API phone number.

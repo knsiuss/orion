@@ -45,6 +45,17 @@ pnpm wa:scan
 pnpm wa:cloud
 ```
 
+OpenClaw-style global wrapper (Phase 1):
+
+```bash
+orion link <path-to-orion-ts>
+orion wa scan
+```
+
+See:
+
+- `docs/platform/global-cli.md`
+
 ## What the wizard does
 
 1. Chooses a first test channel (`telegram`, `discord`, `whatsapp`, or `webchat`).
@@ -76,4 +87,5 @@ pnpm gateway:watch
 - `docs/channels/telegram.md`
 - `docs/channels/discord.md`
 - `docs/channels/whatsapp.md`
+- `docs/platform/global-cli.md`
 - `docs/platform/doctor.md`

@@ -264,3 +264,22 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
     - `pnpm wa:scan`
     - `pnpm wa:cloud`
 - Updated onboarding help/docs to use `pnpm onboard -- <args>` when passing script flags.
+
+## Follow-up Notes (pass 18)
+
+- Added Phase-1 global-style `orion` CLI wrapper (`bin/orion.js`) with OpenClaw-like command ergonomics:
+  - `orion link <repo>`
+  - `orion quickstart`
+  - `orion wa scan`
+  - `orion wa cloud`
+  - `orion all`, `orion doctor`, `orion gateway`
+- Wrapper stores linked repo path in `~/.orion/cli.json` and proxies to `pnpm --dir <repo> ...`.
+- Added `package.json` bin entry for npm global install (`orion`).
+- Added helper tests for CLI parsing/repo detection and docs:
+  - `src/cli/__tests__/orion-global.test.ts`
+  - `docs/platform/global-cli.md`
+- Validation:
+  - `node bin/orion.js --help` prints expected OpenClaw-style wrapper commands
+  - `node bin/orion.js repo --repo .` resolves current repo path
+  - `pnpm typecheck` passes
+  - `pnpm test:ci` => `21` test files passed / `73` tests passed
