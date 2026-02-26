@@ -86,6 +86,9 @@ pnpm quickstart
   - check `WHATSAPP_ENABLED=true`
   - check `WHATSAPP_MODE=baileys`
   - ensure `baileys` dependency is installed
+  - if you see `WhatsApp QR payload (renderer missing)`, install a terminal QR renderer:
+    - `pnpm add qrcode-terminal`
+    - then restart `orion all`
 - Connected then disconnects:
   - check logs for `whatsapp-channel`
   - delete local auth cache only if you intentionally want to re-pair (`.orion/whatsapp-auth`)

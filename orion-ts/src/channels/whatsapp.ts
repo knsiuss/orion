@@ -1,3 +1,4 @@
+import { createRequire } from "node:module"
 import path from "node:path"
 
 import config from "../config.js"
@@ -9,6 +10,7 @@ import type { BaseChannel } from "./base.js"
 import { pollForConfirm, splitMessage } from "./base.js"
 
 const log = createLogger("whatsapp-channel")
+const optionalRequire = createRequire(import.meta.url)
 
 const WHATSAPP_CLOUD_GRAPH_BASE_URL = "https://graph.facebook.com"
 const WHATSAPP_CLOUD_SEND_TIMEOUT_MS = 15_000
@@ -25,7 +27,7 @@ interface BaileysSocket {
 
 interface BaileysModule {
   makeWASocket: (config: {
-    auth: { state: unknown; saveCreds: () => Promise<void> }
+    auth: unknown
     printQRInTerminal: boolean
     getMessage: (key: unknown) => Promise<unknown>
   }) => BaileysSocket
@@ -75,6 +77,9 @@ interface MetaGraphApiErrorPayload {
 }
 
 type WhatsAppMode = "baileys" | "cloud"
+type QrTerminalRenderer = {
+  generate(input: string, options?: { small?: boolean }): void
+}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -287,6 +292,9 @@ export class WhatsAppChannel implements BaseChannel {
   private cloudAllowedWaIds = new Set<string>()
   private running = false
   private connected = false
+  private qrRenderer: QrTerminalRenderer | null = null
+  private qrRendererLoadAttempted = false
+  private lastPrintedQr: string | null = null
 
   async start(): Promise<void> {
     if (this.running) {
@@ -326,16 +334,29 @@ export class WhatsAppChannel implements BaseChannel {
       const { state, saveCreds } = await this.baileys.useMultiFileAuthState(resolveWhatsAppAuthStateDir())
 
       this.socket = this.baileys.makeWASocket({
-        auth: { state, saveCreds },
-        printQRInTerminal: true,
+        // Baileys expects the raw auth state object (`{ creds, keys }`), not the wrapper returned by
+        // useMultiFileAuthState. Passing the wrapper causes `auth.creds` to be undefined and crashes at startup.
+        auth: state,
+        printQRInTerminal: false,
         getMessage: async () => undefined,
       })
       this.running = true
 
+      this.socket.on("creds.update", () => {
+        void saveCreds().catch((error) => {
+          log.warn("WhatsApp (Baileys) failed to persist updated creds", { error })
+        })
+      })
+
       this.socket.on("connection.update", (update: unknown) => {
         const connUpdate = update as {
           connection?: string
+          qr?: string
           lastDisconnect?: { error?: { output?: { statusCode?: number } } }
+        }
+
+        if (typeof connUpdate.qr === "string" && connUpdate.qr.trim().length > 0) {
+          void this.printQr(connUpdate.qr)
         }
 
         if (connUpdate.connection === "close") {
@@ -714,6 +735,51 @@ export class WhatsAppChannel implements BaseChannel {
     }
   }
 
+  private async printQr(qr: string): Promise<void> {
+    if (!qr || qr === this.lastPrintedQr) {
+      return
+    }
+    this.lastPrintedQr = qr
+
+    const renderer = await this.loadQrRenderer()
+    if (renderer) {
+      console.log("")
+      console.log("WhatsApp QR (scan from WhatsApp > Linked Devices > Link a Device):")
+      renderer.generate(qr, { small: true })
+      console.log("")
+      return
+    }
+
+    log.warn("WhatsApp QR received but terminal QR renderer is unavailable", {
+      hint: "Install `qrcode-terminal` for in-terminal QR rendering, or use WhatsApp Cloud mode.",
+    })
+    console.log("")
+    console.log("WhatsApp QR payload (renderer missing):")
+    console.log(qr)
+    console.log("")
+  }
+
+  private async loadQrRenderer(): Promise<QrTerminalRenderer | null> {
+    if (this.qrRendererLoadAttempted) {
+      return this.qrRenderer
+    }
+    this.qrRendererLoadAttempted = true
+
+    try {
+      const mod = optionalRequire("qrcode-terminal") as unknown
+      const candidate = (mod as { default?: unknown }).default ?? mod
+      if (candidate && typeof (candidate as { generate?: unknown }).generate === "function") {
+        this.qrRenderer = candidate as QrTerminalRenderer
+        return this.qrRenderer
+      }
+    } catch {
+      // Optional dependency; fallback handled by caller.
+    }
+
+    this.qrRenderer = null
+    return null
+  }
+
   private async cloudApiCall(path: string, body: Record<string, unknown>): Promise<unknown> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), WHATSAPP_CLOUD_SEND_TIMEOUT_MS)
@@ -804,4 +870,9 @@ export const __whatsAppTestUtils = {
   resolveWhatsAppAuthStateDir,
   parseWhatsAppWebhookVerifyQuery,
   extractInboundWhatsAppCloudMessages,
+  // Regression guard: Baileys startup must pass raw auth state to makeWASocket, not `{ state, saveCreds }`.
+  buildBaileysSocketConfigPreview: (state: unknown) => ({
+    auth: state,
+    printQRInTerminal: false,
+  }),
 }

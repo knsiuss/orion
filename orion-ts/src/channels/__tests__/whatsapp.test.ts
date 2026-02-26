@@ -69,4 +69,13 @@ describe("whatsapp channel helpers", () => {
     expect(__whatsAppTestUtils.normalizeWhatsAppCommand("!ping")).toBe("ping")
     expect(__whatsAppTestUtils.normalizeWhatsAppCommand("hello")).toBeNull()
   })
+
+  it("builds Baileys socket config preview with raw auth state (not nested wrapper)", () => {
+    const state = { creds: { me: null }, keys: {} }
+    const preview = __whatsAppTestUtils.buildBaileysSocketConfigPreview(state)
+
+    expect(preview.auth).toBe(state)
+    expect(preview).toMatchObject({ printQRInTerminal: false })
+    expect(preview).not.toHaveProperty("auth.state")
+  })
 })

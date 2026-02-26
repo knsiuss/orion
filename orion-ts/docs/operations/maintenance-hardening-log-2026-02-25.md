@@ -435,3 +435,23 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
 - Validation:
   - `pnpm typecheck` passes
   - `pnpm test:ci` => `21` test files passed / `89` tests passed
+
+## Follow-up Notes (pass 26)
+
+- WhatsApp Baileys QR startup bugfix (runtime regression found from real user log):
+  - fixed Baileys auth state wiring in `src/channels/whatsapp.ts`
+    - `makeWASocket({ auth })` now receives the raw `state` from `useMultiFileAuthState()`
+    - previous code incorrectly passed `{ state, saveCreds }` wrapper as `auth`, causing Baileys `auth.creds` to be `undefined` and crashing with `TypeError` (`creds.me`)
+  - added `creds.update` listener to persist auth credential updates via `saveCreds()`
+- WhatsApp QR UX hardening for newer Baileys versions:
+  - stopped relying on deprecated `printQRInTerminal`
+  - now listens for `connection.update.qr` and attempts terminal rendering via optional `qrcode-terminal`
+  - falls back to explicit warning + raw QR payload if renderer package is missing
+- Added regression test:
+  - `src/channels/__tests__/whatsapp.test.ts` verifies Baileys socket auth config preview uses raw auth state (not nested wrapper)
+- Documentation update:
+  - `docs/channels/whatsapp.md` troubleshooting notes how to install `qrcode-terminal` if QR renderer is missing
+- Validation:
+  - `pnpm typecheck` passes
+  - `pnpm test:ci` => `21` test files passed / `90` tests passed
+  - local `orion all` smoke remains blocked in sandbox by `tsx/esbuild spawn EPERM` (environment limitation)
