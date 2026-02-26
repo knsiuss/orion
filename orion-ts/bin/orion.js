@@ -75,6 +75,43 @@ export function lineMatchesChannelLogFilter(channel, line) {
   return isLikelyCriticalLogLine(text)
 }
 
+export function getChannelLogHints(channel, line) {
+  const normalizedChannel = normalizeChannelName(channel ?? "")
+  const text = String(line ?? "")
+  if (!normalizedChannel || !text) {
+    return []
+  }
+
+  const hints = []
+
+  if (
+    /does not exist in the current database/i.test(text)
+    && (/prisma:error/i.test(text) || /\bP2021\b/i.test(text))
+  ) {
+    hints.push({
+      id: "db-schema-missing",
+      message: "Profile DB schema looks missing. Run `orion status --fix --migrate` (or just `orion all`, which now auto-migrates before startup).",
+    })
+  }
+
+  if (normalizedChannel === "whatsapp") {
+    if (/\[whatsapp-channel\]/i.test(text) && /statusCode\":?405/i.test(text)) {
+      hints.push({
+        id: "wa-405",
+        message: "WhatsApp Baileys disconnected with status 405 during registration. Common fixes: sync system clock, disable VPN/proxy, try another network, clear `~/.orion/.../whatsapp-auth`, then retry QR pairing.",
+      })
+    }
+    if (/\"class\"\s*:\s*\"baileys\"/i.test(text) && /Connection Failure/i.test(text)) {
+      hints.push({
+        id: "wa-connection-failure",
+        message: "Baileys reported Connection Failure while pairing. If QR keeps looping, remove the WhatsApp auth state dir and retry on a stable network.",
+      })
+    }
+  }
+
+  return hints
+}
+
 export function getPnpmCommand(platform = process.platform) {
   return platform === "win32" ? "pnpm.cmd" : "pnpm"
 }
@@ -1821,16 +1858,19 @@ function createLineStreamProcessor(onLine) {
 }
 
 async function runChildFilteredLines(command, args, lineMatcher, options = {}) {
+  const { onLine: onLineOption, ...spawnOptions } = options
+  const onLine = typeof onLineOption === "function" ? onLineOption : null
   const child = spawn(command, args, {
     stdio: ["ignore", "pipe", "pipe"],
     shell: shouldUseShellForCommand(command),
-    ...options,
+    ...spawnOptions,
   })
 
   let shown = 0
   let suppressed = 0
 
   const stdoutProcessor = createLineStreamProcessor((line) => {
+    onLine?.(line, "stdout")
     if (lineMatcher(line, "stdout")) {
       shown += 1
       process.stdout.write(`${line}\n`)
@@ -1839,6 +1879,7 @@ async function runChildFilteredLines(command, args, lineMatcher, options = {}) {
     }
   })
   const stderrProcessor = createLineStreamProcessor((line) => {
+    onLine?.(line, "stderr")
     if (lineMatcher(line, "stderr")) {
       shown += 1
       process.stderr.write(`${line}\n`)
@@ -1896,10 +1937,24 @@ async function runPnpmScript(repoDir, profileDir, script, extraArgs = []) {
   process.exit(code)
 }
 
-async function runPnpmScriptFiltered(repoDir, profileDir, script, lineMatcher, extraArgs = []) {
+async function runPnpmScriptFiltered(repoDir, profileDir, script, lineMatcher, extraArgs = [], options = {}) {
   const args = ["--dir", repoDir, script, ...extraArgs]
+  const hintChannel = normalizeChannelName(options.hintChannel ?? "") ?? null
+  const shownHints = new Set()
   const result = await runChildFilteredLines(getPnpmCommand(), args, lineMatcher, {
     env: buildOrionChildEnv(process.env, profileDir),
+    onLine(line) {
+      if (!hintChannel) {
+        return
+      }
+      for (const hint of getChannelLogHints(hintChannel, line)) {
+        if (shownHints.has(hint.id)) {
+          continue
+        }
+        shownHints.add(hint.id)
+        console.log(`[orion-cli] Hint: ${hint.message}`)
+      }
+    },
   })
   if (result.suppressed > 0) {
     console.log(`(filtered ${result.suppressed} non-matching log line(s); displayed ${result.shown})`)
@@ -1984,6 +2039,7 @@ async function handleLogs(repoDir, profileDir, rest) {
     console.log("Use `orion logs all` or `orion logs gateway` to stream live logs by starting a process.")
     return
   }
+  await maybeAutoMigrateProfileDb(repoDir, profileDir, `logs ${target}`)
   console.log(`Streaming live logs via \`orion ${target}\` (foreground process). Press Ctrl+C to stop.`)
   await runPnpmScript(repoDir, profileDir, target)
 }
@@ -2106,6 +2162,7 @@ async function handleChannelsCommand(repoOverride, profileOverride, devMode, res
         console.log("Use `orion channels logs --channel <name> [all|gateway]` to stream live filtered logs.")
         return
       }
+      await maybeAutoMigrateProfileDb(repoDir, profileDir, `channels logs ${target}`)
       console.log(`Streaming best-effort filtered logs for channel '${channel}' via \`orion ${target}\` (Ctrl+C to stop)...`)
       await runPnpmScriptFiltered(
         repoDir,
@@ -2113,6 +2170,7 @@ async function handleChannelsCommand(repoOverride, profileOverride, devMode, res
         target,
         (line) => lineMatchesChannelLogFilter(channel, line),
         targetArgs.slice(1),
+        { hintChannel: channel },
       )
       return
     }

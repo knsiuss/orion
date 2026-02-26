@@ -22,6 +22,7 @@ import {
   parseEnvContentLoose,
   findOrionRepoUpwards,
   getProfilePaths,
+  getChannelLogHints,
   isOrionRepoDir,
   lineMatchesChannelLogFilter,
   probeLocalTcpPort,
@@ -400,6 +401,23 @@ describe("global orion CLI helpers", () => {
     // Unrelated healthy lines are filtered out.
     expect(lineMatchesChannelLogFilter("telegram", "[startup] engines loaded")).toBe(false)
     expect(lineMatchesChannelLogFilter("whatsapp", "[channels.telegram] Telegram disabled")).toBe(false)
+  })
+
+  it("emits actionable hints for known channel log failure patterns", () => {
+    const dbHints = getChannelLogHints(
+      "whatsapp",
+      "[database] getHistory failed {\"code\":\"P2021\",\"meta\":{\"table\":\"main.Message\"},\"msg\":\"The table does not exist in the current database.\"}",
+    )
+    expect(dbHints.some((hint) => hint.id === "db-schema-missing")).toBe(true)
+
+    const waHints = getChannelLogHints(
+      "whatsapp",
+      "[2026-02-26] INFO [whatsapp-channel] WhatsApp (Baileys) disconnected {\"statusCode\":405,\"shouldReconnect\":true}",
+    )
+    expect(waHints.some((hint) => hint.id === "wa-405")).toBe(true)
+
+    const otherChannel = getChannelLogHints("telegram", "[whatsapp-channel] disconnected {\"statusCode\":405}")
+    expect(otherChannel.some((hint) => hint.id === "wa-405")).toBe(false)
   })
 
   it("reports WebChat URL using configured port fallback", () => {

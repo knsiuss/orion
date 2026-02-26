@@ -187,6 +187,8 @@ orion onboard -- --channel telegram --provider groq
 
 `orion all` and `orion gateway` now auto-run a profile-scoped `prisma migrate deploy` preflight (using your profile `DATABASE_URL`) before starting Orion, which prevents first-run `P2021` table-missing errors on fresh profiles.
 
+`orion logs` and `orion channels logs --channel <name>` now run the same profile DB migration preflight before starting foreground logs, reducing noisy first-run `P2021` errors in log streams.
+
 `orion dashboard --open` tries to open the dashboard URL in your default browser (best effort) and then starts gateway foreground mode.
 
 `--repo` and `--profile` are one-shot overrides for the current command. They do not rewrite your saved default link/profile unless you run `orion link`.

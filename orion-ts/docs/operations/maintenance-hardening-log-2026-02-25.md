@@ -542,3 +542,14 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
   - `docs/platform/global-cli.md` and `docs/channels/whatsapp.md` updated accordingly
 - Added tests:
   - `src/cli/__tests__/orion-global.test.ts` (`lineMatchesChannelLogFilter` coverage for channel tags + fatal passthrough)
+
+## Follow-up Notes (pass 33)
+
+- `channels logs` UX hardening (user-feedback driven):
+  - `orion logs` and `orion channels logs --channel <name>` now run profile DB migration preflight before starting foreground logs (same safety behavior as `orion all` / `orion gateway`)
+  - reduces noisy first-run Prisma `P2021` missing-table errors when users jump straight into log streaming
+  - channel-filtered logs now emit one-time actionable hints for common patterns:
+    - Prisma missing-table errors (`P2021`) -> suggest `orion status --fix --migrate`
+    - WhatsApp Baileys disconnect `statusCode=405` / connection failures during registration -> suggest clock sync, network check, clearing auth state, retry QR pairing
+- Added tests:
+  - `src/cli/__tests__/orion-global.test.ts` (`getChannelLogHints` coverage for `P2021` + WhatsApp 405`)

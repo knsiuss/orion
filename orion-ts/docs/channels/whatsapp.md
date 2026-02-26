@@ -50,7 +50,7 @@ orion channels logs --channel whatsapp
 
 `orion channels status --channel whatsapp` now reports runtime auth/session hints for QR mode (for example: auth dir missing, `creds.json` unreadable, or paired session detected), not just env readiness. The same CLI status command also adds lightweight runtime hints for other channels (for example WebChat localhost reachability and token-format sanity hints for Telegram/Discord).
 
-`orion channels logs --channel whatsapp` now does best-effort live filtering for WhatsApp logs (including Baileys JSON logs) while still passing through fatal process errors.
+`orion channels logs --channel whatsapp` now does best-effort live filtering for WhatsApp logs (including Baileys JSON logs) while still passing through fatal process errors. It also runs profile DB migration preflight before starting logs, so fresh profiles are less likely to spam `P2021` table-missing errors.
 
 Non-interactive (scriptable) variant:
 

@@ -14,6 +14,10 @@ export function lineMatchesChannelLogFilter(
   channel: string,
   line: string,
 ): boolean
+export function getChannelLogHints(
+  channel: string,
+  line: string,
+): Array<{ id: string; message: string }>
 export function parseChannelsArgs(argv: string[]): {
   channel: "telegram" | "discord" | "whatsapp" | "webchat" | null
   mode: string | null
