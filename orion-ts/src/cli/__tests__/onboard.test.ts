@@ -8,6 +8,7 @@ describe("onboard cli helpers", () => {
       "--channel=telegram",
       "--provider",
       "groq",
+      "--whatsapp-mode=scan",
       "--print-only",
       "--yes",
     ])
@@ -16,6 +17,7 @@ describe("onboard cli helpers", () => {
       flow: "quickstart",
       channel: "telegram",
       provider: "groq",
+      whatsappMode: "scan",
       writeMode: "print",
       yes: true,
     })
@@ -68,5 +70,21 @@ describe("onboard cli helpers", () => {
     expect(steps.join("\n")).toContain("/webhooks/whatsapp")
     expect(steps.join("\n")).toContain("WHATSAPP_CLOUD_VERIFY_TOKEN")
     expect(steps.join("\n")).toContain("docs/channels/whatsapp.md")
+  })
+
+  it("builds WhatsApp QR scan next steps (OpenClaw-style quick test)", () => {
+    const steps = __onboardTestUtils.buildNextSteps({
+      channel: "whatsapp",
+      provider: "groq",
+      updates: {
+        WHATSAPP_ENABLED: "true",
+        WHATSAPP_MODE: "baileys",
+      },
+    })
+
+    const text = steps.join("\n")
+    expect(text).toContain("QR code")
+    expect(text).toContain("Linked Devices")
+    expect(text).toContain("WHATSAPP_MODE=baileys")
   })
 })

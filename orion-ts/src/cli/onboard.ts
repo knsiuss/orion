@@ -9,6 +9,7 @@ import dotenv from "dotenv"
 
 type ChannelChoice = "telegram" | "discord" | "whatsapp" | "webchat"
 type ProviderChoice = "groq" | "openrouter" | "anthropic" | "openai" | "gemini" | "ollama"
+type WhatsAppSetupMode = "scan" | "cloud"
 
 type WriteMode = "write" | "print"
 
@@ -16,6 +17,7 @@ interface OnboardArgs {
   flow: "quickstart"
   channel: ChannelChoice | null
   provider: ProviderChoice | null
+  whatsappMode: WhatsAppSetupMode | null
   writeMode: WriteMode
   yes: boolean
 }
@@ -47,12 +49,17 @@ const PROVIDER_CHOICES: ReadonlyArray<{ key: ProviderChoice; label: string; desc
   { key: "ollama", label: "Ollama (local model)", description: "No paid API key required" },
 ]
 
+const WHATSAPP_MODE_CHOICES: ReadonlyArray<{ key: WhatsAppSetupMode; label: string; description: string }> = [
+  { key: "scan", label: "Scan QR (recommended)", description: "Fastest OpenClaw-style test using Baileys (no Meta dashboard)" },
+  { key: "cloud", label: "Cloud API", description: "Official Meta API with webhook, token, and phone number ID" },
+]
+
 function printHelp(): void {
   console.log("Orion Onboarding (OpenClaw-inspired)")
   console.log("====================================")
   console.log("")
   console.log("Usage:")
-  console.log("  pnpm onboard [--channel telegram|discord|whatsapp|webchat] [--provider groq|openrouter|anthropic|openai|gemini|ollama]")
+  console.log("  pnpm onboard [--channel telegram|discord|whatsapp|webchat] [--provider groq|openrouter|anthropic|openai|gemini|ollama] [--whatsapp-mode scan|cloud]")
   console.log("  pnpm setup   # alias for quickstart wizard")
   console.log("")
   console.log("Options:")
@@ -73,10 +80,15 @@ function isProviderChoice(value: string): value is ProviderChoice {
   return PROVIDER_CHOICES.some((item) => item.key === value)
 }
 
+function isWhatsAppSetupMode(value: string): value is WhatsAppSetupMode {
+  return WHATSAPP_MODE_CHOICES.some((item) => item.key === value)
+}
+
 export function parseOnboardArgs(argv: string[]): OnboardArgs {
   let flow: "quickstart" = "quickstart"
   let channel: ChannelChoice | null = null
   let provider: ProviderChoice | null = null
+  let whatsappMode: WhatsAppSetupMode | null = null
   let writeMode: WriteMode = "write"
   let yes = false
 
@@ -125,6 +137,23 @@ export function parseOnboardArgs(argv: string[]): OnboardArgs {
       provider = next
       continue
     }
+    if (arg === "--whatsapp-mode" && argv[i + 1]) {
+      const next = (argv[i + 1] ?? "").trim().toLowerCase()
+      i += 1
+      if (!isWhatsAppSetupMode(next)) {
+        throw new Error(`Invalid --whatsapp-mode '${next}'`)
+      }
+      whatsappMode = next
+      continue
+    }
+    if (arg.startsWith("--whatsapp-mode=")) {
+      const next = arg.slice("--whatsapp-mode=".length).trim().toLowerCase()
+      if (!isWhatsAppSetupMode(next)) {
+        throw new Error(`Invalid --whatsapp-mode '${next}'`)
+      }
+      whatsappMode = next
+      continue
+    }
     if (arg.startsWith("--provider=")) {
       const next = arg.slice("--provider=".length).trim().toLowerCase()
       if (!isProviderChoice(next)) {
@@ -147,7 +176,7 @@ export function parseOnboardArgs(argv: string[]): OnboardArgs {
     }
   }
 
-  return { flow, channel, provider, writeMode, yes }
+  return { flow, channel, provider, whatsappMode, writeMode, yes }
 }
 
 function providerEnvKey(provider: ProviderChoice): "GROQ_API_KEY" | "OPENROUTER_API_KEY" | "ANTHROPIC_API_KEY" | "OPENAI_API_KEY" | "GEMINI_API_KEY" | "OLLAMA_BASE_URL" {
@@ -280,11 +309,19 @@ function buildNextSteps(plan: QuickstartPlan): string[] {
       lines.push("5. If using a server channel, add the `!id` result to `DISCORD_CHANNEL_ID` and rerun `pnpm onboard`.")
     }
   } else if (plan.channel === "whatsapp") {
-    lines.push("3. Expose your gateway publicly (e.g. Cloudflare Tunnel / ngrok) and point Meta webhook to `/webhooks/whatsapp`.")
-    lines.push("4. In Meta App dashboard, set verify token to `WHATSAPP_CLOUD_VERIFY_TOKEN` and subscribe to `messages` webhook events.")
-    lines.push("5. Run `/help`, `/id`, `/ping` from your WhatsApp test phone, then send a normal message.")
-    if (!plan.updates.WHATSAPP_CLOUD_ALLOWED_WA_IDS) {
-      lines.push("6. Optional hardening: copy `/id` result into `WHATSAPP_CLOUD_ALLOWED_WA_IDS` and rerun `pnpm onboard`.")
+    const isCloudMode = (plan.updates.WHATSAPP_MODE ?? "").trim().toLowerCase() === "cloud"
+    if (isCloudMode) {
+      lines.push("3. Expose your gateway publicly (e.g. Cloudflare Tunnel / ngrok) and point Meta webhook to `/webhooks/whatsapp`.")
+      lines.push("4. In Meta App dashboard, set verify token to `WHATSAPP_CLOUD_VERIFY_TOKEN` and subscribe to `messages` webhook events.")
+      lines.push("5. Run `/help`, `/id`, `/ping` from your WhatsApp test phone, then send a normal message.")
+      if (!plan.updates.WHATSAPP_CLOUD_ALLOWED_WA_IDS) {
+        lines.push("6. Optional hardening: copy `/id` result into `WHATSAPP_CLOUD_ALLOWED_WA_IDS` and rerun `pnpm onboard`.")
+      }
+    } else {
+      lines.push("3. Run `pnpm all` and wait for the WhatsApp QR code in terminal.")
+      lines.push("4. On your phone: WhatsApp -> Linked Devices -> Link a Device, then scan the QR.")
+      lines.push("5. Send `/help`, `/id`, `/ping`, then a normal message from a test chat.")
+      lines.push("6. If QR does not appear, make sure `baileys` is installed and `WHATSAPP_MODE=baileys`.")
     }
   } else {
     lines.push("3. Open `http://127.0.0.1:8080` on this machine and test WebChat.")
@@ -393,6 +430,7 @@ function buildQuickstartBanner(): void {
   console.log("")
   console.log("This wizard helps you:")
   console.log("- choose a test channel (Telegram / Discord / WhatsApp / WebChat)")
+  console.log("- for WhatsApp: choose Scan QR (quick test) or Cloud API (official)")
   console.log("- choose a model provider")
   console.log("- write the minimum .env config for a phone-first quick test")
 }
@@ -466,59 +504,65 @@ async function collectQuickstartPlan(
         updates.DISCORD_CHANNEL_ID = channelId
       }
     } else if (channel === "whatsapp") {
-      const accessToken = await askInput(rl, "WHATSAPP_CLOUD_ACCESS_TOKEN", {
-        current: envValues.WHATSAPP_CLOUD_ACCESS_TOKEN ?? null,
-        optional: true,
-        placeholder: "Meta permanent/long-lived access token (leave blank to set later)",
-      })
-      const phoneNumberId = await askInput(rl, "WHATSAPP_CLOUD_PHONE_NUMBER_ID", {
-        current: envValues.WHATSAPP_CLOUD_PHONE_NUMBER_ID ?? null,
-        optional: true,
-        placeholder: "from Meta WhatsApp Cloud API dashboard",
-      })
-      const verifyTokenDefault =
-        envValues.WHATSAPP_CLOUD_VERIFY_TOKEN
-        || crypto.randomUUID().replaceAll("-", "")
-      const verifyToken = await askInput(rl, "WHATSAPP_CLOUD_VERIFY_TOKEN", {
-        current: envValues.WHATSAPP_CLOUD_VERIFY_TOKEN ?? null,
-        placeholder: "used by Meta webhook verification (auto-generated if blank)",
-        defaultValue: verifyTokenDefault,
-      })
-      const allowlist = await askInput(rl, "WHATSAPP_CLOUD_ALLOWED_WA_IDS", {
-        current: envValues.WHATSAPP_CLOUD_ALLOWED_WA_IDS ?? null,
-        optional: true,
-        placeholder: "optional allowlist (comma/newline wa_id), use /id later",
-      })
-      const apiVersion = await askInput(rl, "WHATSAPP_CLOUD_API_VERSION", {
-        current: envValues.WHATSAPP_CLOUD_API_VERSION ?? null,
-        optional: true,
-        placeholder: "default=v20.0",
-        defaultValue: envValues.WHATSAPP_CLOUD_API_VERSION || "v20.0",
-      })
-
       updates.WHATSAPP_ENABLED = "true"
-      updates.WHATSAPP_MODE = "cloud"
-      if (accessToken) {
-        updates.WHATSAPP_CLOUD_ACCESS_TOKEN = accessToken
-      }
-      if (phoneNumberId) {
-        updates.WHATSAPP_CLOUD_PHONE_NUMBER_ID = phoneNumberId
-      }
-      if (verifyToken) {
-        updates.WHATSAPP_CLOUD_VERIFY_TOKEN = verifyToken
-      }
-      if (allowlist) {
-        updates.WHATSAPP_CLOUD_ALLOWED_WA_IDS = allowlist
-      }
-      if (apiVersion) {
-        updates.WHATSAPP_CLOUD_API_VERSION = apiVersion
+      const whatsAppMode = args.whatsappMode ?? await askChoice(rl, "Choose WhatsApp setup mode", WHATSAPP_MODE_CHOICES)
+
+      if (whatsAppMode === "scan") {
+        updates.WHATSAPP_MODE = "baileys"
+      } else {
+        const accessToken = await askInput(rl, "WHATSAPP_CLOUD_ACCESS_TOKEN", {
+          current: envValues.WHATSAPP_CLOUD_ACCESS_TOKEN ?? null,
+          optional: true,
+          placeholder: "Meta permanent/long-lived access token (leave blank to set later)",
+        })
+        const phoneNumberId = await askInput(rl, "WHATSAPP_CLOUD_PHONE_NUMBER_ID", {
+          current: envValues.WHATSAPP_CLOUD_PHONE_NUMBER_ID ?? null,
+          optional: true,
+          placeholder: "from Meta WhatsApp Cloud API dashboard",
+        })
+        const verifyTokenDefault =
+          envValues.WHATSAPP_CLOUD_VERIFY_TOKEN
+          || crypto.randomUUID().replaceAll("-", "")
+        const verifyToken = await askInput(rl, "WHATSAPP_CLOUD_VERIFY_TOKEN", {
+          current: envValues.WHATSAPP_CLOUD_VERIFY_TOKEN ?? null,
+          placeholder: "used by Meta webhook verification (auto-generated if blank)",
+          defaultValue: verifyTokenDefault,
+        })
+        const allowlist = await askInput(rl, "WHATSAPP_CLOUD_ALLOWED_WA_IDS", {
+          current: envValues.WHATSAPP_CLOUD_ALLOWED_WA_IDS ?? null,
+          optional: true,
+          placeholder: "optional allowlist (comma/newline wa_id), use /id later",
+        })
+        const apiVersion = await askInput(rl, "WHATSAPP_CLOUD_API_VERSION", {
+          current: envValues.WHATSAPP_CLOUD_API_VERSION ?? null,
+          optional: true,
+          placeholder: "default=v20.0",
+          defaultValue: envValues.WHATSAPP_CLOUD_API_VERSION || "v20.0",
+        })
+
+        updates.WHATSAPP_MODE = "cloud"
+        if (accessToken) {
+          updates.WHATSAPP_CLOUD_ACCESS_TOKEN = accessToken
+        }
+        if (phoneNumberId) {
+          updates.WHATSAPP_CLOUD_PHONE_NUMBER_ID = phoneNumberId
+        }
+        if (verifyToken) {
+          updates.WHATSAPP_CLOUD_VERIFY_TOKEN = verifyToken
+        }
+        if (allowlist) {
+          updates.WHATSAPP_CLOUD_ALLOWED_WA_IDS = allowlist
+        }
+        if (apiVersion) {
+          updates.WHATSAPP_CLOUD_API_VERSION = apiVersion
+        }
       }
     }
 
     const setAutoStartGateway = await askYesNo(
       rl,
       "Set AUTO_START_GATEWAY=true for `pnpm dev`",
-      channel === "whatsapp",
+      channel === "whatsapp" && updates.WHATSAPP_MODE === "cloud",
     )
     if (setAutoStartGateway) {
       updates.AUTO_START_GATEWAY = "true"

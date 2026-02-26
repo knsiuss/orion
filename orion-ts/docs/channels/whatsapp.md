@@ -1,6 +1,52 @@
-# WhatsApp Channel (Cloud API Test MVP)
+# WhatsApp Channel (QR Scan + Cloud API)
 
 Date: 2026-02-26
+
+## Which mode should you use?
+
+For a fast test (OpenClaw-style), use **QR Scan mode** first.
+
+- `WHATSAPP_MODE=baileys` -> scan QR in WhatsApp app (quickest)
+- `WHATSAPP_MODE=cloud` -> Meta Cloud API + webhook (official, more setup)
+
+If your goal is "I just want to test from my phone right now", choose **QR Scan**.
+
+## Mode A (recommended for quick test): QR Scan / Baileys
+
+This matches the "tinggal scan" flow you expect from tools like OpenClaw.
+
+### Environment (QR scan)
+
+```env
+WHATSAPP_ENABLED=true
+WHATSAPP_MODE=baileys
+```
+
+### Quick start (QR scan)
+
+1. Run Orion:
+   - `pnpm all`
+2. Wait for WhatsApp QR code in terminal.
+3. On your phone:
+   - WhatsApp -> Linked Devices -> Link a Device
+   - scan the terminal QR
+4. Send:
+   - `/help`
+   - `/id`
+   - `/ping`
+   - then a normal message
+
+### QR scan troubleshooting
+
+- QR does not appear:
+  - check `WHATSAPP_ENABLED=true`
+  - check `WHATSAPP_MODE=baileys`
+  - ensure `baileys` dependency is installed
+- Connected then disconnects:
+  - check logs for `whatsapp-channel`
+  - delete local auth cache only if you intentionally want to re-pair (`.orion/whatsapp-auth`)
+
+## Mode B (advanced / official): WhatsApp Cloud API
 
 ## Why WhatsApp Cloud API for phone testing
 

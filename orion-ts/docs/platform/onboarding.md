@@ -38,6 +38,7 @@ pnpm onboard --yes
 1. Chooses a first test channel (`telegram`, `discord`, `whatsapp`, or `webchat`).
 2. Chooses a primary model provider.
 3. Collects minimal required env values.
+   - For WhatsApp, the wizard asks whether you want `Scan QR (Baileys)` or `Cloud API`.
 4. Writes `.env` (preserving comments and existing keys where possible).
 5. Prints channel-specific next steps and docs references.
 

@@ -245,3 +245,12 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
   - `pnpm typecheck` passes
   - `pnpm test:ci` => `20` test files passed / `68` tests passed
   - `pnpm onboard --help` shows `--channel ...whatsapp...`
+
+## Follow-up Notes (pass 16)
+
+- Adjusted onboarding UX for WhatsApp to be QR-first (OpenClaw-style quick test):
+  - wizard now asks `Scan QR (Baileys)` vs `Cloud API`
+  - default/recommended path is QR scan
+  - Cloud API remains available as advanced/official mode
+- Added `--whatsapp-mode scan|cloud` CLI flag for scripted onboarding runs.
+- Updated WhatsApp docs to lead with QR scan quickstart and move Cloud API under advanced section.
