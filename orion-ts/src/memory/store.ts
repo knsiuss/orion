@@ -41,6 +41,7 @@ const OLLAMA_EMBEDDING_MODEL = "nomic-embed-text"
 const EMBEDDING_REQUEST_TIMEOUT_MS = 8_000
 const PENDING_FEEDBACK_MAX_AGE_MS = 30 * 60 * 1000
 const EMBEDDING_CACHE_MAX_ENTRIES = 512
+const HASH_FALLBACK_ALERT_EVERY = 25
 
 interface MemoryRow extends Record<string, unknown> {
   id: string
@@ -252,6 +253,7 @@ export class MemoryStore {
   private table: lancedb.Table | null = null
   private initialized = false
   private embeddingCache = new Map<string, number[]>()
+  private hashFallbackCount = 0
 
   private getCachedEmbedding(text: string): number[] | null {
     const cached = this.embeddingCache.get(text)
@@ -267,6 +269,22 @@ export class MemoryStore {
     const oldestKey = this.embeddingCache.keys().next().value
     if (typeof oldestKey === "string") {
       this.embeddingCache.delete(oldestKey)
+    }
+  }
+
+  private recordHashFallbackEmbedding(text: string): void {
+    this.hashFallbackCount += 1
+    log.debug("using hash-based fallback embedding", {
+      count: this.hashFallbackCount,
+      textLength: text.length,
+    })
+
+    if (this.hashFallbackCount === 1 || this.hashFallbackCount % HASH_FALLBACK_ALERT_EVERY === 0) {
+      log.warn("hash-based fallback embedding activated", {
+        count: this.hashFallbackCount,
+        openAiConfigured: config.OPENAI_API_KEY.trim().length > 0,
+        ollamaBaseUrl: config.OLLAMA_BASE_URL,
+      })
     }
   }
 
@@ -362,12 +380,16 @@ export class MemoryStore {
       return openAIResult
     }
 
-    log.debug("using hash-based fallback embedding")
+    this.recordHashFallbackEmbedding(text)
     const fallback = hashToVector(text)
     if (cacheKey) {
       this.setCachedEmbedding(cacheKey, fallback)
     }
     return fallback
+  }
+
+  getFallbackEmbeddingCount(): number {
+    return this.hashFallbackCount
   }
 
   async save(

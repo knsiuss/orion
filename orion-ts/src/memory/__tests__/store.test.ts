@@ -102,4 +102,22 @@ describe("MemoryStore", () => {
     expect(first).toEqual(second)
     expect(globalThis.fetch).toHaveBeenCalledTimes(1)
   })
+
+  it("tracks hash fallback embedding usage as a metric counter", async () => {
+    const store = new MemoryStore()
+    config.OPENAI_API_KEY = ""
+
+    globalThis.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    }) as Response) as typeof globalThis.fetch
+
+    expect(store.getFallbackEmbeddingCount()).toBe(0)
+    await store.embed("fallback count one")
+    await store.embed("fallback count two")
+    await store.embed("fallback count one")
+
+    expect(store.getFallbackEmbeddingCount()).toBe(2)
+  })
 })
