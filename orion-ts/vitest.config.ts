@@ -7,7 +7,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "lcov", "json-summary"],
       thresholds: {
-        lines: 30,
+        lines: 35,
       },
     },
   },
