@@ -1,14 +1,8 @@
 /**
- * engine-stats.ts — Rolling performance tracker for LLM engines.
+ * engine-stats.ts - Rolling performance tracker for LLM engines.
  *
  * Tracks per-engine latency (P50, P95) and error rate using a sliding window.
  * Used by orchestrator.ts for adaptive routing decisions.
- *
- * Priority order: healthy (low latency) > healthy (unknown) > degraded
- * "unknown" is medium priority — better than degraded but needs data first.
- *
- * Refs: arXiv 2503.09876
- * @module engines/engine-stats
  */
 import { createLogger } from "../logger.js"
 
@@ -52,8 +46,10 @@ class EngineStatsTracker {
     if (!this.records.has(engineName)) {
       this.records.set(engineName, [])
     }
+
     const window = this.records.get(engineName)!
     window.push({ latencyMs, success, timestamp: Date.now() })
+
     if (window.length > WINDOW_SIZE) {
       window.splice(0, window.length - WINDOW_SIZE)
     }
@@ -75,7 +71,7 @@ class EngineStatsTracker {
     if (p50 > DEGRADED_LATENCY_P50_MS || errorRate > DEGRADED_ERROR_RATE) {
       status = "degraded"
     }
-    // Recovery: must be below recovery thresholds to return to healthy
+
     if (status === "degraded" && p50 < RECOVERY_LATENCY_P50_MS && errorRate < RECOVERY_ERROR_RATE) {
       status = "healthy"
     }
@@ -84,51 +80,77 @@ class EngineStatsTracker {
   }
 
   /**
-   * Get healthiest engine from candidates.
-   *
-   * Priority: healthy (proven fast) > healthy (no data yet) > degraded (least bad)
-   *
-   * "unknown" is NOT automatically preferred — untested engines are medium priority.
-   * We prefer engines with proven low latency over unproven ones.
+   * Rank engines from best to worst candidate.
+   * Priority: healthy-with-data > unknown > degraded.
    */
-  getBestEngine(candidates: string[]): string {
+  rankEngines(candidates: string[]): string[] {
     if (candidates.length === 0) {
-      throw new Error("getBestEngine: no candidates provided")
+      throw new Error("rankEngines: no candidates provided")
     }
 
-    const withMetrics = candidates.map((name) => ({
+    const ranked = candidates.map((name, index) => ({
       name,
+      index,
       metrics: this.getMetrics(name),
+    })).map((entry) => ({
+      ...entry,
+      bucket: this.getRankingBucket(entry.metrics),
     }))
 
-    // Separate into buckets
-    const healthyWithData = withMetrics.filter(
-      (e) => e.metrics.status === "healthy" && e.metrics.callCount > 0,
-    )
-    const healthyNoData = withMetrics.filter(
-      (e) => e.metrics.status === "unknown",
-    )
-    const degraded = withMetrics.filter(
-      (e) => e.metrics.status === "degraded",
-    )
+    ranked.sort((a, b) => {
+      if (a.bucket !== b.bucket) {
+        return a.bucket - b.bucket
+      }
 
-    // Prefer proven healthy engines by P50 latency
-    if (healthyWithData.length > 0) {
-      return healthyWithData.sort((a, b) => a.metrics.p50LatencyMs - b.metrics.p50LatencyMs)[0].name
-    }
+      if (a.bucket === 0) {
+        if (a.metrics.p50LatencyMs !== b.metrics.p50LatencyMs) {
+          return a.metrics.p50LatencyMs - b.metrics.p50LatencyMs
+        }
+        if (a.metrics.errorRate !== b.metrics.errorRate) {
+          return a.metrics.errorRate - b.metrics.errorRate
+        }
+        return a.index - b.index
+      }
 
-    // No proven healthy engines — try unproven ones (round-robin via first in list)
-    if (healthyNoData.length > 0) {
-      return healthyNoData[0].name
-    }
+      if (a.bucket === 2) {
+        if (a.metrics.errorRate !== b.metrics.errorRate) {
+          return a.metrics.errorRate - b.metrics.errorRate
+        }
+        if (a.metrics.p50LatencyMs !== b.metrics.p50LatencyMs) {
+          return a.metrics.p50LatencyMs - b.metrics.p50LatencyMs
+        }
+        return a.index - b.index
+      }
 
-    // All degraded — pick least-bad by error rate
-    const sorted = degraded.sort((a, b) => a.metrics.errorRate - b.metrics.errorRate)
-    log.warn("all engines degraded, using least-bad", {
-      engine: sorted[0].name,
-      errorRate: sorted[0].metrics.errorRate,
+      return a.index - b.index
     })
-    return sorted[0].name
+
+    const allDegraded = ranked.every((entry) => entry.bucket === 2)
+    if (allDegraded) {
+      log.warn("all engines degraded, using least-bad ranking", {
+        firstEngine: ranked[0]?.name,
+        firstErrorRate: ranked[0]?.metrics.errorRate,
+      })
+    }
+
+    return ranked.map((entry) => entry.name)
+  }
+
+  /** Backward-compatible helper for legacy callers. */
+  getBestEngine(candidates: string[]): string {
+    return this.rankEngines(candidates)[0]
+  }
+
+  private getRankingBucket(metrics: EngineMetrics): number {
+    if (metrics.status === "healthy" && metrics.callCount > 0) {
+      return 0
+    }
+
+    if (metrics.status === "unknown") {
+      return 1
+    }
+
+    return 2
   }
 
   logStatus(): void {

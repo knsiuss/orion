@@ -311,11 +311,7 @@ export class Orchestrator {
   }
 
   private orderCandidatesWithAdaptiveStats(availableNames: string[]): string[] {
-    const bestEngineName = engineStats.getBestEngine(availableNames)
-    return [
-      bestEngineName,
-      ...availableNames.filter((name) => name !== bestEngineName),
-    ]
+    return engineStats.rankEngines(availableNames)
   }
 
   private async generateWithTimeout(engine: Engine, options: GenerateOptions): Promise<string> {
