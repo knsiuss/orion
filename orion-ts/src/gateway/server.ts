@@ -74,6 +74,12 @@ function readPackageVersion(): string {
 
 const APP_VERSION = readPackageVersion()
 const CONTENT_SECURITY_POLICY = "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+const CSRF_HEADER_NAME = "x-csrf-token"
+const CSRF_COOKIE_NAME = "orion_csrf_token"
+const CSRF_TOKEN_BYTES = 32
+
+const CSRF_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"])
+const CSRF_EXEMPT_PATH_PREFIXES = ["/webhooks/"]
 
 // ── Rate Limiter ─────────────────────────────────────────────────────────────
 
@@ -253,6 +259,132 @@ function asFiniteNumber(value: unknown): number | null {
   return value
 }
 
+function normalizeRequestPath(url: string): string {
+  const queryStart = url.indexOf("?")
+  return queryStart >= 0 ? url.slice(0, queryStart) : url
+}
+
+function getHeaderValue(headers: Record<string, unknown>, name: string): string | null {
+  const normalizedName = name.toLowerCase()
+  const direct = headers[normalizedName]
+
+  if (typeof direct === "string") {
+    return direct
+  }
+
+  if (Array.isArray(direct)) {
+    const first = direct.find((value) => typeof value === "string")
+    return typeof first === "string" ? first : null
+  }
+
+  return null
+}
+
+function parseCookieHeader(rawCookieHeader: string | undefined): Record<string, string> {
+  if (!rawCookieHeader || rawCookieHeader.trim().length === 0) {
+    return {}
+  }
+
+  const cookies: Record<string, string> = {}
+  const entries = rawCookieHeader.split(";")
+
+  for (const entry of entries) {
+    const trimmed = entry.trim()
+    if (!trimmed) {
+      continue
+    }
+
+    const separatorIndex = trimmed.indexOf("=")
+    if (separatorIndex <= 0) {
+      continue
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim()
+    const value = trimmed.slice(separatorIndex + 1).trim()
+    if (!key) {
+      continue
+    }
+
+    try {
+      cookies[key] = decodeURIComponent(value)
+    } catch {
+      cookies[key] = value
+    }
+  }
+
+  return cookies
+}
+
+function shouldEnforceCsrfRequest(req: {
+  method: string
+  url: string
+  headers: Record<string, unknown>
+}): boolean {
+  const method = req.method.toUpperCase()
+  if (CSRF_SAFE_METHODS.has(method)) {
+    return false
+  }
+
+  const path = normalizeRequestPath(req.url)
+  if (CSRF_EXEMPT_PATH_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+    return false
+  }
+
+  const origin = getHeaderValue(req.headers, "origin")
+  return typeof origin === "string" && origin.trim().length > 0
+}
+
+function verifyCsrfRequest(req: {
+  method: string
+  url: string
+  headers: Record<string, unknown>
+}): { ok: boolean; reason?: string } {
+  if (!shouldEnforceCsrfRequest(req)) {
+    return { ok: true }
+  }
+
+  const origin = getHeaderValue(req.headers, "origin")
+  if (!origin || !ALLOWED_ORIGINS.has(origin)) {
+    return { ok: false, reason: "origin not allowed" }
+  }
+
+  const csrfHeader = getHeaderValue(req.headers, CSRF_HEADER_NAME)
+  if (!csrfHeader || csrfHeader.trim().length === 0) {
+    return { ok: false, reason: "missing csrf header" }
+  }
+
+  const cookieHeader = getHeaderValue(req.headers, "cookie") ?? undefined
+  const cookies = parseCookieHeader(cookieHeader)
+  const csrfCookie = cookies[CSRF_COOKIE_NAME]
+  if (!csrfCookie || csrfCookie.trim().length === 0) {
+    return { ok: false, reason: "missing csrf cookie" }
+  }
+
+  if (!timingSafeTokenEquals(csrfHeader.trim(), csrfCookie.trim())) {
+    return { ok: false, reason: "invalid csrf token" }
+  }
+
+  return { ok: true }
+}
+
+function generateCsrfToken(): string {
+  return crypto.randomBytes(CSRF_TOKEN_BYTES).toString("hex")
+}
+
+function buildCsrfCookie(token: string): string {
+  const attributes = [
+    `${CSRF_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    "Path=/",
+    "SameSite=Strict",
+  ]
+
+  if (process.env.NODE_ENV === "production") {
+    attributes.push("Secure")
+  }
+
+  return attributes.join("; ")
+}
+
 function normalizeIncomingClientMessage(input: unknown): GatewayClientMessage {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new Error("Invalid message payload: expected object")
@@ -345,10 +477,32 @@ export class GatewayServer {
         reply.header("Vary", "Origin")
       }
       reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-      reply.header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+      reply.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token")
       reply.header("Access-Control-Max-Age", "86400")
       if (req.method === "OPTIONS") {
         return reply.code(204).send()
+      }
+    })
+
+    // â”€â”€ CSRF Protection (browser-origin mutating requests) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    this.app.addHook("onRequest", async (req, reply) => {
+      const validation = verifyCsrfRequest({
+        method: req.method,
+        url: req.url,
+        headers: req.headers as Record<string, unknown>,
+      })
+
+      if (!validation.ok) {
+        logger.warn("csrf validation failed", {
+          method: req.method,
+          url: req.url,
+          reason: validation.reason,
+          ip: req.ip,
+        })
+        return reply.code(403).send({
+          error: "CSRF validation failed",
+          reason: validation.reason,
+        })
       }
     })
 
@@ -429,6 +583,29 @@ export class GatewayServer {
           const userId = auth.userId
           const response = await this.handleUserMessage(userId, message, "webchat")
           return { response }
+        },
+      )
+
+      app.get(
+        "/api/csrf-token",
+        async (req, reply) => {
+          const token = extractBearerToken(req as { headers: Record<string, string | undefined> })
+          if (!token) {
+            return reply.code(401).send({ error: "Authorization header with Bearer token required" })
+          }
+
+          const auth = await authenticateWebSocket(token)
+          if (!auth) {
+            return reply.code(403).send({ error: "Invalid or expired token" })
+          }
+
+          const csrfToken = generateCsrfToken()
+          reply.header("Set-Cookie", buildCsrfCookie(csrfToken))
+
+          return {
+            csrfToken,
+            tokenType: CSRF_HEADER_NAME,
+          }
         },
       )
 
@@ -839,6 +1016,12 @@ export const __gatewayTestUtils = {
   normalizeIncomingClientMessage,
   estimateTokensFromText,
   extractAdminToken,
+  parseCookieHeader,
+  shouldEnforceCsrfRequest,
+  verifyCsrfRequest,
+  buildCsrfCookie,
+  CSRF_HEADER_NAME,
+  CSRF_COOKIE_NAME,
   isRateLimited,
   RATE_LIMIT_MAX,
   RATE_LIMIT_WINDOW_MS,
