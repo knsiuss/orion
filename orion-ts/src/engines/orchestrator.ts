@@ -31,6 +31,9 @@ const log = createLogger("engines.orchestrator")
 const ENGINE_TIMEOUT_MS = 30_000
 const CIRCUIT_FAILURE_THRESHOLD = 5
 const CIRCUIT_COOLDOWN_MS = 60_000
+const ENGINE_RETRY_MAX_ATTEMPTS = 2
+const ENGINE_RETRY_BASE_DELAY_MS = 1_000
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504])
 
 const DEFAULT_ENGINE_CANDIDATES: readonly Engine[] = [
   anthropicEngine,
@@ -145,7 +148,7 @@ export class Orchestrator {
 
     const startedAt = Date.now()
     try {
-      const output = await this.generateWithTimeout(engine, options)
+      const output = await this.generateWithRetry(engine, options)
       const elapsedMs = Date.now() - startedAt
 
       if (output.trim().length === 0) {
@@ -184,7 +187,7 @@ export class Orchestrator {
       const attemptStartedAt = Date.now()
 
       try {
-        const output = await this.generateWithTimeout(engine, options)
+        const output = await this.generateWithRetry(engine, options)
         const elapsedMs = Date.now() - attemptStartedAt
 
         if (output.trim().length === 0) {
@@ -325,6 +328,71 @@ export class Orchestrator {
         .then(resolve)
         .catch(reject)
         .finally(() => clearTimeout(timeout))
+    })
+  }
+
+  private async generateWithRetry(engine: Engine, options: GenerateOptions): Promise<string> {
+    let attempt = 0
+
+    while (attempt < ENGINE_RETRY_MAX_ATTEMPTS) {
+      attempt += 1
+
+      try {
+        return await this.generateWithTimeout(engine, options)
+      } catch (error) {
+        const shouldRetry = attempt < ENGINE_RETRY_MAX_ATTEMPTS
+          && this.isRetryableEngineError(error)
+
+        if (!shouldRetry) {
+          throw error
+        }
+
+        const backoffMs = ENGINE_RETRY_BASE_DELAY_MS * (2 ** (attempt - 1))
+        log.warn("transient engine failure, retrying with backoff", {
+          engine: engine.name,
+          attempt,
+          maxAttempts: ENGINE_RETRY_MAX_ATTEMPTS,
+          backoffMs,
+          error,
+        })
+        await this.sleep(backoffMs)
+      }
+    }
+
+    throw new Error(`Engine '${engine.name}' failed after retry attempts`)
+  }
+
+  private isRetryableEngineError(error: unknown): boolean {
+    const status = this.extractErrorStatus(error)
+    if (status !== null) {
+      return RETRYABLE_STATUS_CODES.has(status)
+    }
+
+    const message = this.extractErrorMessage(error).toLowerCase()
+    return message.includes("rate limit")
+      || message.includes("too many requests")
+      || message.includes("service unavailable")
+  }
+
+  private extractErrorStatus(error: unknown): number | null {
+    if (typeof error !== "object" || error === null || !("status" in error)) {
+      return null
+    }
+
+    const status = (error as { status?: unknown }).status
+    return typeof status === "number" ? status : null
+  }
+
+  private extractErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message
+    }
+    return String(error)
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      setTimeout(resolve, ms)
     })
   }
 

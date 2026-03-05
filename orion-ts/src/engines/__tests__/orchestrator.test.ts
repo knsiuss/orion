@@ -37,6 +37,7 @@ describe("Orchestrator", () => {
   afterEach(() => {
     config.ENGINE_STATS_ENABLED = originalEngineStatsEnabled
     engineStats.reset()
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -82,6 +83,28 @@ describe("Orchestrator", () => {
     expect(groqMetrics.errorRate).toBe(1)
     expect(openRouterMetrics.callCount).toBe(1)
     expect(openRouterMetrics.errorRate).toBe(0)
+  })
+
+  it("retries once with backoff on transient 429 before succeeding", async () => {
+    vi.useFakeTimers()
+
+    const orchestrator = new Orchestrator()
+    let groqCalls = 0
+    const groq = makeEngine("groq", async () => {
+      groqCalls += 1
+      if (groqCalls === 1) {
+        const error = Object.assign(new Error("rate limit"), { status: 429 })
+        throw error
+      }
+      return "recovered after retry"
+    })
+
+    installEngines(orchestrator, [groq])
+
+    const runPromise = orchestrator.generate("reasoning", { prompt: "hello" })
+    await vi.runAllTimersAsync()
+    await expect(runPromise).resolves.toBe("recovered after retry")
+    expect(groqCalls).toBe(2)
   })
 
   it("opens circuit after repeated failures and skips unhealthy engine", async () => {
