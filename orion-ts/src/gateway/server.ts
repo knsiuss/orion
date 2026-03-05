@@ -244,6 +244,34 @@ function extractBearerToken(req: { headers: Record<string, string | undefined> }
   return null
 }
 
+function extractWebSocketToken(req: {
+  headers: Record<string, string | undefined>
+  query: Record<string, unknown>
+}): string | null {
+  const headerToken = extractBearerToken(req)
+  if (headerToken) {
+    return headerToken
+  }
+
+  const queryToken = req.query?.token
+  if (typeof queryToken === "string" && queryToken.trim().length > 0) {
+    logger.warn("websocket token passed via query string — use Authorization header instead")
+    return queryToken.trim()
+  }
+
+  if (Array.isArray(queryToken)) {
+    const first = (queryToken as unknown[]).find(
+      (value) => typeof value === "string" && (value as string).trim().length > 0,
+    )
+    if (typeof first === "string") {
+      logger.warn("websocket token passed via query string array — use Authorization header instead")
+      return first.trim()
+    }
+  }
+
+  return null
+}
+
 function asNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null
 }
@@ -534,7 +562,9 @@ export class GatewayServer {
 
     this.app.register(async (app) => {
       app.get("/ws", { websocket: true }, async (socket, req) => {
-        const token = this.extractToken(req as unknown as { headers: Record<string, string | undefined>; query: Record<string, unknown> })
+        const token = extractWebSocketToken(
+          req as unknown as { headers: Record<string, string | undefined>; query: Record<string, unknown> },
+        )
         const auth = await authenticateWebSocket(token)
         if (!auth) {
           const failure = getAuthFailure(token)
@@ -984,28 +1014,6 @@ export class GatewayServer {
       }
     }
   }
-
-  private extractToken(req: { headers: Record<string, string | undefined>; query: Record<string, unknown> }): string | null {
-    const queryToken = req.query?.token
-    if (typeof queryToken === "string" && queryToken.trim().length > 0) {
-      return queryToken.trim()
-    }
-
-    if (Array.isArray(queryToken)) {
-      const first = (queryToken as unknown[]).find((value) => typeof value === "string" && (value as string).trim().length > 0)
-      if (typeof first === "string") {
-        return first.trim()
-      }
-    }
-
-    const authHeader = req.headers?.authorization
-    if (typeof authHeader === "string" && authHeader.toLowerCase().startsWith("bearer ")) {
-      const token = authHeader.slice(7).trim()
-      return token.length > 0 ? token : null
-    }
-
-    return null
-  }
 }
 
 export const gateway = new GatewayServer()
@@ -1016,6 +1024,7 @@ export const __gatewayTestUtils = {
   normalizeIncomingClientMessage,
   estimateTokensFromText,
   extractAdminToken,
+  extractWebSocketToken,
   parseCookieHeader,
   shouldEnforceCsrfRequest,
   verifyCsrfRequest,
