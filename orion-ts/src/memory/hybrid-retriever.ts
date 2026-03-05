@@ -61,7 +61,7 @@ const DEFAULT_CONFIG: HybridConfig = {
   rrfK: 60,
   ftsWeight: 0.4,
   vectorWeight: 0.6,
-  scoreThreshold: 0.01,
+  scoreThreshold: 0.005,
 }
 
 const MIN_RRF_WEIGHT = 0.01
