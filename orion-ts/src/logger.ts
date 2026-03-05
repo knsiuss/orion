@@ -4,6 +4,15 @@ import path from "node:path"
 import config from "./config.js"
 
 type LogLevel = "debug" | "info" | "warn" | "error"
+type LogFormat = "text" | "json"
+
+interface LogEntry {
+  timestamp: string
+  level: LogLevel
+  scope: string
+  message: string
+  meta?: unknown
+}
 
 const LOG_LEVELS: Record<LogLevel, number> = {
   debug: 0,
@@ -12,32 +21,56 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   error: 3,
 }
 
+const LOG_FILE_NAME = "orion.log"
 const currentLevel = LOG_LEVELS[config.LOG_LEVEL] ?? LOG_LEVELS.info
+const currentFormat: LogFormat = config.LOG_FORMAT === "json" ? "json" : "text"
+const maxLogFileSizeBytes = Math.max(0, config.LOG_FILE_MAX_SIZE_MB) * 1_048_576
+const maxLogFiles = Math.max(1, config.LOG_FILE_MAX_FILES)
 
 function formatTimestamp(): string {
   return new Date().toISOString()
 }
 
-function formatMessage(level: LogLevel, scope: string, message: string, meta?: unknown): string {
-  const timestamp = formatTimestamp()
-  const levelStr = level.toUpperCase().padEnd(5)
-  let formatted = `[${timestamp}] ${levelStr} [${scope}] ${message}`
-  if (meta !== undefined) {
-    formatted += ` ${JSON.stringify(meta)}`
+function formatTextEntry(entry: LogEntry): string {
+  const level = entry.level.toUpperCase().padEnd(5)
+  let line = `[${entry.timestamp}] ${level} [${entry.scope}] ${entry.message}`
+  if (entry.meta !== undefined) {
+    line += ` ${JSON.stringify(entry.meta)}`
   }
-  return formatted
+  return line
+}
+
+function formatJsonEntry(entry: LogEntry): string {
+  return JSON.stringify({
+    timestamp: entry.timestamp,
+    level: entry.level,
+    scope: entry.scope,
+    message: entry.message,
+    ...(entry.meta !== undefined ? { meta: entry.meta } : {}),
+  })
+}
+
+function formatMessage(entry: LogEntry): string {
+  if (currentFormat === "json") {
+    return formatJsonEntry(entry)
+  }
+  return formatTextEntry(entry)
 }
 
 class LogStream {
   private static instance: LogStream | null = null
   private stream: fs.WriteStream | null = null
   private initialized = false
+  private readonly logsDir: string
+  private readonly filePath: string
 
   private constructor() {
+    this.logsDir = path.resolve(process.cwd(), "logs")
+    this.filePath = path.join(this.logsDir, LOG_FILE_NAME)
+
     try {
-      const logsDir = path.resolve(process.cwd(), "logs")
-      fs.mkdirSync(logsDir, { recursive: true })
-      this.stream = fs.createWriteStream(path.join(logsDir, "orion.log"), { flags: "a" })
+      fs.mkdirSync(this.logsDir, { recursive: true })
+      this.stream = fs.createWriteStream(this.filePath, { flags: "a" })
       this.initialized = true
     } catch (error) {
       console.error(`[Logger] Failed to initialize log stream: ${error}`)
@@ -51,18 +84,62 @@ class LogStream {
     return LogStream.instance
   }
 
-  write(line: string): void {
-    if (this.initialized && this.stream) {
-      this.stream.write(`${line}\n`)
+  private rotateIfNeeded(): void {
+    if (!this.initialized || !this.stream) {
+      return
+    }
+
+    try {
+      const size = fs.existsSync(this.filePath) ? fs.statSync(this.filePath).size : 0
+      if (maxLogFileSizeBytes > 0 && size < maxLogFileSizeBytes) {
+        return
+      }
+      this.rotateFiles()
+    } catch (error) {
+      console.error(`[Logger] Rotation check failed: ${error}`)
     }
   }
 
-  close(): void {
-    if (this.stream) {
-      this.stream.end()
-      this.stream = null
-      this.initialized = false
+  private rotateFiles(): void {
+    this.stream?.end()
+    this.stream = null
+
+    for (let index = maxLogFiles; index >= 1; index -= 1) {
+      const source = `${this.filePath}.${index}`
+      if (!fs.existsSync(source)) {
+        continue
+      }
+
+      if (index === maxLogFiles) {
+        fs.rmSync(source, { force: true })
+        continue
+      }
+
+      const target = `${this.filePath}.${index + 1}`
+      fs.renameSync(source, target)
     }
+
+    if (fs.existsSync(this.filePath)) {
+      fs.renameSync(this.filePath, `${this.filePath}.1`)
+    }
+
+    this.stream = fs.createWriteStream(this.filePath, { flags: "a" })
+    this.initialized = true
+  }
+
+  write(line: string): void {
+    if (!this.initialized || !this.stream) {
+      return
+    }
+
+    this.rotateIfNeeded()
+    this.stream?.write(`${line}\n`)
+  }
+
+  close(): void {
+    this.stream?.end()
+    this.stream = null
+    this.initialized = false
   }
 }
 
@@ -73,7 +150,13 @@ function log(level: LogLevel, scope: string, message: string, meta?: unknown): v
     return
   }
 
-  const formatted = formatMessage(level, scope, message, meta)
+  const formatted = formatMessage({
+    timestamp: formatTimestamp(),
+    level,
+    scope,
+    message,
+    meta,
+  })
 
   switch (level) {
     case "debug":
@@ -106,3 +189,4 @@ export function createLogger(scope: string): Logger {
 }
 
 export default createLogger
+

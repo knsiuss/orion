@@ -41,6 +41,7 @@ const floatFromEnv = z.preprocess((value) => {
 }, z.number())
 
 const logLevelSchema = z.enum(["debug", "info", "warn", "error"])
+const logFormatSchema = z.enum(["text", "json"])
 const whatsAppModeSchema = z.enum(["baileys", "cloud"])
 
 const ConfigSchema = z.object({
@@ -79,6 +80,9 @@ const ConfigSchema = z.object({
   DATABASE_URL: z.string().default("file:./orion.db"),
   DEFAULT_USER_ID: z.string().default("owner"),
   LOG_LEVEL: logLevelSchema.default("info"),
+  LOG_FORMAT: logFormatSchema.default("text"),
+  LOG_FILE_MAX_SIZE_MB: intFromEnv.default(10),
+  LOG_FILE_MAX_FILES: intFromEnv.default(5),
   PERSONA_ENABLED: boolFromEnv.default(true),
   CRITIQUE_ENABLED: boolFromEnv.default(true),
   CRITIQUE_THRESHOLD: floatFromEnv.default(0.75),
