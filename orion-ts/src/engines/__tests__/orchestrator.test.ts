@@ -27,15 +27,19 @@ function installEngines(orchestrator: Orchestrator, engines: Engine[]): void {
 
 describe("Orchestrator", () => {
   let originalEngineStatsEnabled: boolean
+  let originalCostRoutingEnabled: boolean
 
   beforeEach(() => {
     originalEngineStatsEnabled = config.ENGINE_STATS_ENABLED
+    originalCostRoutingEnabled = config.ORCHESTRATOR_COST_ROUTING_ENABLED
     config.ENGINE_STATS_ENABLED = false
+    config.ORCHESTRATOR_COST_ROUTING_ENABLED = false
     engineStats.reset()
   })
 
   afterEach(() => {
     config.ENGINE_STATS_ENABLED = originalEngineStatsEnabled
+    config.ORCHESTRATOR_COST_ROUTING_ENABLED = originalCostRoutingEnabled
     engineStats.reset()
     vi.useRealTimers()
     vi.restoreAllMocks()
@@ -178,5 +182,20 @@ describe("Orchestrator", () => {
 
     expect(fallbackCalls).toBe(6)
     nowSpy.mockRestore()
+  })
+
+  it("prefers cheaper engines for fast tasks when cost routing is enabled", async () => {
+    config.ENGINE_STATS_ENABLED = true
+    config.ORCHESTRATOR_COST_ROUTING_ENABLED = true
+
+    const orchestrator = new Orchestrator()
+    const anthropic = makeEngine("anthropic", async () => "anthropic response")
+    const groq = makeEngine("groq", async () => "groq response")
+    installEngines(orchestrator, [anthropic, groq])
+
+    vi.spyOn(engineStats, "rankEngines").mockReturnValue(["anthropic", "groq"])
+
+    const output = await orchestrator.generate("fast", { prompt: "quick summary" })
+    expect(output).toBe("groq response")
   })
 })

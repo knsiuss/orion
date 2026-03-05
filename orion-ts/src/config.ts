@@ -89,6 +89,11 @@ const ConfigSchema = z.object({
   MEMRL_ALPHA: floatFromEnv.default(0.1),
   MEMRL_GAMMA: floatFromEnv.default(0.9),
   MEMRL_SIMILARITY_THRESHOLD: floatFromEnv.default(0.3),
+  MEMRL_EXPERIENCE_REPLAY_ENABLED: boolFromEnv.default(false),
+  MEMRL_REPLAY_BUFFER_SIZE: intFromEnv.default(256),
+  MEMRL_REPLAY_BATCH_SIZE: intFromEnv.default(16),
+  MEMRL_TD_LAMBDA_ENABLED: boolFromEnv.default(false),
+  MEMRL_TD_LAMBDA_TRACE_DECAY: floatFromEnv.default(0.9),
   PERMISSIONS_FILE: z.string().default("permissions/permissions.yaml"),
   VOICE_ENABLED: boolFromEnv.default(true),  // Edge TTS needs zero setup
   VISION_ENABLED: boolFromEnv.default(false),
@@ -116,6 +121,8 @@ const ConfigSchema = z.object({
   VOICE_DSP_PRESET: z.string().default("tars"),            // "tars" | "clean"
   // Phase I-0: Hybrid Search
   HYBRID_SEARCH_ENABLED: boolFromEnv.default(true),
+  HYBRID_HYDE_ENABLED: boolFromEnv.default(false),
+  HYBRID_RERANK_ENABLED: boolFromEnv.default(false),
   // Phase I-1: VoI Chat Gating
   VOI_CHAT_ENABLED: boolFromEnv.default(true),
   VOICE_PROFILE: z.string().default("default"),
@@ -130,6 +137,10 @@ const ConfigSchema = z.object({
   SESSION_CONTEXT_WINDOW_TOKENS: intFromEnv.default(32_000),
   // Phase I-4: Engine Stats
   ENGINE_STATS_ENABLED: boolFromEnv.default(true),
+  ORCHESTRATOR_COST_ROUTING_ENABLED: boolFromEnv.default(false),
+  CAUSAL_BAYESIAN_UPDATE_ENABLED: boolFromEnv.default(false),
+  HIMES_FORGETTING_CURVE_ENABLED: boolFromEnv.default(false),
+  HIMES_CONSOLIDATION_ENABLED: boolFromEnv.default(false),
   // Admin & Gateway
   ADMIN_TOKEN: z.string().default(""),
   GATEWAY_CORS_ORIGINS: z.string().default(""),

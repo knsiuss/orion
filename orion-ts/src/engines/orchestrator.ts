@@ -36,6 +36,14 @@ const CIRCUIT_COOLDOWN_MS = 60_000
 const ENGINE_RETRY_MAX_ATTEMPTS = 2
 const ENGINE_RETRY_BASE_DELAY_MS = 1_000
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504])
+const ENGINE_COST_ESTIMATE_PER_1K: Record<string, number> = {
+  groq: 0.1,
+  ollama: 0.02,
+  gemini: 0.18,
+  openrouter: 0.25,
+  openai: 0.4,
+  anthropic: 0.55,
+}
 
 const DEFAULT_ENGINE_CANDIDATES: readonly Engine[] = [
   anthropicEngine,
@@ -310,7 +318,7 @@ export class Orchestrator {
     }
 
     const orderedNames = config.ENGINE_STATS_ENABLED
-      ? this.orderCandidatesWithAdaptiveStats(candidates)
+      ? this.orderCandidatesWithAdaptiveStats(candidates, task)
       : candidates
 
     const engines = orderedNames
@@ -324,8 +332,32 @@ export class Orchestrator {
     return engines
   }
 
-  private orderCandidatesWithAdaptiveStats(availableNames: string[]): string[] {
-    return engineStats.rankEngines(availableNames)
+  private orderCandidatesWithAdaptiveStats(availableNames: string[], task: TaskType): string[] {
+    const ranked = engineStats.rankEngines(availableNames)
+    if (!config.ORCHESTRATOR_COST_ROUTING_ENABLED || ranked.length <= 1) {
+      return ranked
+    }
+
+    const maxRank = Math.max(1, ranked.length - 1)
+    const rankIndex = new Map(ranked.map((name, index) => [name, index]))
+    const maxCost = Math.max(
+      ...ranked.map((name) => ENGINE_COST_ESTIMATE_PER_1K[name] ?? 1),
+      1,
+    )
+
+    const costWeight = task === "fast" || task === "local" ? 0.7 : 0.3
+    const qualityWeight = 1 - costWeight
+
+    return [...ranked].sort((left, right) => {
+      const leftRankNorm = (rankIndex.get(left) ?? maxRank) / maxRank
+      const rightRankNorm = (rankIndex.get(right) ?? maxRank) / maxRank
+      const leftCostNorm = (ENGINE_COST_ESTIMATE_PER_1K[left] ?? maxCost) / maxCost
+      const rightCostNorm = (ENGINE_COST_ESTIMATE_PER_1K[right] ?? maxCost) / maxCost
+
+      const leftScore = (leftRankNorm * qualityWeight) + (leftCostNorm * costWeight)
+      const rightScore = (rightRankNorm * qualityWeight) + (rightCostNorm * costWeight)
+      return leftScore - rightScore
+    })
   }
 
   private async generateWithTimeout(engine: Engine, options: GenerateOptions): Promise<string> {

@@ -1,6 +1,7 @@
 ﻿import { prisma } from "../database/index.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
+import config from "../config.js"
 import { computeHyperEdgeMemberSetHash, normalizeCausalEventKey } from "./causal-graph-dedupe-utils.js"
 import { detectQueryComplexity, temporalIndex } from "./temporal-index.js"
 
@@ -291,6 +292,23 @@ function normalizeQueryText(query: string): string {
   return query.trim().slice(0, 500)
 }
 
+function bayesianStrengthUpdate(
+  currentStrength: number,
+  currentEvidence: number,
+  newConfidence: number,
+): number {
+  const boundedStrength = clamp(currentStrength)
+  const boundedConfidence = clamp(newConfidence)
+  const evidence = Math.max(0, currentEvidence)
+
+  const alpha = (boundedStrength * evidence) + 1
+  const beta = ((1 - boundedStrength) * evidence) + 1
+  const posteriorAlpha = alpha + boundedConfidence
+  const posteriorBeta = beta + (1 - boundedConfidence)
+
+  return clamp(posteriorAlpha / (posteriorAlpha + posteriorBeta))
+}
+
 export class CausalGraph {
   private async findNodeByEventOrKey(userId: string, nodeName: string) {
     const eventKey = normalizeCausalEventKey(nodeName)
@@ -471,10 +489,14 @@ export class CausalGraph {
     })
 
     if (existingEdge) {
+      const nextStrength = config.CAUSAL_BAYESIAN_UPDATE_ENABLED
+        ? bayesianStrengthUpdate(existingEdge.strength, existingEdge.evidence, confidence)
+        : clamp(existingEdge.strength + 0.1)
+
       await prisma.causalEdge.update({
         where: { id: existingEdge.id },
         data: {
-          strength: clamp(existingEdge.strength + 0.1),
+          strength: nextStrength,
           evidence: existingEdge.evidence + 1,
         },
       })
@@ -1131,4 +1153,6 @@ export const __causalGraphTestUtils = {
   buildHyperEdgeKey,
   sameStringSet,
   normalizeQueryText,
+  bayesianStrengthUpdate,
 }
+

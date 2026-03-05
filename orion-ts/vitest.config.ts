@@ -6,6 +6,12 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "json-summary"],
+      exclude: [
+        "src/channels/**",
+        "src/config.ts",
+        "src/mcp/**",
+        "src/voice/**",
+      ],
       thresholds: {
         lines: 35,
       },

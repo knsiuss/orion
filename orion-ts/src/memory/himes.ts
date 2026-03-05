@@ -49,6 +49,50 @@ function asContextMessage(input: { role: string; content: string; createdAt: Dat
   }
 }
 
+function dedupeMemories(memories: string[]): string[] {
+  const deduped: string[] = []
+  const seen = new Set<string>()
+
+  for (const memoryText of memories) {
+    const normalized = memoryText.trim().toLowerCase()
+    if (!normalized || seen.has(normalized)) {
+      continue
+    }
+    seen.add(normalized)
+    deduped.push(memoryText)
+  }
+
+  return deduped
+}
+
+function applyForgettingCurve(memories: string[]): string[] {
+  const retained: string[] = []
+  for (const [index, memoryText] of memories.entries()) {
+    const retention = Math.exp(-index / 6)
+    if (retention >= 0.25) {
+      retained.push(memoryText)
+    }
+  }
+  return retained.length > 0 ? retained : memories.slice(0, 3)
+}
+
+function consolidateMemories(memories: string[]): string[] {
+  if (memories.length <= 6) {
+    return memories
+  }
+
+  const head = memories.slice(0, 4)
+  const tail = memories.slice(4, 10).map((item) => item.replace(/\s+/g, " ").trim())
+  if (tail.length === 0) {
+    return head
+  }
+
+  return [
+    ...head,
+    `[Consolidated Memory]\n- ${tail.join("\n- ")}`,
+  ]
+}
+
 export class HiMeSCoordinator {
   async getShortTermContext(
     userId: string,
@@ -126,15 +170,22 @@ export class HiMeSCoordinator {
         }
       }
 
-      const relevantMemories = [
+      const mergedMemories = [
         ...temporalMemories.map((node) => node.content),
         ...causalItems.map((item) => item.content),
       ]
+      const dedupedMemories = dedupeMemories(mergedMemories)
+      const decayedMemories = config.HIMES_FORGETTING_CURVE_ENABLED
+        ? applyForgettingCurve(dedupedMemories)
+        : dedupedMemories
+      const consolidatedMemories = config.HIMES_CONSOLIDATION_ENABLED
+        ? consolidateMemories(decayedMemories)
+        : decayedMemories
 
       return {
         personalFacts,
         opinions,
-        relevantMemories: relevantMemories.slice(0, 10),
+        relevantMemories: consolidatedMemories.slice(0, 10),
       }
     } catch (error) {
       log.error("getLongTermContext failed", error)
@@ -280,3 +331,9 @@ export class HiMeSCoordinator {
 }
 
 export const hiMeS = new HiMeSCoordinator()
+
+export const __himesTestUtils = {
+  dedupeMemories,
+  applyForgettingCurve,
+  consolidateMemories,
+}

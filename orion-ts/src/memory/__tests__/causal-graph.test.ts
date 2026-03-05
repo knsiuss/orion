@@ -53,4 +53,11 @@ Here is the result:
     expect(normalized.startsWith("hello")).toBe(true)
     expect(normalized.length).toBeLessThanOrEqual(500)
   })
+
+  it("computes Bayesian edge strength update in bounded range", () => {
+    const updated = __causalGraphTestUtils.bayesianStrengthUpdate(0.4, 5, 0.9)
+
+    expect(updated).toBeGreaterThan(0.4)
+    expect(updated).toBeLessThanOrEqual(1)
+  })
 })

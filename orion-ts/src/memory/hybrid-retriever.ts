@@ -17,6 +17,8 @@
 
 import { prisma } from "../database/index.js"
 import { createLogger } from "../logger.js"
+import config from "../config.js"
+import { orchestrator } from "../engines/orchestrator.js"
 import { clamp, sanitizeUserId as sanitizeVectorUserId } from "../utils/index.js"
 import type { SearchResult } from "./store.js"
 
@@ -165,6 +167,30 @@ function buildFTSQuery(query: string): string {
   }
 
   return deduped.map((token) => `${token}*`).join(" ")
+}
+
+function tokenizeForOverlap(text: string): Set<string> {
+  return new Set(
+    (text.match(/[a-z0-9]+/gi) ?? [])
+      .map((token) => token.toLowerCase())
+      .filter((token) => token.length >= 2),
+  )
+}
+
+function computeOverlapScore(query: string, candidate: string): number {
+  const queryTokens = tokenizeForOverlap(query)
+  if (queryTokens.size === 0) {
+    return 0
+  }
+
+  const candidateTokens = tokenizeForOverlap(candidate)
+  let overlap = 0
+  for (const token of queryTokens) {
+    if (candidateTokens.has(token)) {
+      overlap += 1
+    }
+  }
+  return overlap / queryTokens.size
 }
 
 /**
@@ -500,11 +526,63 @@ export class HybridRetriever {
     limit?: number,
   ): Promise<SearchResult[]> {
     try {
-      const queryVector = await embedFn(query)
-      return await this.search(userId, query, queryVector, limit)
+      let embeddingInput = query
+      if (config.HYBRID_HYDE_ENABLED) {
+        const hypothetical = await this.generateHypotheticalDocument(query)
+        if (hypothetical) {
+          embeddingInput = `${query}\n\n${hypothetical}`
+        }
+      }
+
+      const queryVector = await embedFn(embeddingInput)
+      const results = await this.search(userId, query, queryVector, limit)
+      if (!config.HYBRID_RERANK_ENABLED) {
+        return results
+      }
+
+      return this.rerankResults(query, results, limit)
     } catch (error) {
       log.error("retrieve failed (embedding generation error)", { userId, query: query.slice(0, 100), error })
       return []
+    }
+  }
+
+  private rerankResults(query: string, results: SearchResult[], limit?: number): SearchResult[] {
+    const reranked = results
+      .map((result) => {
+        const overlap = computeOverlapScore(query, result.content)
+        const baseScore = result.score ?? 0
+        const rerankScore = (baseScore * 0.7) + (overlap * 0.3)
+        return {
+          ...result,
+          metadata: {
+            ...(result.metadata ?? {}),
+            rerankScore,
+            overlapScore: overlap,
+          },
+          score: rerankScore,
+        }
+      })
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+
+    if (typeof limit === "number" && Number.isFinite(limit)) {
+      return reranked.slice(0, Math.max(1, Math.floor(limit)))
+    }
+    return reranked
+  }
+
+  private async generateHypotheticalDocument(query: string): Promise<string | null> {
+    try {
+      const prompt = `Write a concise hypothetical answer to improve retrieval coverage for this query:\n\n${query.slice(0, 400)}`
+      const generated = await orchestrator.generate("fast", {
+        prompt,
+        temperature: 0.2,
+      })
+      const trimmed = generated.trim()
+      return trimmed.length > 0 ? trimmed.slice(0, 800) : null
+    } catch (error) {
+      log.warn("HyDE generation failed, fallback to raw query", { error })
+      return null
     }
   }
 }
@@ -516,5 +594,6 @@ export const __hybridRetrieverTestUtils = {
   buildFTSQuery,
   normalizeHybridConfig,
   computeWeightedRRFScore,
+  computeOverlapScore,
   SHORT_TECHNICAL_TOKENS: new Set(SHORT_TECHNICAL_TOKENS),
 }

@@ -53,4 +53,14 @@ describe("HybridRetriever helpers", () => {
     const score = __hybridRetrieverTestUtils.computeWeightedRRFScore(1, 0.6, 60)
     expect(score).toBeCloseTo(0.6 * (1 / 61))
   })
+
+  it("scores lexical overlap for lightweight reranking", () => {
+    const overlap = __hybridRetrieverTestUtils.computeOverlapScore(
+      "optimize database query",
+      "query optimization for database indexes",
+    )
+
+    expect(overlap).toBeGreaterThan(0)
+    expect(overlap).toBeLessThanOrEqual(1)
+  })
 })

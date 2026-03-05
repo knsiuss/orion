@@ -77,6 +77,12 @@ interface RankedCandidate {
   ieuTriplet: IEUTriplet
 }
 
+interface ReplayExperience {
+  memoryId: string
+  reward: number
+  timestamp: number
+}
+
 /**
  * Task feedback structure for reinforcement learning
  * Memory IDs are used to identify which memories contributed to a response
@@ -178,6 +184,10 @@ export class MemRLUpdater {
   private readonly qAlpha = 0.1
   /** Eligibility trace decay */
   private readonly lambda = 0.9
+  /** Replay buffer for offline updates */
+  private replayBuffer: ReplayExperience[] = []
+  /** TD(λ) eligibility traces by memory ID */
+  private readonly eligibilityTraces = new Map<string, number>()
 
   /**
    * Ensure LanceDB table is initialized and available
@@ -203,6 +213,110 @@ export class MemRLUpdater {
       log.warn("failed to init memrl lancedb table", error)
       return null
     }
+  }
+
+  private updateEligibilityTraces(memoryIds: string[]): void {
+    if (!config.MEMRL_TD_LAMBDA_ENABLED) {
+      return
+    }
+
+    const decay = clamp(config.MEMRL_TD_LAMBDA_TRACE_DECAY, 0, 1)
+    for (const [memoryId, value] of this.eligibilityTraces.entries()) {
+      const nextValue = value * decay
+      if (nextValue < 0.001) {
+        this.eligibilityTraces.delete(memoryId)
+      } else {
+        this.eligibilityTraces.set(memoryId, nextValue)
+      }
+    }
+
+    for (const memoryId of memoryIds) {
+      this.eligibilityTraces.set(memoryId, 1)
+    }
+  }
+
+  private enqueueReplay(memoryIds: string[], reward: number): void {
+    if (!config.MEMRL_EXPERIENCE_REPLAY_ENABLED) {
+      return
+    }
+
+    const maxSize = Math.max(1, config.MEMRL_REPLAY_BUFFER_SIZE)
+    const now = Date.now()
+    for (const memoryId of memoryIds) {
+      this.replayBuffer.push({ memoryId, reward, timestamp: now })
+    }
+
+    if (this.replayBuffer.length > maxSize) {
+      this.replayBuffer.splice(0, this.replayBuffer.length - maxSize)
+    }
+  }
+
+  private sampleReplayBatch(): ReplayExperience[] {
+    const batchSize = Math.max(1, config.MEMRL_REPLAY_BATCH_SIZE)
+    if (this.replayBuffer.length === 0) {
+      return []
+    }
+
+    const sampled: ReplayExperience[] = []
+    const start = Math.max(0, this.replayBuffer.length - batchSize * 3)
+    const candidatePool = this.replayBuffer.slice(start)
+
+    while (sampled.length < batchSize && candidatePool.length > 0) {
+      const index = Math.floor(Math.random() * candidatePool.length)
+      const [picked] = candidatePool.splice(index, 1)
+      if (picked) {
+        sampled.push(picked)
+      }
+    }
+
+    return sampled
+  }
+
+  private async applyReplayUpdates(): Promise<void> {
+    if (!config.MEMRL_EXPERIENCE_REPLAY_ENABLED) {
+      return
+    }
+
+    const batch = this.sampleReplayBatch()
+    if (batch.length === 0) {
+      return
+    }
+
+    const uniqueIds = Array.from(new Set(batch.map((item) => item.memoryId)))
+    const nodes = await prisma.memoryNode.findMany({
+      where: {
+        id: { in: uniqueIds },
+      },
+      select: {
+        id: true,
+        utilityScore: true,
+        qValue: true,
+      },
+    })
+    const nodeById = new Map(nodes.map((node) => [node.id, node]))
+
+    await Promise.all(batch.map(async (experience) => {
+      const node = nodeById.get(experience.memoryId)
+      if (!node) {
+        return
+      }
+
+      const currentQ = node.qValue ?? node.utilityScore
+      const replayQ = clamp(currentQ + (this.qAlpha * 0.5) * (experience.reward - currentQ), -1, 1)
+      const replayUtility = clamp(
+        node.utilityScore + (this.alpha * 0.25) * (experience.reward - node.utilityScore),
+        0,
+        1,
+      )
+
+      await prisma.memoryNode.update({
+        where: { id: experience.memoryId },
+        data: {
+          qValue: replayQ,
+          utilityScore: replayUtility,
+        },
+      })
+    }))
   }
 
   /**
@@ -238,6 +352,8 @@ export class MemRLUpdater {
     // Compute effective reward combining explicit and implicit signals.
     // gamma remains strictly a temporal discount factor in Bellman updates.
     const effectiveReward = computeEffectiveReward(feedback.reward, feedback.taskSuccess)
+    this.updateEligibilityTraces(uniqueIds)
+    this.enqueueReplay(uniqueIds, effectiveReward)
 
     const nodes = await prisma.memoryNode.findMany({
       where: {
@@ -302,8 +418,13 @@ export class MemRLUpdater {
 
         nextMaxQ = clamp(nextMaxQ, -1, 1)
 
-        // Bellman update: Q = Q + α * (r + γ * maxQ' - Q)
-        const bellmanUpdate = currentQ + this.qAlpha * (effectiveReward + this.gamma * nextMaxQ - currentQ)
+        const tdError = effectiveReward + this.gamma * nextMaxQ - currentQ
+        const traceWeight = config.MEMRL_TD_LAMBDA_ENABLED
+          ? clamp(this.eligibilityTraces.get(memoryId) ?? this.lambda, 0, 1)
+          : 1
+
+        // Bellman update with optional TD(λ) weighting.
+        const bellmanUpdate = currentQ + this.qAlpha * tdError * traceWeight
         const newQValue = clamp(bellmanUpdate, -1, 1)
 
         // Traditional utility update with exponential moving average
@@ -357,6 +478,8 @@ export class MemRLUpdater {
         log.debug("memrl update skipped", { memoryId, error })
       }
     }))
+
+    await this.applyReplayUpdates()
   }
 
   /**
