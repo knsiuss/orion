@@ -73,6 +73,7 @@ function readPackageVersion(): string {
 }
 
 const APP_VERSION = readPackageVersion()
+const CONTENT_SECURITY_POLICY = "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 
 // ── Rate Limiter ─────────────────────────────────────────────────────────────
 
@@ -330,6 +331,7 @@ export class GatewayServer {
       reply.header("X-XSS-Protection", "1; mode=block")
       reply.header("Referrer-Policy", "strict-origin-when-cross-origin")
       reply.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+      reply.header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
       if (process.env.NODE_ENV === "production") {
         reply.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
       }
@@ -841,4 +843,5 @@ export const __gatewayTestUtils = {
   RATE_LIMIT_MAX,
   RATE_LIMIT_WINDOW_MS,
   APP_VERSION,
+  CONTENT_SECURITY_POLICY,
 }

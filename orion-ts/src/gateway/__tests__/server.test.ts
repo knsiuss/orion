@@ -41,4 +41,8 @@ describe("gateway/server helpers", () => {
     expect(msg.windowSeconds).toBe(30)
     expect(msg.keyword).toBe("orion")
   })
+
+  it("exports CSP header policy", () => {
+    expect(__gatewayTestUtils.CONTENT_SECURITY_POLICY).toContain("default-src 'self'")
+  })
 })
