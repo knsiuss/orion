@@ -82,26 +82,16 @@ function prepareWakeModelOnHost(modelName = "hey_mycroft") {
     let stdout = ""
     let stderr = ""
 
-    child.stdout.on("data", (data) => {
-      stdout += data.toString()
-    })
-
-    child.stderr.on("data", (data) => {
-      stderr += data.toString()
-    })
-
+    child.stdout.on("data", (data) => { stdout += data.toString() })
+    child.stderr.on("data", (data) => { stderr += data.toString() })
     child.on("error", reject)
     child.on("close", (code) => {
       if (code !== 0) {
         reject(new Error(stderr.trim() || `Wake model prepare exited with code ${code}`))
         return
       }
-
       try {
-        const lines = stdout
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean)
+        const lines = stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
         const parsed = JSON.parse(lines[lines.length - 1] || "{}")
         resolve(parsed)
       } catch (err) {
@@ -111,12 +101,28 @@ function prepareWakeModelOnHost(modelName = "hey_mycroft") {
   })
 }
 
+// ── isConfigured: any known provider key or local endpoint ─────────
 function isConfigured() {
   const cfg = readEdithConfig()
   if (!cfg || !cfg.env) return false
-  // At least one API key must be set, or Ollama mode
   const env = cfg.env
-  return !!(env.GROQ_API_KEY || env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY || env.OLLAMA_HOST)
+  return !!(
+    env.GROQ_API_KEY ||
+    env.ANTHROPIC_API_KEY ||
+    env.OPENAI_API_KEY ||
+    env.GEMINI_API_KEY ||
+    env.OPENROUTER_API_KEY ||
+    env.DEEPSEEK_API_KEY ||
+    env.MISTRAL_API_KEY ||
+    env.XAI_API_KEY ||
+    env.TOGETHER_API_KEY ||
+    env.FIREWORKS_API_KEY ||
+    env.PERPLEXITY_API_KEY ||
+    env.OLLAMA_BASE_URL ||
+    env.LM_STUDIO_BASE_URL ||
+    // legacy key names
+    env.OLLAMA_HOST
+  )
 }
 
 function startGateway() {
@@ -145,9 +151,7 @@ function startGateway() {
 }
 
 function connectToGateway() {
-  if (ws) {
-    ws.close()
-  }
+  if (ws) ws.close()
 
   ws = new WebSocket("ws://127.0.0.1:18789/ws")
 
@@ -187,25 +191,19 @@ function createTray() {
       }
     }},
     { type: "separator" },
-    { label: "Quit", click: () => {
-      app.isQuitting = true
-      app.quit()
-    }}
+    { label: "Quit", click: () => { app.isQuitting = true; app.quit() } }
   ]))
 
   tray.on("click", () => {
-    if (mainWindow?.isVisible()) {
-      mainWindow.hide()
-    } else {
-      mainWindow?.show()
-    }
+    if (mainWindow?.isVisible()) mainWindow.hide()
+    else mainWindow?.show()
   })
 }
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 420,
-    height: 700,
+    width: 440,
+    height: 720,
     frame: false,
     resizable: true,
     skipTaskbar: false,
@@ -217,7 +215,6 @@ function createWindow() {
     }
   })
 
-  // Show onboarding wizard if not configured yet, otherwise chat
   if (isConfigured()) {
     mainWindow.loadFile(path.join(__dirname, "renderer/index.html"))
     startGateway()
@@ -225,7 +222,6 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, "renderer/onboarding.html"))
   }
 
-  // When navigating from onboarding → chat, start gateway if needed
   mainWindow.webContents.on("did-finish-load", () => {
     const url = mainWindow.webContents.getURL()
     if (url.includes("index.html") && !edithProcess && isConfigured()) {
@@ -241,8 +237,7 @@ function createWindow() {
   })
 }
 
-app.on("window-all-closed", () => {
-})
+app.on("window-all-closed", () => {})
 
 app.on("before-quit", () => {
   app.isQuitting = true
@@ -250,38 +245,35 @@ app.on("before-quit", () => {
   ws?.close()
 })
 
-// ── App ready ──────────────────────────────────────────────────────
 app.whenReady().then(() => {
   createTray()
   createWindow()
 })
 
-// ── Chat IPC ───────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
+// Chat IPC
+// ─────────────────────────────────────────────────────────────────────
 ipcMain.handle("send:message", async (_, content, userId = "owner") => {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    return { error: "Gateway not ready" }
-  }
+  if (!ws || ws.readyState !== WebSocket.OPEN) return { error: "Gateway not ready" }
   ws.send(JSON.stringify({ type: "message", content, userId }))
   return { ok: true }
 })
 
 ipcMain.handle("send:gateway", async (_, payload) => {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    return { error: "Gateway not ready" }
-  }
+  if (!ws || ws.readyState !== WebSocket.OPEN) return { error: "Gateway not ready" }
   ws.send(JSON.stringify(payload))
   return { ok: true }
 })
 
 ipcMain.handle("get:status", async () => {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    return { error: "Not connected" }
-  }
+  if (!ws || ws.readyState !== WebSocket.OPEN) return { error: "Not connected" }
   ws.send(JSON.stringify({ type: "status" }))
   return { ok: true }
 })
 
-// ── Config IPC (EDITH-style — writes edith.json) ─────────────────
+// ─────────────────────────────────────────────────────────────────────
+// Config IPC — writes directly to edith.json, never touches .env
+// ─────────────────────────────────────────────────────────────────────
 ipcMain.handle("config:save", async (_, config) => {
   try {
     const existing = readEdithConfig() || {}
@@ -310,16 +302,10 @@ ipcMain.handle("config:pick-wake-model", async () => {
   try {
     const result = await dialog.showOpenDialog({
       title: "Select Wake Word Model",
-      filters: [
-        { name: "Wake Word Models", extensions: ["ppn", "onnx", "tflite"] },
-      ],
+      filters: [{ name: "Wake Word Models", extensions: ["ppn", "onnx", "tflite"] }],
       properties: ["openFile"],
     })
-
-    if (result.canceled || !result.filePaths?.[0]) {
-      return { ok: false, cancelled: true }
-    }
-
+    if (result.canceled || !result.filePaths?.[0]) return { ok: false, cancelled: true }
     return { ok: true, path: result.filePaths[0] }
   } catch (err) {
     return { ok: false, error: err.message }
@@ -335,20 +321,26 @@ ipcMain.handle("config:prepare-wake-model", async (_, options = {}) => {
   }
 })
 
-ipcMain.handle("config:test-provider", async (_, provider, credentials) => {
+// ─────────────────────────────────────────────────────────────────────
+// Provider connection test — all providers
+// Credentials come in as { PROVIDER_API_KEY: "..." } matching env keys
+// ─────────────────────────────────────────────────────────────────────
+ipcMain.handle("config:test-provider", async (_, provider, creds) => {
   try {
     switch (provider) {
+
       case "groq": {
         const res = await fetch("https://api.groq.com/openai/v1/models", {
-          headers: { Authorization: `Bearer ${credentials.GROQ_API_KEY}` }
+          headers: { Authorization: `Bearer ${creds.GROQ_API_KEY}` }
         })
         return { ok: res.ok, status: res.status }
       }
+
       case "anthropic": {
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
-            "x-api-key": credentials.ANTHROPIC_API_KEY,
+            "x-api-key": creds.ANTHROPIC_API_KEY,
             "anthropic-version": "2023-06-01",
             "Content-Type": "application/json"
           },
@@ -358,28 +350,110 @@ ipcMain.handle("config:test-provider", async (_, provider, credentials) => {
             messages: [{ role: "user", content: "hi" }]
           })
         })
-        // 200 or 400 (bad request but key valid) both mean key works
+        // 200 or 400 both mean key is valid (400 = model issue, not auth)
         return { ok: res.status !== 401 && res.status !== 403, status: res.status }
       }
+
       case "openai": {
         const res = await fetch("https://api.openai.com/v1/models", {
-          headers: { Authorization: `Bearer ${credentials.OPENAI_API_KEY}` }
+          headers: { Authorization: `Bearer ${creds.OPENAI_API_KEY}` }
         })
         return { ok: res.ok, status: res.status }
       }
-      case "ollama": {
-        const host = credentials.OLLAMA_HOST || "http://127.0.0.1:11434"
-        const res = await fetch(`${host}/api/tags`)
+
+      case "gemini": {
+        const key = creds.GEMINI_API_KEY
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`
+        )
         return { ok: res.ok, status: res.status }
       }
+
+      case "openrouter": {
+        const res = await fetch("https://openrouter.ai/api/v1/models", {
+          headers: { Authorization: `Bearer ${creds.OPENROUTER_API_KEY}` }
+        })
+        return { ok: res.ok, status: res.status }
+      }
+
+      case "deepseek": {
+        const res = await fetch("https://api.deepseek.com/v1/models", {
+          headers: { Authorization: `Bearer ${creds.DEEPSEEK_API_KEY}` }
+        })
+        return { ok: res.ok, status: res.status }
+      }
+
+      case "mistral": {
+        const res = await fetch("https://api.mistral.ai/v1/models", {
+          headers: { Authorization: `Bearer ${creds.MISTRAL_API_KEY}` }
+        })
+        return { ok: res.ok, status: res.status }
+      }
+
+      case "xai": {
+        const res = await fetch("https://api.x.ai/v1/models", {
+          headers: { Authorization: `Bearer ${creds.XAI_API_KEY}` }
+        })
+        return { ok: res.ok, status: res.status }
+      }
+
+      case "together": {
+        const res = await fetch("https://api.together.xyz/v1/models", {
+          headers: { Authorization: `Bearer ${creds.TOGETHER_API_KEY}` }
+        })
+        return { ok: res.ok, status: res.status }
+      }
+
+      case "fireworks": {
+        const res = await fetch("https://api.fireworks.ai/inference/v1/models", {
+          headers: { Authorization: `Bearer ${creds.FIREWORKS_API_KEY}` }
+        })
+        return { ok: res.ok, status: res.status }
+      }
+
+      case "perplexity": {
+        // Perplexity doesn't have a /models endpoint — test with tiny completion
+        const res = await fetch("https://api.perplexity.ai/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${creds.PERPLEXITY_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "sonar",
+            messages: [{ role: "user", content: "hi" }],
+            max_tokens: 1
+          })
+        })
+        return { ok: res.status !== 401 && res.status !== 403, status: res.status }
+      }
+
+      case "ollama": {
+        const base = creds.OLLAMA_BASE_URL || creds.OLLAMA_HOST || "http://localhost:11434"
+        const res = await fetch(`${base}/api/tags`)
+        return { ok: res.ok, status: res.status }
+      }
+
+      case "lmstudio": {
+        const base = creds.LM_STUDIO_BASE_URL || "http://localhost:1234"
+        const res = await fetch(`${base}/v1/models`)
+        if (!res.ok) return { ok: false, status: res.status }
+        const data = await res.json()
+        const hasModel = Array.isArray(data.data) && data.data.length > 0
+        return {
+          ok: hasModel,
+          status: res.status,
+          error: hasModel ? undefined : "LM Studio is running but no model is loaded. Load a model in LM Studio first."
+        }
+      }
+
       case "deepgram": {
         const res = await fetch("https://api.deepgram.com/v1/projects", {
-          headers: {
-            Authorization: `Token ${credentials.apiKey || ""}`
-          }
+          headers: { Authorization: `Token ${creds.DEEPGRAM_API_KEY || creds.apiKey || ""}` }
         })
         return { ok: res.ok, status: res.status }
       }
+
       default:
         return { ok: false, error: `Unknown provider: ${provider}` }
     }
@@ -388,19 +462,9 @@ ipcMain.handle("config:test-provider", async (_, provider, credentials) => {
   }
 })
 
-// ── Window IPC ─────────────────────────────────────────────────────
-ipcMain.handle("window:minimize", async () => {
-  mainWindow?.hide()
-  return { ok: true }
-})
-
-ipcMain.handle("window:close", async () => {
-  mainWindow?.hide()
-  return { ok: true }
-})
-
-ipcMain.handle("app:quit", async () => {
-  app.isQuitting = true
-  app.quit()
-  return { ok: true }
-})
+// ─────────────────────────────────────────────────────────────────────
+// Window IPC
+// ─────────────────────────────────────────────────────────────────────
+ipcMain.handle("window:minimize", async () => { mainWindow?.hide(); return { ok: true } })
+ipcMain.handle("window:close",   async () => { mainWindow?.hide(); return { ok: true } })
+ipcMain.handle("app:quit",       async () => { app.isQuitting = true; app.quit(); return { ok: true } })
