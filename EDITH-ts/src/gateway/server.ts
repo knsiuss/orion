@@ -41,7 +41,9 @@ import {
 } from "../observability/metrics.js"
 import { withSpan } from "../observability/tracing.js"
 import { usageTracker } from "../observability/usage-tracker.js"
-import { voice } from "../voice/bridge.js"
+import { loadRuntimeVoiceConfig } from "../voice/runtime-config.js"
+import { VoiceSessionManager } from "../voice/session-manager.js"
+import { checkWakeWordWindow } from "../voice/wake-word.js"
 import {
   authenticateWebSocket,
   getAuthFailure,
@@ -137,6 +139,13 @@ interface GatewayClientMessage {
   requestId?: unknown
   userId?: string
   content?: string
+  data?: string
+  encoding?: string
+  mimeType?: string
+  language?: "auto" | "id" | "en" | "multi"
+  sampleRate?: number
+  channelCount?: number
+  sequence?: number
   keyword?: string
   windowSeconds?: number
 }
@@ -427,7 +436,14 @@ function normalizeIncomingClientMessage(input: unknown): GatewayClientMessage {
 
   const userId = asString(raw.userId) ?? undefined
   const content = asString(raw.content) ?? undefined
+  const data = asString(raw.data) ?? undefined
+  const encoding = asString(raw.encoding) ?? undefined
+  const mimeType = asString(raw.mimeType) ?? undefined
+  const language = asString(raw.language)
   const keyword = asString(raw.keyword) ?? undefined
+  const sampleRate = asFiniteNumber(raw.sampleRate) ?? undefined
+  const channelCount = asFiniteNumber(raw.channelCount) ?? undefined
+  const sequence = asFiniteNumber(raw.sequence) ?? undefined
   const windowSecondsRaw = asFiniteNumber(raw.windowSeconds)
   const windowSeconds = windowSecondsRaw === null
     ? undefined
@@ -438,6 +454,15 @@ function normalizeIncomingClientMessage(input: unknown): GatewayClientMessage {
     requestId: raw.requestId,
     userId,
     content,
+    data,
+    encoding,
+    mimeType,
+    language: language === "auto" || language === "id" || language === "en" || language === "multi"
+      ? language
+      : undefined,
+    sampleRate,
+    channelCount,
+    sequence,
     keyword,
     windowSeconds,
   }
@@ -471,6 +496,31 @@ function deepMerge(target: Record<string, unknown>, source: Record<string, unkno
   return result
 }
 
+function isSecretKey(key: string): boolean {
+  const normalized = key.toLowerCase()
+  return normalized.includes("key")
+    || normalized.includes("token")
+    || normalized.includes("secret")
+    || normalized.includes("password")
+}
+
+function redactSecrets(value: unknown, keyHint?: string): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactSecrets(entry))
+  }
+  if (value && typeof value === "object") {
+    const result: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      result[key] = redactSecrets(entry, key)
+    }
+    return result
+  }
+  if (typeof value === "string" && keyHint && isSecretKey(keyHint)) {
+    return value ? "***" : ""
+  }
+  return value
+}
+
 function buildConnectedPayload(clientId: string) {
   return {
     type: "connected",
@@ -497,9 +547,13 @@ export class GatewayServer {
     bodyLimit: MAX_BODY_SIZE,
   })
   private clients = new Map<string, SocketLike>()
-  private voiceSessions = new Map<string, () => void>() // userId -> stop function
+  private voiceSessionManager: VoiceSessionManager
 
   constructor(private port = config.GATEWAY_PORT) {
+    this.voiceSessionManager = new VoiceSessionManager({
+      generateResponse: async (userId, transcript, signal) =>
+        this.handleUserMessage(userId, transcript, "voice", { signal }),
+    })
     this.registerRoutes()
   }
 
@@ -863,14 +917,7 @@ export class GatewayServer {
         try {
           const cfg = await loadEdithConfig()
           // Redact API keys for security — only expose structure + provider info
-          const redacted = JSON.parse(JSON.stringify(cfg))
-          if (redacted.env) {
-            for (const key of Object.keys(redacted.env)) {
-              if (key.toLowerCase().includes("key") || key.toLowerCase().includes("token") || key.toLowerCase().includes("secret") || key.toLowerCase().includes("password")) {
-                redacted.env[key] = redacted.env[key] ? "***" : ""
-              }
-            }
-          }
+          const redacted = redactSecrets(JSON.parse(JSON.stringify(cfg))) as Record<string, unknown>
           return { ok: true, config: redacted }
         } catch (err) {
           return reply.code(500).send({ error: (err as Error).message })
@@ -971,6 +1018,14 @@ export class GatewayServer {
                 const res = await fetch(`${host}/api/tags`)
                 return { ok: res.ok, status: res.status }
               }
+              case "deepgram": {
+                const res = await fetch("https://api.deepgram.com/v1/projects", {
+                  headers: {
+                    Authorization: `Token ${creds.apiKey ?? ""}`,
+                  },
+                })
+                return { ok: res.ok, status: res.status }
+              }
               default:
                 return reply.code(400).send({ error: `Unknown provider: ${provider}` })
             }
@@ -1067,8 +1122,10 @@ export class GatewayServer {
       }
       case "voice_start":
         return this.handleVoiceStart(userId, msg, socket)
+      case "voice_chunk":
+        return this.handleVoiceChunk(userId, msg)
       case "voice_stop":
-        return this.handleVoiceStop(userId, msg.requestId)
+        return this.handleVoiceStop(userId, msg)
       case "voice_wake_word":
         return this.handleWakeWord(userId, msg)
       default:
@@ -1091,21 +1148,11 @@ export class GatewayServer {
   }
 
   private stopVoiceSession(userId: string, reason: string): boolean {
-    const stopFn = this.voiceSessions.get(userId)
-    if (!stopFn) {
-      return false
-    }
-
-    try {
-      stopFn()
+    const stopped = this.voiceSessionManager.cancelSession(userId, reason)
+    if (stopped) {
       logger.info("voice session stopped", { userId, reason })
-    } catch (err) {
-      logger.warn("error stopping voice session", { userId, reason, error: String(err) })
-    } finally {
-      this.voiceSessions.delete(userId)
     }
-
-    return true
+    return stopped
   }
 
   private async handleVoiceStart(
@@ -1117,44 +1164,18 @@ export class GatewayServer {
       return { type: "error", message: "Voice mode requires an active WebSocket", requestId: msg.requestId }
     }
 
-    if (this.voiceSessions.has(userId)) {
-      return { type: "error", message: "Voice session already active", requestId: msg.requestId }
-    }
-
     try {
-      const stopVoice = await voice.startStreamingConversation(
-        (transcript) => {
-          safeSend(socket, { type: "voice_transcript", text: transcript })
-
-          // Reuse the same transport path as text messages so hooks, usage
-          // tracking, and MemRL feedback side-channel stay consistent.
-          void this.handleUserMessage(userId, transcript, "voice")
-            .then((response) => {
-              safeSend(socket, {
-                type: "assistant_transcript",
-                text: response,
-                requestId: msg.requestId,
-              })
-            })
-            .catch((err) => {
-              logger.error("voice pipeline error", err)
-              safeSend(socket, {
-                type: "error",
-                message: "Failed to process voice input",
-                requestId: msg.requestId,
-              })
-            })
-        },
-        (audioChunk) => {
-          safeSend(socket, {
-            type: "voice_audio",
-            data: audioChunk,
-            requestId: msg.requestId,
-          })
-        },
-      )
-
-      this.voiceSessions.set(userId, stopVoice)
+      await this.voiceSessionManager.startSession({
+        userId,
+        requestId: msg.requestId,
+        encoding: msg.encoding,
+        mimeType: msg.mimeType,
+        sampleRate: msg.sampleRate,
+        channelCount: msg.channelCount,
+        language: msg.language,
+      }, (event) => {
+        safeSend(socket, event)
+      })
       logger.info("voice session started", { userId })
       return { type: "voice_started", requestId: msg.requestId }
     } catch (err) {
@@ -1167,17 +1188,51 @@ export class GatewayServer {
     }
   }
 
-  private async handleVoiceStop(userId: string, requestId?: unknown): Promise<GatewayResponse> {
-    this.stopVoiceSession(userId, "client request")
-    return { type: "voice_stopped", requestId }
+  private async handleVoiceChunk(userId: string, msg: GatewayClientMessage): Promise<GatewayResponse> {
+    if (typeof msg.data !== "string" || msg.data.length === 0) {
+      return { type: "error", message: "voice_chunk requires base64 'data'", requestId: msg.requestId }
+    }
+
+    try {
+      this.voiceSessionManager.appendChunk({
+        userId,
+        requestId: msg.requestId,
+        data: msg.data,
+      })
+      return { type: "ok", requestId: msg.requestId }
+    } catch (err) {
+      return {
+        type: "error",
+        message: `Failed to append voice chunk: ${String(err)}`,
+        requestId: msg.requestId,
+      }
+    }
+  }
+
+  private async handleVoiceStop(userId: string, msg: GatewayClientMessage): Promise<GatewayResponse> {
+    try {
+      await this.voiceSessionManager.stopSession({
+        userId,
+        requestId: msg.requestId,
+        data: msg.data,
+      })
+      return { type: "ok", requestId: msg.requestId }
+    } catch (err) {
+      return {
+        type: "error",
+        message: `Failed to stop voice session: ${String(err)}`,
+        requestId: msg.requestId,
+      }
+    }
   }
 
   private async handleWakeWord(userId: string, msg: GatewayClientMessage): Promise<GatewayResponse> {
-    const keyword = msg.keyword ?? "edith"
+    const runtimeVoice = await loadRuntimeVoiceConfig()
+    const keyword = msg.keyword ?? runtimeVoice.wake.keyword
     const windowSeconds = msg.windowSeconds ?? 2
 
     try {
-      const detected = await voice.checkWakeWord(keyword, windowSeconds)
+      const detected = await checkWakeWordWindow(runtimeVoice, keyword, windowSeconds)
       return {
         type: "wake_word_result",
         detected,
@@ -1195,10 +1250,7 @@ export class GatewayServer {
   }
 
   async stop(): Promise<void> {
-    for (const [userId] of this.voiceSessions.entries()) {
-      this.stopVoiceSession(userId, "shutdown")
-    }
-
+    this.voiceSessionManager.cancelAll("shutdown")
     this.clients.clear()
     await this.app.close()
   }
@@ -1221,6 +1273,7 @@ export const __gatewayTestUtils = {
   parseDaysParam,
   isAdminTokenAuthorized,
   normalizeIncomingClientMessage,
+  redactSecrets,
   estimateTokensFromText,
   extractAdminToken,
   extractWebSocketToken,

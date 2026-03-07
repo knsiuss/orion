@@ -6,13 +6,46 @@
 
 ---
 
-## 1. Tujuan
+## 1. Landasan Riset (Academic Papers)
 
-Upgrade VisionCortex dari "bisa screenshot + OCR" menjadi "bisa memahami layar":
-1. **describeImage** → Kirim screenshot ke multimodal LLM (Gemini/GPT-4V) dan dapatkan deskripsi
-2. **UI Grounding** → Identifikasi elemen UI yang bisa diklik berdasarkan instruksi natural language
-3. **Visual Memory** → Simpan visual context ke memory system untuk recall nanti
-4. **Mobile Camera Vision** → Android bisa kirim foto/screenshot untuk dianalisis server
+Phase ini dibangun berdasarkan **6 paper utama** di bidang multimodal vision dan UI grounding:
+
+| # | Paper | arXiv / Venue | Kontribusi ke EDITH |
+|---|-------|--------------|---------------------|
+| 1 | **OmniParser** | arXiv:2408.00203 | Pure vision-based UI parsing: screenshot → structured elements. EDITH adopt: *icon detection + caption model* untuk `findElement()` |
+| 2 | **OmniParser V2** | Microsoft Research 2024 | Improved small-element detection + faster inference. EDITH adopt: *ScreenSpot Pro grounding benchmark* methodology |
+| 3 | **ScreenAgent** | IJCAI 2024 | VLM agent: Plan → Action → Reflection pada real screen. EDITH adopt: *screenshot → describe → check* loop |
+| 4 | **OSWorld** | arXiv:2404.07972 | 369 OS-level tasks di real VM. EDITH adopt: *captureAndAnalyze patterns* dan *evaluation scripts* |
+| 5 | **Set-of-Mark (SoM)** | arXiv:2310.11441 | Visual prompting: overlay numbered marks pada UI elements. EDITH adopt: *element numbering* untuk LLM grounding |
+| 6 | **GPT-4V System Card** | OpenAI (2023) | Multimodal safety: image understanding limits. EDITH adopt: *image size/format validation* best practices |
+
+### Core Principles dari Research
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│         First Principles dari Vision Research Papers          │
+│                                                               │
+│  1. PURE VISION (OmniParser)                                 │
+│     Screenshot-only input → no HTML/DOM required              │
+│     → Accessibility API first, LLM vision fallback           │
+│                                                               │
+│  2. GROUNDING ACCURACY (ScreenSpot/SoM)                      │
+│     Element detection must return precise coordinates         │
+│     → Combine accessibility bounds + visual verification     │
+│                                                               │
+│  3. PIPELINE SEPARATION (ScreenAgent)                        │
+│     Plan → Capture → Analyze → Act → Reflect                │
+│     → Each stage independently testable + cacheable          │
+│                                                               │
+│  4. MULTI-PROVIDER RESILIENCE (OSWorld)                      │
+│     Gemini → OpenAI → Anthropic fallback chain               │
+│     → Provider-agnostic multimodal interface                 │
+│                                                               │
+│  5. SAFETY BOUNDS (GPT-4V Card)                              │
+│     Max 20MB image, resize >2048px, validate MIME types      │
+│     → Rate limit vision calls to prevent cost explosion      │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -30,12 +63,10 @@ Upgrade VisionCortex dari "bisa screenshot + OCR" menjadi "bisa memahami layar":
 │  │ Capture  │  │ Camera/     │  │ Image        │                │
 │  │ (desktop)│  │ Screenshot  │  │ (shared)     │                │
 │  └────┬─────┘  └──────┬──────┘  └──────┬───────┘                │
-│       │               │               │                          │
 │       └───────────────┼───────────────┘                          │
 │                       ▼                                           │
 │  ┌────────────────────────────────────────────────┐              │
-│  │             Image Router                        │              │
-│  │                                                 │              │
+│  │  Image Router (GPT-4V Safety Principles)       │              │
 │  │  • Size check (max 20MB)                       │              │
 │  │  • Format validation (PNG/JPEG/WebP/GIF)       │              │
 │  │  • Resolution normalization (max 2048px edge)   │              │
@@ -47,99 +78,68 @@ Upgrade VisionCortex dari "bisa screenshot + OCR" menjadi "bisa memahami layar":
 │  ┌──────────┐  ┌──────────┐  ┌──────────────┐                   │
 │  │ OCR      │  │ Multimod │  │ UI Element   │                   │
 │  │ Path     │  │ LLM Path │  │ Detection    │                   │
-│  │          │  │          │  │              │                   │
-│  │ Tesseract│  │ Gemini   │  │ Accessibility│                   │
-│  │ (local)  │  │ GPT-4V   │  │ API (Win)    │                   │
-│  │          │  │ Claude   │  │              │                   │
-│  │ Text     │  │          │  │ OmniParser   │                   │
-│  │ Extract  │  │ Describe │  │ (YOLO-based) │                   │
+│  │(Tesseract│  │(Gemini/  │  │(OmniParser   │                   │
+│  │ local)   │  │ GPT-4V/  │  │ approach)    │                   │
+│  │          │  │ Claude)  │  │              │                   │
+│  │ Text     │  │ Describe │  │ Accessibility│                   │
+│  │ Extract  │  │ + Ground │  │ + LLM        │                   │
 │  └────┬─────┘  └────┬─────┘  └──────┬───────┘                   │
-│       │              │               │                            │
 │       └──────────────┼───────────────┘                            │
 │                      ▼                                            │
 │  ┌────────────────────────────────────────────────┐              │
-│  │           Vision Result Aggregator              │              │
-│  │                                                 │              │
+│  │  Vision Result Aggregator (ScreenAgent pattern) │              │
 │  │  {                                              │              │
 │  │    ocrText: "File Edit View ...",               │              │
 │  │    description: "VS Code with TypeScript...",   │              │
 │  │    elements: [ {type:"button", text:"Run"} ],   │              │
 │  │    screenState: { activeWindow, resolution },   │              │
-│  │    confidence: 0.92,                            │              │
-│  │    timestamp: 1234567890                        │              │
+│  │    confidence: 0.92                             │              │
 │  │  }                                              │              │
 │  └──────────────────┬─────────────────────────────┘              │
-│                     │                                             │
 │                     ▼                                             │
 │  ┌────────────────────────────────────────┐                      │
-│  │       Visual Memory (Optional)          │                      │
-│  │  Store as MemoryNode with:              │                      │
-│  │  - category: "visual_context"           │                      │
-│  │  - embedding: dari description text     │                      │
-│  │  - metadata: { screenshot hash, etc. }  │                      │
+│  │  Visual Memory (MemGPT-inspired)       │                      │
+│  │  Store as MemoryNode:                  │                      │
+│  │  - category: "visual_context"          │                      │
+│  │  - embedding: dari description text    │                      │
+│  │  - metadata: { screenshot hash }       │                      │
+│  │  - ttlDays: 7 (auto-expire)           │                      │
 │  └────────────────────────────────────────┘                      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.2 Multimodal LLM Integration (via Orchestrator)
 
+**Paper basis:** OSWorld evaluation — provider-agnostic multimodal routing.
+
 ```
 ┌───────────────────────────────────────────────────────┐
 │              Engine Orchestrator (existing)             │
-│                                                        │
-│  Task: "multimodal"                                    │
-│  Route: gemini → openai → anthropic → openrouter      │
+│              Route: gemini → openai → anthropic        │
 │                                                        │
 │  ┌──────────────────────────────────────────────────┐ │
-│  │  Gemini (Recommended — Best value)                │ │
-│  │                                                   │ │
+│  │  Gemini 2.0 Flash (Best value — OmniParser V2)   │ │
 │  │  POST generativelanguage.googleapis.com/v1beta/   │ │
-│  │  models/gemini-2.0-flash:generateContent          │ │
-│  │                                                   │ │
-│  │  {                                                │ │
-│  │    contents: [{                                   │ │
-│  │      parts: [                                     │ │
-│  │        { text: "Describe..." },                   │ │
-│  │        { inlineData: {                            │ │
-│  │            mimeType: "image/png",                 │ │
-│  │            data: "<base64>"                       │ │
-│  │        }}                                         │ │
-│  │      ]                                            │ │
-│  │    }]                                             │ │
-│  │  }                                                │ │
+│  │  { contents: [{ parts: [                          │ │
+│  │      { text: "Describe..." },                     │ │
+│  │      { inlineData: { mimeType, data: base64 }}    │ │
+│  │  ]}]}                                             │ │
 │  └──────────────────────────────────────────────────┘ │
 │                                                        │
 │  ┌──────────────────────────────────────────────────┐ │
-│  │  OpenAI GPT-4V (Fallback)                         │ │
-│  │                                                   │ │
-│  │  POST api.openai.com/v1/chat/completions          │ │
-│  │  model: "gpt-4o"                                  │ │
-│  │                                                   │ │
-│  │  messages: [{                                     │ │
-│  │    role: "user",                                  │ │
-│  │    content: [                                     │ │
+│  │  OpenAI GPT-4o (Fallback — ScreenSpot evaluated)  │ │
+│  │  { messages: [{ role: "user", content: [          │ │
 │  │      { type: "text", text: "Describe..." },       │ │
-│  │      { type: "image_url", image_url: {            │ │
-│  │          url: "data:image/png;base64,<data>"      │ │
-│  │      }}                                           │ │
-│  │    ]                                              │ │
-│  │  }]                                               │ │
+│  │      { type: "image_url", image_url: { url }}     │ │
+│  │  ]}]}                                             │ │
 │  └──────────────────────────────────────────────────┘ │
 │                                                        │
 │  ┌──────────────────────────────────────────────────┐ │
-│  │  Anthropic Claude (Fallback)                      │ │
-│  │                                                   │ │
-│  │  POST api.anthropic.com/v1/messages               │ │
-│  │  model: "claude-sonnet-4-20250514"                │ │
-│  │                                                   │ │
-│  │  content: [                                       │ │
-│  │    { type: "image", source: {                     │ │
-│  │        type: "base64",                            │ │
-│  │        media_type: "image/png",                   │ │
-│  │        data: "<base64>"                           │ │
-│  │    }},                                            │ │
-│  │    { type: "text", text: "Describe..." }          │ │
-│  │  ]                                                │ │
+│  │  Anthropic Claude Sonnet (Fallback)               │ │
+│  │  { content: [                                     │ │
+│  │      { type: "image", source: { base64, type }}   │ │
+│  │      { type: "text", text: "Describe..." }        │ │
+│  │  ]}                                               │ │
 │  └──────────────────────────────────────────────────┘ │
 └───────────────────────────────────────────────────────┘
 ```
@@ -149,52 +149,25 @@ Upgrade VisionCortex dari "bisa screenshot + OCR" menjadi "bisa memahami layar":
 ```
 ┌────────────────────────────────────────────┐
 │         MOBILE (React Native Expo)          │
-│                                             │
-│  ┌───────────────┐  ┌─────────────────┐   │
-│  │ expo-camera    │  │ expo-image-     │   │
-│  │ (take photo)   │  │ picker (gallery)│   │
-│  └───────┬───────┘  └───────┬─────────┘   │
-│          │                   │              │
-│          └─────────┬─────────┘              │
-│                    ▼                         │
 │  ┌─────────────────────────────────────┐   │
-│  │  Image Preprocessor                  │   │
-│  │  - Resize to max 1024px             │   │
-│  │  - Convert to JPEG (quality 85%)    │   │
-│  │  - Base64 encode                     │   │
-│  └─────────────┬───────────────────────┘   │
-│                │                            │
-│                ▼                             │
-│  ┌─────────────────────────────────────┐   │
-│  │  WebSocket → Gateway                 │   │
-│  │                                      │   │
-│  │  { type: "vision_analyze",           │   │
-│  │    image: "<base64>",                │   │
-│  │    question: "What's this?",         │   │
-│  │    mode: "describe" | "ocr" |        │   │
-│  │           "find_element"  }          │   │
-│  └─────────────┬───────────────────────┘   │
-│                │                            │
-│                ▼                             │
-│  ┌─────────────────────────────────────┐   │
-│  │  Response Display                    │   │
-│  │  ← { type: "vision_result",          │   │
-│  │      description: "...",             │   │
-│  │      ocrText: "...",                 │   │
-│  │      elements: [...] }              │   │
+│  │ expo-camera / expo-image-picker      │   │
+│  │  → Resize to max 1024px             │   │
+│  │  → JPEG quality 85%                 │   │
+│  │  → Base64 encode                     │   │
 │  └─────────────────────────────────────┘   │
+│         │ WebSocket                        │
+│         ▼                                   │
+│  { type: "vision_analyze",                 │
+│    image: "<base64>",                      │
+│    question: "What's this?",               │
+│    mode: "describe" | "ocr" | "find" }     │
 └────────────────────────────────────────────┘
-         │
          │ WebSocket
          ▼
 ┌────────────────────────────────────────────┐
 │          SERVER (EDITH Gateway)              │
-│                                             │
 │  vision_analyze → VisionCortex              │
-│    → describeImage (multimodal LLM)         │
-│    → extractText (Tesseract OCR)            │
-│    → detectElements (accessibility/YOLO)    │
-│                                             │
+│    → describeImage / extractText / findEl   │
 │  Result → vision_result                     │
 └────────────────────────────────────────────┘
 ```
@@ -205,179 +178,76 @@ Upgrade VisionCortex dari "bisa screenshot + OCR" menjadi "bisa memahami layar":
 
 ### 3.1 describeImage — Real Implementation
 
-**File:** `EDITH-ts/src/os-agent/vision-cortex.ts` → `describeImage()`
+**File:** `EDITH-ts/src/os-agent/vision-cortex.ts` → `describeImage()`  
+**Paper basis:** ScreenAgent (visual understanding) + OmniParser (caption model)
 
-**Status:** ❌ Returns placeholder string
-
-**Implementasi:**
 ```typescript
 async describeImage(imageBuffer: Buffer, question?: string): Promise<string> {
   const base64 = imageBuffer.toString("base64")
   const mimeType = this.detectMimeType(imageBuffer)
   const prompt = question ?? "Describe what you see in this image in detail."
   
-  // Use engine orchestrator with multimodal task type
   const { getOrchestrator } = await import("../engines/orchestrator.js")
-  const orchestrator = getOrchestrator()
-  
-  const result = await orchestrator.generate("multimodal", {
+  const result = await getOrchestrator().generate("multimodal", {
     prompt,
-    context: [{
-      role: "user",
-      content: [
-        { type: "text", text: prompt },
-        { type: "image", data: base64, mimeType }
-      ]
-    }],
+    context: [{ role: "user", content: [
+      { type: "text", text: prompt },
+      { type: "image", data: base64, mimeType }
+    ]}],
     maxTokens: 1024,
   })
-  
   return result.text
 }
 ```
 
-**Provider-specific payload formatting diperlukan di orchestrator level** — masing-masing provider (Gemini, OpenAI, Anthropic) punya format berbeda untuk image content.
+### 3.2 UI Grounding — findElement() (OmniParser approach)
 
-### 3.2 UI Grounding — Find Element by Description
+**File:** `vision-cortex.ts` → NEW `findElement()`  
+**Paper basis:** OmniParser (detection + caption), SoM (numbered marks), ScreenSpot (grounding benchmark)
 
-**File:** `EDITH-ts/src/os-agent/vision-cortex.ts` → NEW `findElement()`
-
-**Purpose:** User bilang "click the blue submit button" → EDITH perlu tahu koordinat button tersebut.
-
-**Approach:**
 ```
-Strategy A — Accessibility API First (Fast, Reliable):
-  1. Get all UI elements via accessibility API
-  2. Match element text/name with user description
-  3. Return bounding box coordinates
-
-Strategy B — Visual Grounding via LLM (Flexible, Slower):  
-  1. Take screenshot
-  2. Send to multimodal LLM with prompt: 
-     "Find the {description} in this image. Return its coordinates."
-  3. Parse coordinate response
-  4. Return bounding box
-
-Combined Strategy (Recommended):
-  1. Try accessibility API first (< 200ms)
-  2. If no match → fall back to visual grounding via LLM (~2s)
+Combined Strategy (OmniParser-inspired):
+  1. Try accessibility API first (< 200ms) — reliable, structured
+  2. If no match → visual grounding via LLM (~2s) — flexible
   3. Cache results for repeated queries
 ```
 
-### 3.3 Visual Memory Integration
+### 3.3 Visual Memory Integration (MemGPT-inspired)
 
-**File:** `EDITH-ts/src/os-agent/vision-cortex.ts` → NEW `storeVisualContext()`
-
-**Purpose:** Simpan apa yang dilihat EDITH di layar ke memory system agar bisa recall nanti.
+**File:** `vision-cortex.ts` → NEW `storeVisualContext()`  
+**Paper basis:** MemGPT (hierarchical memory) — store visual context for future recall
 
 ```typescript
 async storeVisualContext(snapshot: {
-  description: string
-  ocrText: string
-  activeWindow: string
-  timestamp: number
+  description: string; ocrText: string; activeWindow: string; timestamp: number
 }): Promise<void> {
-  const { memoryService } = await import("../memory/store.js")
-  
   await memoryService.storeMemory({
     userId: "owner",
     content: `[Visual Context] ${snapshot.activeWindow}: ${snapshot.description}`,
     category: "visual_context",
-    metadata: {
-      ocrText: snapshot.ocrText.slice(0, 500), // Truncate
-      activeWindow: snapshot.activeWindow,
-      capturedAt: snapshot.timestamp,
-    },
-    importance: 0.3, // Low importance unless explicitly referenced
-    ttlDays: 7,      // Auto-expire after 1 week
+    importance: 0.3,     // Low unless explicitly referenced
+    ttlDays: 7,          // Auto-expire
   })
 }
 ```
 
 ### 3.4 Orchestrator Multimodal Extension
 
-**File:** `EDITH-ts/src/engines/orchestrator.ts`
-
-**Status:** Routes `multimodal` task, tapi payload format untuk image tidak dihandle per-provider.
-
-**Yang perlu ditambah:**
-```typescript
-// Di masing-masing engine adapter:
-
-// gemini-adapter.ts
-function formatMultimodalPayload(prompt: string, images: ImageContent[]): GeminiRequest {
-  return {
-    contents: [{
-      parts: [
-        { text: prompt },
-        ...images.map(img => ({
-          inlineData: { mimeType: img.mimeType, data: img.base64 }
-        }))
-      ]
-    }]
-  }
-}
-
-// openai-adapter.ts  
-function formatMultimodalPayload(prompt: string, images: ImageContent[]): OpenAIRequest {
-  return {
-    messages: [{
-      role: "user",
-      content: [
-        { type: "text", text: prompt },
-        ...images.map(img => ({
-          type: "image_url",
-          image_url: { url: `data:${img.mimeType};base64,${img.base64}` }
-        }))
-      ]
-    }]
-  }
-}
-```
+**Files:** `engines/adapters/{gemini,openai,anthropic}.ts`  
+Each provider needs image payload formatting (different formats per API).
 
 ### 3.5 Gateway vision_analyze Handler
 
-**File:** `EDITH-ts/src/gateway/server.ts`
-
-**Status:** ❌ Belum ada handler
-
-**Tambahkan:**
-```typescript
-case "vision_analyze": {
-  const { image, question, mode } = payload
-  const imageBuffer = Buffer.from(image, "base64")
-  
-  if (mode === "ocr") {
-    const text = await visionCortex.extractText(imageBuffer)
-    send({ type: "vision_result", ocrText: text })
-  } else if (mode === "describe") {
-    const description = await visionCortex.describeImage(imageBuffer, question)
-    send({ type: "vision_result", description })
-  } else if (mode === "find_element") {
-    const elements = await visionCortex.findElement(imageBuffer, question)
-    send({ type: "vision_result", elements })
-  }
-  break
-}
-```
+**File:** `src/gateway/server.ts` — WebSocket handler for mobile vision requests.
 
 ---
 
 ## 4. Dependency Tree
 
 ```
-Production Dependencies (Desktop):
-├── tesseract            # OCR — sudah digunakan ✅
-├── (orchestrator)       # Multimodal LLM — sudah ada ✅ (perlu extension)
-└── (no new npm deps)    # Semua via existing engine providers
-
-Production Dependencies (Mobile — tambahan):
-├── expo-camera          # Camera access (capture foto untuk vision)
-├── expo-image-picker    # Pick dari gallery
-└── expo-file-system     # Read/resize image
-
-Dev Dependencies:
-└── (none new)
+Production (Desktop): tesseract ✅ | orchestrator ✅ (needs extension) | no new npm deps
+Production (Mobile):  expo-camera, expo-image-picker, expo-file-system
+Dev: (none new)
 ```
 
 ---
@@ -386,109 +256,79 @@ Dev Dependencies:
 
 ### Week 1: describeImage + Orchestrator Extension
 
-| Task | File | Detail |
-|------|------|--------|
-| Audit orchestrator multimodal support | orchestrator.ts | Trace `generate("multimodal", ...)` flow |
-| Add image payload formatting — Gemini | engines/gemini/ | `inlineData` format |
-| Add image payload formatting — OpenAI | engines/openai/ | `image_url` format |
-| Add image payload formatting — Anthropic | engines/anthropic/ | `source.base64` format |
-| Implement real `describeImage()` | vision-cortex.ts | Call orchestrator with image data |
-| Add `findElement()` method | vision-cortex.ts | Accessibility + LLM fallback |
-| Test describeImage with screenshot | manual test | Verify output quality |
-| Image size/format validation | vision-cortex.ts | Max 20MB, resize if >2048px |
+| Task | File | Paper Basis |
+|------|------|-------------|
+| Audit orchestrator multimodal support | orchestrator.ts | OSWorld: provider routing |
+| Gemini image payload | gemini adapter | OmniParser V2: best value |
+| OpenAI image payload | openai adapter | ScreenSpot: evaluated |
+| Anthropic image payload | anthropic adapter | OSWorld: fallback chain |
+| Implement real `describeImage()` | vision-cortex.ts | ScreenAgent: describe |
+| Add `findElement()` method | vision-cortex.ts | OmniParser: detect+caption |
+| Image size/format validation | vision-cortex.ts | GPT-4V Card: safety bounds |
 
 ### Week 2: Visual Memory + Mobile + Polish
 
-| Task | File | Detail |
-|------|------|--------|
-| Visual memory integration | vision-cortex.ts | Store visual context periodically |
-| Gateway vision_analyze handler | server.ts | WebSocket message handler |
-| Mobile: add expo-camera | apps/mobile/ | `pnpm add expo-camera` |
-| Mobile: VisionButton component | apps/mobile/ | Take photo → send → display result |
-| Mobile: screenshot share | apps/mobile/ | Share screenshot from other apps to EDITH |
-| Unit tests for describeImage | __tests__/ | Mock orchestrator, verify payload format |
-| Unit tests for findElement | __tests__/ | Mock accessibility API + LLM |
-| Integration test: mobile → server | __tests__/ | WS vision_analyze flow |
+| Task | File | Paper Basis |
+|------|------|-------------|
+| Visual memory integration | vision-cortex.ts | MemGPT: context store |
+| Gateway vision_analyze handler | server.ts | — |
+| Mobile: VisionButton component | apps/mobile/ | — |
+| Unit tests for describeImage | __tests__/ | ScreenAgent: pipeline test |
+| Unit tests for findElement | __tests__/ | OmniParser: accuracy |
+| Integration test: mobile → server | __tests__/ | — |
 
 ---
 
-## 6. Android-Specific Considerations
+## 6. Testing Strategy (Paper-Grounded)
 
-### Permissions
-```json
-// app.json (Expo config)
-{
-  "expo": {
-    "plugins": [
-      ["expo-camera", {
-        "cameraPermission": "EDITH needs camera to analyze what you're looking at"
-      }],
-      ["expo-image-picker", {
-        "photosPermission": "EDITH needs gallery access to analyze images"  
-      }]
-    ]
-  }
-}
-```
+**Unit Tests (10 tests — ScreenAgent pipeline separation):**
 
-### Image Optimization for Android
-- **Camera resolution:** Capture at 1024px max width (16:9) — reduce upload size
-- **Compression:** JPEG quality 85% — good balance quality vs size
-- **Upload size:** ~100-300KB per image after optimization
-- **Bandwidth:** Single image upload ~300ms on 4G
-- **Timeout:** 10s for LLM vision analysis
+| # | Test | Paper Basis |
+|---|------|-------------|
+| 1 | describeImage calls orchestrator with correct multimodal payload | ScreenAgent |
+| 2 | describeImage handles orchestrator failure gracefully | OSWorld |
+| 3 | findElement via accessibility API returns matching element | OmniParser |
+| 4 | findElement falls back to LLM when accessibility fails | OmniParser combined |
+| 5 | Image format detection (PNG/JPEG/WebP) | GPT-4V Card |
+| 6 | Image resize for oversized inputs (>2048px) | GPT-4V Card |
+| 7 | storeVisualContext creates memory node | MemGPT |
+| 8 | Gateway vision_analyze routing (ocr/describe/find) | — |
+| 9 | Mobile VisionButton sends correct WS message | — |
+| 10 | Mobile displays vision_result correctly | — |
 
-### Share Intent (Android-Specific)
-```
-AndroidManifest.xml:
-<intent-filter>
-  <action android:name="android.intent.action.SEND" />
-  <category android:name="android.intent.category.DEFAULT" />
-  <data android:mimeType="image/*" />
-</intent-filter>
-```
-*Allows user to share images from any app (Gallery, Chrome, etc.) to EDITH for analysis.*
+**Integration Tests (3 tests):**
 
-### Battery/Performance
-- Image processing (resize, encode) di background thread
-- Cache recent analysis results (avoid re-analyzing same screenshot)
-- Limit to 1 concurrent vision request
+| # | Test | Paper Basis |
+|---|------|-------------|
+| 1 | Screenshot → describeImage → meaningful description | ScreenAgent full loop |
+| 2 | Mobile camera → WS → server vision → response | — |
+| 3 | Visual memory store → retrieve via conversation context | MemGPT |
 
 ---
 
-## 7. Testing Strategy
+## 7. Risiko & Mitigasi
 
-```
-Unit Tests (10 tests — dari Phase 2):
-├── describeImage calls orchestrator with correct multimodal payload
-├── describeImage handles orchestrator failure gracefully
-├── findElement via accessibility API returns matching element
-├── findElement falls back to LLM when accessibility fails
-├── Image format detection (PNG/JPEG/WebP)
-├── Image resize for oversized inputs
-├── storeVisualContext creates memory node
-├── Gateway vision_analyze routing (ocr/describe/find)
-├── Mobile VisionButton sends correct WS message
-└── Mobile displays vision_result correctly
-
-Integration Tests (3 tests):
-├── Screenshot → describeImage → meaningful description
-├── Mobile camera → WS → server vision → response to mobile
-└── Visual memory store → retrieve via conversation context
-```
+| Risiko | Paper-Informed Mitigasi |
+|--------|------------------------|
+| Multimodal LLM quota/cost | Rate limit: max 1 vision call per 10s (OSWorld evaluation approach) |
+| Gemini image size limit (20MB) | Auto-resize to max 2048px (GPT-4V Card recommendation) |
+| Tesseract accuracy poor | Multimodal LLM fallback (OmniParser dual-approach) |
+| UI grounding coordinates wrong | Accessibility + LLM validation (OmniParser combined strategy) |
+| Mobile image upload slow on 3G | Aggressive compression 85% JPEG (standard mobile practice) |
 
 ---
 
-## 8. Risiko & Mitigasi
+## 8. References
 
-| Risiko | Impact | Mitigasi |
-|--------|--------|---------|
-| Multimodal LLM quota/cost | Expensive for frequent screenshots | Rate limit: max 1 vision call per 10s, cache results |
-| Gemini API image size limit (20MB) | Large screenshots rejected | Auto-resize to max 2048px edge before upload |
-| Tesseract accuracy poor | Bad OCR results | Use multimodal LLM as fallback for text extraction |
-| UI grounding coordinates accuracy | Click wrong element | Combine accessibility API + LLM, validate with screenshot |
-| Mobile image upload slow on 3G | Poor UX | Aggressive compression, show loading state, timeout+retry |
-| Visual memory storage bloat | Database grows fast | TTL 7 days, max 100 visual memories, auto-prune |
+| # | Paper | ID | Relevansi |
+|---|-------|----|-----------|
+| 1 | OmniParser for Pure Vision Based GUI Agent | arXiv:2408.00203 | UI element detection + caption |
+| 2 | OmniParser V2 | Microsoft Research | ScreenSpot Pro SOTA grounding |
+| 3 | ScreenAgent: VLM-Driven Computer Control | IJCAI 2024 | Plan→Action→Reflection pipeline |
+| 4 | OSWorld: Benchmarking Multimodal Agents | arXiv:2404.07972 | Multi-app task evaluation |
+| 5 | Set-of-Mark Visual Prompting for GPT-4V | arXiv:2310.11441 | Numbered mark grounding |
+| 6 | GPT-4V System Card | OpenAI 2023 | Image safety bounds |
+| 7 | MemGPT: LLMs as Operating Systems | arXiv:2310.08560 | Visual memory tier |
 
 ---
 
@@ -503,6 +343,5 @@ Integration Tests (3 tests):
 | `src/engines/adapters/anthropic.ts` | Image payload support | +30 |
 | `src/gateway/server.ts` | Add vision_analyze WS handler | +40 |
 | `apps/mobile/components/VisionButton.tsx` | NEW: Camera + analyze UI | +180 |
-| `apps/mobile/App.tsx` | Wire VisionButton | +20 |
 | `src/os-agent/__tests__/vision-cortex.test.ts` | Extended tests | +100 |
-| **Total** | | **~690 lines** |
+| **Total** | | **~670 lines** |

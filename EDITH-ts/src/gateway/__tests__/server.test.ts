@@ -31,15 +31,43 @@ describe("gateway/server helpers", () => {
     expect(() => __gatewayTestUtils.normalizeIncomingClientMessage("hello")).toThrow()
 
     const msg = __gatewayTestUtils.normalizeIncomingClientMessage({
-      type: "voice_wake_word",
-      keyword: "edith",
-      windowSeconds: 999,
+      type: "voice_start",
+      mimeType: "audio/webm",
+      language: "id",
+      channelCount: 2,
+      sampleRate: 48_000,
       requestId: "r1",
     })
 
-    expect(msg.type).toBe("voice_wake_word")
-    expect(msg.windowSeconds).toBe(30)
-    expect(msg.keyword).toBe("edith")
+    expect(msg.type).toBe("voice_start")
+    expect(msg.mimeType).toBe("audio/webm")
+    expect(msg.language).toBe("id")
+    expect(msg.channelCount).toBe(2)
+    expect(msg.sampleRate).toBe(48_000)
+  })
+
+  it("redacts nested voice provider secrets", () => {
+    const redacted = __gatewayTestUtils.redactSecrets({
+      voice: {
+        stt: {
+          providers: {
+            deepgram: {
+              apiKey: "dg-secret",
+            },
+          },
+        },
+        wake: {
+          providers: {
+            picovoice: {
+              accessKey: "pv-secret",
+            },
+          },
+        },
+      },
+    }) as Record<string, any>
+
+    expect(redacted.voice.stt.providers.deepgram.apiKey).toBe("***")
+    expect(redacted.voice.wake.providers.picovoice.accessKey).toBe("***")
   })
 
   it("exports CSP header policy", () => {

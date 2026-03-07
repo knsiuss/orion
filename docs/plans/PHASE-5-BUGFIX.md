@@ -6,15 +6,20 @@
 
 ---
 
-## 1. Ringkasan Bug
+## 1. Landasan Riset (Academic Papers)
 
-| # | Bug | Severity | File | Impact |
-|---|-----|----------|------|--------|
-| 1 | MemRL `nextMaxQ` wrong Bellman scope | 🟠 HIGH | memrl.ts | Memory utility scores biased, degraded retrieval quality |
-| 2 | Hybrid retriever RRF threshold too low | 🟡 MEDIUM | hybrid-retriever.ts | Noise results pass filter, wasted context tokens |
-| 3 | Hash fallback corrupts embedding space | 🔴 CRITICAL | store.ts | Vector search returns garbage when embeddings unavailable |
-| 4 | Admin token timing side-channel | 🟡 MEDIUM | server.ts | Attacker can determine ADMIN_TOKEN length |
-| 5 | Unauthenticated config write endpoints | 🔴 CRITICAL | server.ts | Any network client can overwrite entire config |
+Bug fixes ini di-inform oleh riset terkait untuk memastikan fix yang diaplikasikan **benar secara teoritik**:
+
+| # | Paper / Source | Relevansi ke Bug |
+|---|---------------|-----------------|
+| 1 | **ShiQ: Shifted-Q Algorithm** (arXiv 2024) | Bug #1 — Bellman equation Q-learning yang benar untuk LLM memory. ShiQ: `Q(s,a) = r + γ·maxQ(s',a')` harus scope global |
+| 2 | **Memory-R1: RL for LLM Memory** (arXiv 2025) | Bug #1 — RL memory management: ADD/UPDATE/DELETE operations need correct Q-value propagation |
+| 3 | **Analysis of Fusion Functions for Hybrid Retrieval** (arXiv) | Bug #2 — RRF threshold analysis: `score = Σ weight/(k+rank)`, threshold harus filter noise |
+| 4 | **RAG-Fusion** (arXiv) | Bug #2 — RRF parameter tuning best practices for retrieval quality |
+| 5 | **Embedding Drift / Silent Corruption** (HN/arXiv) | Bug #3 — Mixing hash vectors with semantic vectors corrupts cosine similarity space |
+| 6 | **MQTT-SN PUF Authentication** (MDPI 2024) | Bug #4 — Timing side-channel attacks: HMAC comparison eliminates length leakage |
+| 7 | **CWE-208: Observable Timing Discrepancy** (MITRE) | Bug #4 — Constant-time comparison is mandatory for auth tokens |
+| 8 | **OWASP API Security Top 10** | Bug #5 — Broken Object Level Authorization: config endpoints need auth |
 
 ---
 
@@ -22,351 +27,144 @@
 
 ### 2.1 Bug #1 — MemRL nextMaxQ Wrong Bellman Scope
 
-**File:** [EDITH-ts/src/memory/memrl.ts](../EDITH-ts/src/memory/memrl.ts) ~lines 375-395
+**File:** `src/memory/memrl.ts` ~lines 375-395  
+**Paper basis:** ShiQ (arXiv 2024) — correct Bellman equation requires global max Q
 
-**Problem:**
-The Bellman Q-update computes `max Q(s', a')` using **only memories from the current feedback batch** (`uniqueIds`), not from the full memory table. This makes the Bellman target a **biased underestimate**.
-
-```
-Current (broken):                          Fixed:
-─────────────────                          ─────────────────
-Query: uniqueIds only                      Query: global max Q per user
-→ Only 2-5 memories in batch              → Best Q across ALL memories
-→ nextMaxQ biased low                      → nextMaxQ correct estimate
-→ Q-values underestimate                   → Q-values converge properly
-→ Memory retrieval suboptimal              → Better memory ranking
-```
-
-**Arsitektur Fix:**
+**Problem:** `nextMaxQ` computed from batch siblings only (2-5 memories), not global max → biased underestimate → suboptimal memory ranking.
 
 ```
-Before:
-  prisma.memoryNode.findMany({ where: { id: { in: uniqueIds } } })
-    ↓
-  peerMaxQ = batch_siblings.filter(same_user).map(q).max()
-    ↓
-  nextMaxQ = peerMaxQ (biased — small peer set)
-
-After:
-  prisma.memoryNode.findFirst({
-    where: { userId: node.userId, id: { not: memoryId } },
-    orderBy: { qValue: "desc" },
-    select: { qValue: true, utilityScore: true }
-  })
-    ↓
-  nextMaxQ = successor.qValue ?? successor.utilityScore ?? 0.5
+ShiQ Paper Principle:
+  Q(s,a) = reward + γ · max_{a'} Q(s', a')
+  
+  "max" MUST be over ALL valid next states,
+  not just the current mini-batch.
+  
+  Current bug: max over batch (2-5 items) ← WRONG
+  Fix: max over all user memories (global) ← CORRECT
 ```
 
-**Exact Code Fix:**
+**Fix:** Replace per-batch peer lookup with global DB query:
 ```typescript
-// Replace the per-memory nextMaxQ calculation:
-
-// OLD (inside the loop):
-const peerMaxQ = nodes
-  .filter((candidate) => candidate.userId === node.userId && candidate.id !== memoryId)
-  .map((candidate) => candidate.qValue ?? candidate.utilityScore)
-
-let nextMaxQ = peerMaxQ.length > 0
-  ? Math.max(...peerMaxQ)
-  : Number.NaN
-
+// OLD: const peerMaxQ = nodes.filter(same_user).map(q).max()
 // NEW:
 const successor = await prisma.memoryNode.findFirst({
   where: { userId: node.userId, id: { not: memoryId } },
   orderBy: { qValue: "desc" },
   select: { qValue: true, utilityScore: true },
 })
-const nextMaxQ = successor
-  ? (successor.qValue ?? successor.utilityScore ?? 0.5)
-  : 0.5
+const nextMaxQ = successor?.qValue ?? successor?.utilityScore ?? 0.5
 ```
 
-**Impact:** ~5 lines changed. Adds 1 DB query per memory in batch (typically 2-5 queries per feedback call). Acceptable performance since feedback is not latency-critical.
-
-**Test:**
-```typescript
-it("uses global max Q for Bellman target, not batch siblings", async () => {
-  // Setup: create memory with high Q that's NOT in current batch
-  // Call feedback with batch that excludes high-Q memory
-  // Verify nextMaxQ used the global high-Q, not batch max
-})
-```
+**Impact:** ~10 lines. Adds 1 DB query per memory in feedback batch (acceptable — feedback is not latency-critical per Memory-R1).
 
 ---
 
 ### 2.2 Bug #2 — RRF Threshold Too Permissive
 
-**File:** [EDITH-ts/src/memory/hybrid-retriever.ts](../EDITH-ts/src/memory/hybrid-retriever.ts) ~line 66
+**File:** `src/memory/hybrid-retriever.ts` ~line 66  
+**Paper basis:** Analysis of Fusion Functions (arXiv) — RRF score distribution analysis
 
-**Problem:**
-`scoreThreshold: 0.005` is effectively a no-op. With `rrfK=60`:
-- Max possible score: `0.4/61 + 0.6/61 ≈ 0.0164`
-- Rank 20 FTS only: `0.4/80 = 0.005` (barely at threshold)
-- Everything passes → noise in retrieved context → wasted tokens
-
-**Arsitektur Analysis:**
+**Problem:** `scoreThreshold: 0.005` is effectively a no-op. Mathematical proof:
 
 ```
 RRF Score Formula: weight × (1 / (k + rank))
 
 With k=60, weight_fts=0.4, weight_vec=0.6:
 
-Rank 1 in both:   0.4/61 + 0.6/61 = 0.0164 (max)
-Rank 5 in both:   0.4/65 + 0.6/65 = 0.0154
-Rank 10 in both:  0.4/70 + 0.6/70 = 0.0143
+Rank 1 in both:   0.4/61 + 0.6/61 = 0.0164 (max possible)
 Rank 20 in both:  0.4/80 + 0.6/80 = 0.0125
-
 Rank 20 FTS only: 0.4/80 + 0     = 0.005  ← Current threshold
 Rank 15 Vec only: 0     + 0.6/75 = 0.008  ← Better threshold
-Rank 20 Vec only: 0     + 0.6/80 = 0.0075 ← Still passes at 0.005
 
-Recommended: 0.008 (filters single-source rank 16+ results)
+Recommended: 0.008 → filters single-source rank 16+ noise
+(per RAG-Fusion: noise in retrieved context wastes tokens)
 ```
 
-**Exact Code Fix:**
-```typescript
-// hybrid-retriever.ts line ~66
-const DEFAULT_CONFIG: HybridConfig = {
-  topK: 20,
-  finalLimit: 10,
-  rrfK: 60,
-  ftsWeight: 0.4,
-  vectorWeight: 0.6,
-  scoreThreshold: 0.008,   // Was: 0.005 — too permissive
-}
-```
-
-**Impact:** 1 line changed. Filters out ~20-30% more noise results. No API changes.
-
-**Test:**
-```typescript
-it("filters results below RRF score threshold", () => {
-  // Create result with score 0.006 (below new threshold)
-  // Verify it's excluded from final results
-})
-```
+**Fix:** 1 line change: `scoreThreshold: 0.005 → 0.008`
 
 ---
 
 ### 2.3 Bug #3 — Hash Fallback Embedding Corruption
 
-**File:** [EDITH-ts/src/memory/store.ts](../EDITH-ts/src/memory/store.ts) ~lines 350-390
+**File:** `src/memory/store.ts` ~lines 350-390  
+**Paper basis:** Embedding Drift research — mixing hash vectors with semantic vectors corrupts cosine similarity
 
-**Problem:**
-When both Ollama and OpenAI embedding providers are down, `embed()` falls back to `hashToVector()` — a **deterministic lexical hash** that produces fake embeddings. These get stored in the same LanceDB table alongside real semantic embeddings.
-
-**Why it's critical:**
-- Cosine similarity between a real 768-dim semantic vector and a hash vector is **meaningless**
-- Vector search returns **random rankings** — mix of real matches and hash garbage
-- User doesn't know this is happening (warning only fires every 25th call)
-
-**Arsitektur Fix:**
+**Problem:** When embedding providers (Ollama/OpenAI) are down, `hashToVector()` produces fake embeddings stored alongside real ones → vector search returns garbage.
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                embed() Method                        │
-│                                                      │
-│  Before (broken):                                    │
-│  ┌──────────┐   ┌──────────┐   ┌───────────┐      │
-│  │ Ollama   │──▶│ OpenAI   │──▶│ hashToVec │      │
-│  │ (768-dim)│   │ (1536-dim│   │ (fake ☠️) │      │
-│  │          │   │  → resize)│   │           │      │
-│  └──────────┘   └──────────┘   └───────────┘      │
-│  All stored in same LanceDB table → CORRUPTED       │
-│                                                      │
-│  After (fixed):                                      │
-│  ┌──────────┐   ┌──────────┐   ┌───────────┐      │
-│  │ Ollama   │──▶│ OpenAI   │──▶│ REJECT ⛔ │      │
-│  │ (768-dim)│   │ (1536-dim│   │ Throw err │      │
-│  │          │   │  → resize)│   │ or skip   │      │
-│  └──────────┘   └──────────┘   │ vector    │      │
-│                                  │ search    │      │
-│                                  └───────────┘      │
-│  Memory stored as text-only (FTS still works)        │
-└─────────────────────────────────────────────────────┘
+Embedding Space Corruption (from research):
+  
+  Real embedding: 768-dim semantic vector (cosine similarity = meaningful)
+  Hash vector:    768-dim deterministic hash (cosine similarity = RANDOM)
+  
+  Mixed in same LanceDB table → search results = mix of
+  semantic matches + hash garbage → degraded retrieval quality
 ```
 
-**Exact Code Fix (Strategy A — Reject):**
+**Fix Strategy (Reject, don't fake):**
 ```typescript
-// store.ts embed() method — after OpenAI fallback fails:
+// OLD: return hashToVector(text)  // ← CORRUPTS
+// NEW: throw new EmbeddingUnavailableError("No provider")
 
-// OLD:
-this.recordHashFallbackEmbedding(text)
-const fallback = hashToVector(text)
-return fallback
-
-// NEW:
-this.hashFallbackCount++
-if (this.hashFallbackCount === 1 || this.hashFallbackCount % 10 === 0) {
-  log.error(
-    `No embedding provider available (count: ${this.hashFallbackCount}). ` +
-    "Memory will be stored without vector embedding. " +
-    "Configure OLLAMA_BASE_URL or OPENAI_API_KEY for semantic search."
-  )
-}
-throw new EmbeddingUnavailableError(
-  "No embedding provider available — cannot produce vector"
-)
-```
-
-**Caller Fix (where embed is called):**
-```typescript
-// When storing memory:
-let embedding: number[] | null = null
-try {
-  embedding = await store.embed(content)
-} catch (err) {
+// Callers:
+try { embedding = await store.embed(content) }
+catch (err) {
   if (err instanceof EmbeddingUnavailableError) {
-    // Store in Prisma (FTS will work) but skip LanceDB vector insert
-    log.warn("Storing memory without vector embedding")
-  } else {
-    throw err
+    // Store in Prisma only (FTS works), skip LanceDB
   }
 }
-
-// When searching: 
-// If no embedding provider → fall back to FTS-only search (already supported)
 ```
 
-**Impact:** ~20 lines changed across 2 files. FTS search still works. Vector search degrades gracefully instead of returning garbage.
-
-**Test:**
-```typescript
-it("throws EmbeddingUnavailableError when no provider available", async () => {
-  // Mock both Ollama and OpenAI to fail
-  await expect(store.embed("test")).rejects.toThrow(EmbeddingUnavailableError)
-})
-
-it("stores memory without embedding when provider unavailable", async () => {
-  // Verify memory is in Prisma (text search works)
-  // Verify memory is NOT in LanceDB (vector search skipped)
-})
-```
+**Impact:** ~25 lines across 2 files. FTS still works. Vector search degrades gracefully.
 
 ---
 
 ### 2.4 Bug #4 — Admin Token Timing Side-Channel
 
-**File:** [EDITH-ts/src/gateway/server.ts](../EDITH-ts/src/gateway/server.ts) ~lines 173-190
+**File:** `src/gateway/server.ts` ~lines 173-190  
+**Paper basis:** CWE-208 (MITRE), MQTT-SN PUF (MDPI 2024) — constant-time comparison mandatory
 
-**Problem:**
-`timingSafeTokenEquals` takes a measurably different code path when token lengths differ (alloc+copy) vs. when they match (direct compare). An attacker sending tokens of varying lengths can **determine the configured ADMIN_TOKEN length**.
-
-**Arsitektur Fix:**
+**Problem:** `timingSafeTokenEquals` takes different code paths for length mismatch vs match → attacker can determine ADMIN_TOKEN length.
 
 ```
-Before (timing leak):
-─────────────────────
-  candidate.length ≠ expected.length?
-    YES → alloc + copy + compare + return false  (slower path ⏱️)
-    NO  → direct compare                         (faster path ⏱️)
+CWE-208 Principle:
+  Observable timing discrepancy reveals secret properties.
   
-  Timing difference reveals token length!
-
-After (constant time):
-──────────────────────
+  Fix: HMAC both values → always 32-byte comparison.
   HMAC(key, candidate) vs HMAC(key, expected)
-  Both paths: hash → 32 bytes → timingSafeEqual
-  
-  Always same length comparison. No timing leak.
+  → Same computation time regardless of input length
 ```
 
-**Exact Code Fix:**
+**Fix:** Replace with HMAC-based comparison:
 ```typescript
-// Replace entire function:
-
 function timingSafeTokenEquals(candidate: string, expected: string): boolean {
-  // HMAC both values — always produces 32-byte output
-  // regardless of input length, eliminating timing side-channel
-  const key = Buffer.from(expected, "utf-8") // Use expected as HMAC key
+  const key = Buffer.from(expected, "utf-8")
   const a = crypto.createHmac("sha256", key).update(candidate).digest()
   const b = crypto.createHmac("sha256", key).update(expected).digest()
   return crypto.timingSafeEqual(a, b)
 }
 ```
 
-**Impact:** Replace ~15 lines with ~5 lines. No API changes. All callers already use this function.
-
-**Test:**
-```typescript
-it("returns true for matching tokens", () => {
-  expect(timingSafeTokenEquals("abc123", "abc123")).toBe(true)
-})
-it("returns false for non-matching tokens", () => {
-  expect(timingSafeTokenEquals("abc123", "xyz789")).toBe(false)
-})
-it("returns false for different length tokens without timing leak", () => {
-  expect(timingSafeTokenEquals("a", "abc123")).toBe(false)
-})
-```
-
 ---
 
 ### 2.5 Bug #5 — Unauthenticated Config Write Endpoints
 
-**File:** [EDITH-ts/src/gateway/server.ts](../EDITH-ts/src/gateway/server.ts) ~lines 882-930
+**File:** `src/gateway/server.ts` ~lines 882-930  
+**Paper basis:** OWASP API Security Top 10 — Broken Object Level Authorization
 
-**Problem:**
-`PUT /api/config`, `PATCH /api/config`, dan `POST /api/config/test-provider` have **ZERO authentication**. Any client on the network can:
-- Overwrite entire configuration (inject malicious API keys)
-- Disable security features
-- Change gateway settings
-- Test arbitrary provider API keys
+**Problem:** `PUT/PATCH /api/config` and `POST /api/config/test-provider` have ZERO auth → any network client can overwrite configuration.
 
-**Arsitektur Fix:**
-
-```
-┌──────────────────────────────────────────────┐
-│       Config Endpoint Auth Strategy           │
-│                                               │
-│  GET  /api/config         → No auth (read)   │
-│                             (already redacted)│
-│                                               │
-│  PUT  /api/config         → ⛔ Requires auth │
-│  PATCH /api/config        → ⛔ Requires auth │
-│  POST /api/config/test-provider → ⛔ Auth    │
-│                                               │
-│  Auth Logic:                                  │
-│  ┌─────────────────────────────────────────┐ │
-│  │ 1. Check if ADMIN_TOKEN is configured   │ │
-│  │    → If YES: require Bearer ADMIN_TOKEN │ │
-│  │    → If NO: check if first-time setup   │ │
-│  │                                          │ │
-│  │ 2. First-time setup detection:          │ │
-│  │    → If edith.json doesn't exist OR      │ │
-│  │      has no provider keys configured    │ │
-│  │    → Allow unauthenticated (setup mode) │ │
-│  │    → After first config write, require  │ │
-│  │      ADMIN_TOKEN for further writes     │ │
-│  └─────────────────────────────────────────┘ │
-└──────────────────────────────────────────────┘
-```
-
-**Exact Code Fix:**
+**Fix:** Add `requireConfigAuth()` middleware:
 ```typescript
-// Helper function:
-async function requireConfigAuth(
-  req: FastifyRequest, 
-  reply: FastifyReply
-): Promise<boolean> {
+async function requireConfigAuth(req, reply): Promise<boolean> {
   const adminToken = process.env.ADMIN_TOKEN
-  
-  // If no admin token configured, check if this is first-time setup
   if (!adminToken) {
-    const { readEdithConfig } = await import("../config/edith-config.js")
+    // First-time setup: allow if no config exists yet
     const config = await readEdithConfig().catch(() => null)
-    if (!config || !hasAnyProviderKey(config)) {
-      // First-time setup — allow unauthenticated  
-      return true
-    }
-    // Config exists but no ADMIN_TOKEN — block writes
-    reply.code(403).send({ 
-      error: "Set ADMIN_TOKEN environment variable to allow config changes" 
-    })
+    if (!config || !hasAnyProviderKey(config)) return true
+    reply.code(403).send({ error: "Set ADMIN_TOKEN to allow changes" })
     return false
   }
-  
-  // Admin token configured — verify it
   const bearer = req.headers.authorization?.replace("Bearer ", "")
   if (!bearer || !timingSafeTokenEquals(bearer, adminToken)) {
     reply.code(401).send({ error: "Invalid admin token" })
@@ -374,107 +172,67 @@ async function requireConfigAuth(
   }
   return true
 }
-
-// Apply to each endpoint:
-app.put("/api/config", async (req, reply) => {
-  if (!(await requireConfigAuth(req, reply))) return
-  // ... existing logic
-})
-
-app.patch("/api/config", async (req, reply) => {
-  if (!(await requireConfigAuth(req, reply))) return
-  // ... existing logic
-})
-
-app.post("/api/config/test-provider", async (req, reply) => {
-  if (!(await requireConfigAuth(req, reply))) return
-  // ... existing logic
-})
-```
-
-**Impact:** ~40 lines added. No breaking change for first-time setup. Existing users need ADMIN_TOKEN env var set.
-
-**Test:**
-```typescript
-it("blocks config write without admin token", async () => {
-  const res = await app.inject({ method: "PUT", url: "/api/config", payload: {} })
-  expect(res.statusCode).toBe(401)
-})
-
-it("allows config write with valid admin token", async () => {
-  process.env.ADMIN_TOKEN = "test-secret"
-  const res = await app.inject({
-    method: "PUT",
-    url: "/api/config",
-    headers: { authorization: "Bearer test-secret" },
-    payload: { someKey: "value" },
-  })
-  expect(res.statusCode).toBe(200)
-})
-
-it("allows first-time setup without token", async () => {
-  // Mock: no existing config
-  const res = await app.inject({ method: "PUT", url: "/api/config", payload: {} })
-  expect(res.statusCode).toBe(200)
-})
 ```
 
 ---
 
 ## 3. Implementation Roadmap
 
-### Day 1: Security Fixes (Bugs #4, #5)
+### Day 1: Security Fixes (Bugs #4, #5) — CRITICAL FIRST
 
-| Task | File | Detail |
-|------|------|--------|
-| Fix timing side-channel | server.ts | HMAC-based comparison |
-| Add config auth middleware | server.ts | requireConfigAuth() helper |
-| Apply auth to PUT/PATCH/POST | server.ts | Guard all 3 endpoints |
-| Tests: token comparison | __tests__/ | Equal, unequal, different length |
-| Tests: config auth | __tests__/ | With/without token, first-time setup |
+| Task | File | Paper Basis |
+|------|------|-------------|
+| Fix timing side-channel | server.ts | CWE-208 / MQTT-SN PUF |
+| Add config auth middleware | server.ts | OWASP API Top 10 |
+| Apply auth to PUT/PATCH/POST | server.ts | OWASP |
+| Tests: token comparison | __tests__/ | CWE-208 |
+| Tests: config auth | __tests__/ | OWASP |
 
 ### Day 2: Memory Fixes (Bugs #1, #3)
 
-| Task | File | Detail |
-|------|------|--------|
-| Fix MemRL Bellman scope | memrl.ts | Global max Q query per memory |
-| Add EmbeddingUnavailableError | store.ts | Reject hash fallback |
-| Update callers of embed() | store.ts | Graceful degradation |
-| Tests: MemRL global Q | __tests__/ | Verify global lookup |
-| Tests: embedding rejection | __tests__/ | Verify error + FTS fallback |
+| Task | File | Paper Basis |
+|------|------|-------------|
+| Fix MemRL Bellman scope | memrl.ts | ShiQ / Memory-R1 |
+| Reject hash fallback | store.ts | Embedding drift research |
+| Update embed() callers | store.ts | — |
+| Tests: global Q | __tests__/ | ShiQ |
+| Tests: embedding rejection | __tests__/ | — |
 
 ### Day 3: Retrieval Fix + Verification (Bug #2)
 
-| Task | File | Detail |
-|------|------|--------|
-| Update RRF threshold | hybrid-retriever.ts | 0.005 → 0.008 |
-| Verify no regression | manual test | Run sample queries, check result quality |
-| All 5 bugs: regression tests | __tests__/ | Full test suite run |
-| Documentation update | decisions.md | Document each fix rationale |
-| tsc check | terminal | Verify 0 TS errors |
+| Task | File | Paper Basis |
+|------|------|-------------|
+| Update RRF threshold | hybrid-retriever.ts | Fusion Functions analysis |
+| Regression tests | __tests__/ | RAG-Fusion |
+| Full test suite run | terminal | — |
+| tsc check | terminal | — |
 
 ---
 
-## 4. Android Impact
+## 4. References
 
-Bugs #4 dan #5 secara langsung mempengaruhi mobile app:
-- **Bug #5 (config endpoints):** Mobile app bisa saja expose gateway ke network → attacker bisa overwrite config. Fix ini protects mobile users.
-- **Bug #4 (timing):** Jika mobile app mengirim admin token via WebSocket, timing leak berlaku.
-- **Bug #3 (embedding):** Jika user memakai mobile chat dan memory di server corrupt, semua responses degraded.
-
-**Mobile tidak perlu diubah** — semua fixes di server side.
+| # | Paper | Venue | Bug |
+|---|-------|-------|-----|
+| 1 | ShiQ: Shifted-Q Algorithm for LLMs | arXiv 2024 | #1 |
+| 2 | Memory-R1: RL for LLM Memory Management | arXiv 2025 | #1 |
+| 3 | Analysis of Fusion Functions for Hybrid Retrieval | arXiv | #2 |
+| 4 | RAG-Fusion: New Take on RAG | arXiv | #2 |
+| 5 | Embedding Drift / Silent Corruption in Vector DBs | Research | #3 |
+| 6 | MQTT-SN PUF Authentication Scheme | MDPI 2024 | #4 |
+| 7 | CWE-208: Observable Timing Discrepancy | MITRE | #4 |
+| 8 | OWASP API Security Top 10 | OWASP | #5 |
 
 ---
 
 ## 5. File Changes Summary
 
-| File | Action | Lines Changed |
-|------|--------|--------------|
+| File | Action | Lines |
+|------|--------|-------|
 | `src/memory/memrl.ts` | Fix Bellman nextMaxQ query | ~10 |
 | `src/memory/hybrid-retriever.ts` | Update scoreThreshold | 1 |
 | `src/memory/store.ts` | Reject hash fallback, add error class | ~25 |
 | `src/gateway/server.ts` | Fix timing comparison, add config auth | ~50 |
-| `src/__tests__/memrl-bellman.test.ts` | NEW: Bellman scope test | ~30 |
-| `src/__tests__/embedding-fallback.test.ts` | NEW: Hash rejection test | ~25 |
-| `src/__tests__/config-auth.test.ts` | NEW: Config auth tests | ~40 |
+| `src/__tests__/memrl-bellman.test.ts` | NEW | ~30 |
+| `src/__tests__/embedding-fallback.test.ts` | NEW | ~25 |
+| `src/__tests__/config-auth.test.ts` | NEW | ~40 |
 | **Total** | | **~181 lines** |

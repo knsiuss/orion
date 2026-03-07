@@ -4,6 +4,9 @@ contextBridge.exposeInMainWorld("edith", {
   sendMessage: (content, userId) =>
     ipcRenderer.invoke("send:message", content, userId),
 
+  sendGatewayMessage: (payload) =>
+    ipcRenderer.invoke("send:gateway", payload),
+
   getStatus: () =>
     ipcRenderer.invoke("get:status"),
 
@@ -16,6 +19,9 @@ contextBridge.exposeInMainWorld("edith", {
 
   testProvider: (provider, credentials) =>
     ipcRenderer.invoke("config:test-provider", provider, credentials),
+
+  pickWakeModel: () =>
+    ipcRenderer.invoke("config:pick-wake-model"),
 
   isConfigured: () =>
     ipcRenderer.invoke("config:is-configured"),

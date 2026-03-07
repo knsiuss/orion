@@ -210,8 +210,9 @@ export class PerceptionFusion {
         activeContext,
         audio: {
           isSpeaking: this.deps.voice.isSpeaking,
-          wakeWordDetected: false,
-          audioLevel: 0,
+          wakeWordDetected: this.deps.voice.wakeWordDetected,
+          audioLevel: this.deps.voice.audioLevel,
+          transcription: this.deps.voice.lastTranscript,
         },
       }
 

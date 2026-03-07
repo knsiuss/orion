@@ -30,13 +30,20 @@ export function getDefaultOSAgentConfig(): OSAgentConfig {
     },
     voice: {
       enabled: false,
+      mode: "push-to-talk",
       wakeWord: "hey-edith",
+      wakeWordModelPath: undefined,
       wakeWordEngine: "openwakeword",
-      sttEngine: "whisper-local",
+      sttEngine: "auto",
       vadEngine: "silero",
       whisperModel: "base",
       fullDuplex: true,
+      ttsVoice: "en-US-GuyNeural",
       language: "en",
+      providers: {
+        deepgram: {},
+        picovoice: {},
+      },
     },
     system: {
       enabled: true, // System monitoring is safe to enable by default
@@ -78,13 +85,20 @@ export function getEdithOSConfig(): OSAgentConfig {
     },
     voice: {
       enabled: true,
+      mode: "always-on",
       wakeWord: "hey-edith",
+      wakeWordModelPath: undefined,
       wakeWordEngine: "openwakeword",
-      sttEngine: "whisper-local",
+      sttEngine: "auto",
       vadEngine: "silero",
       whisperModel: "small",
       fullDuplex: true,
+      ttsVoice: "en-US-GuyNeural",
       language: "en",
+      providers: {
+        deepgram: {},
+        picovoice: {},
+      },
     },
     system: {
       enabled: true,

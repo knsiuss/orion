@@ -144,6 +144,10 @@
       border-color: #1d4ed8;
     }
 
+    select.input-field {
+      appearance: none;
+    }
+
     .input-link {
       display: block;
       font-size: 12px;
@@ -346,30 +350,377 @@
       document.getElementById("dot-1"),
       document.getElementById("dot-2"),
       document.getElementById("dot-3"),
-      document.getElementById("dot-4")
+      document.getElementById("dot-4"),
     ]
 
     function updateDots() {
-      dots.forEach((dot, i) => {
+      dots.forEach((dot, index) => {
         dot.className = "progress-dot"
-        if (i + 1 < currentStep) dot.classList.add("complete")
-        else if (i + 1 === currentStep) dot.classList.add("active")
+        if (index + 1 < currentStep) {
+          dot.classList.add("complete")
+        } else if (index + 1 === currentStep) {
+          dot.classList.add("active")
+        }
       })
     }
 
     function showStep(step) {
-      document.querySelectorAll(".step").forEach(s => s.classList.remove("active"))
+      document.querySelectorAll(".step").forEach((section) => section.classList.remove("active"))
       document.getElementById(`step-${step}`).classList.add("active")
       currentStep = step
       updateDots()
     }
 
-    document.querySelectorAll(".provider-option").forEach(opt => {
-      opt.addEventListener("click", () => {
-        document.querySelectorAll(".provider-option").forEach(o => o.classList.remove("selected"))
-        opt.classList.add("selected")
-        opt.querySelector("input").checked = true
-        selectedProvider = opt.dataset.provider
+    function renderVoiceOptions() {
+      return `
+        <div style="height: 1px; background: #222; margin: 28px 0 20px;"></div>
+        <div class="step-desc" style="margin-bottom: 20px;">
+          Optional voice setup. These values are stored under the top-level <code>voice</code>
+          config in edith.json, not injected into env.
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="voice-enabled" checked />
+          <label class="checkbox-label" for="voice-enabled">Enable voice features</label>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Voice Mode</label>
+          <select class="input-field" id="voice-mode">
+            <option value="push-to-talk">Push-to-talk</option>
+            <option value="always-on">Always-on (desktop host)</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">STT Engine</label>
+          <select class="input-field" id="voice-stt-engine">
+            <option value="auto">Auto (recommended)</option>
+            <option value="python-whisper">Python Whisper</option>
+            <option value="deepgram">Deepgram</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Voice Language</label>
+          <select class="input-field" id="voice-language">
+            <option value="auto">Auto</option>
+            <option value="id">Indonesian</option>
+            <option value="en">English</option>
+            <option value="multi">Mixed / multilingual</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Whisper Model</label>
+          <select class="input-field" id="voice-whisper-model">
+            <option value="tiny">tiny</option>
+            <option value="base" selected>base</option>
+            <option value="small">small</option>
+            <option value="medium">medium</option>
+            <option value="large">large</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Edge TTS Voice</label>
+          <input type="text" class="input-field" id="voice-tts-voice" value="en-US-GuyNeural" />
+        </div>
+        <div class="input-group">
+          <label class="input-label">Wake Engine</label>
+          <select class="input-field" id="voice-wake-engine">
+            <option value="openwakeword">OpenWakeWord</option>
+            <option value="porcupine">Porcupine</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Wake Word</label>
+          <input type="text" class="input-field" id="voice-wake-word" value="hey-edith" />
+        </div>
+        <div class="input-group">
+          <label class="input-label">Wake Model Path (optional)</label>
+          <input
+            type="text"
+            class="input-field"
+            id="voice-wake-model-path"
+            placeholder="C:\\models\\hey-edith.onnx or C:\\models\\hey-edith.ppn"
+          />
+          <span class="input-link">Use a host-local .ppn for Porcupine or .onnx/.tflite for OpenWakeWord.</span>
+          <button type="button" class="install-btn" id="voice-model-browse">Browse Host File</button>
+        </div>
+        <div class="input-group">
+          <label class="input-label">VAD Engine</label>
+          <select class="input-field" id="voice-vad-engine">
+            <option value="silero">silero</option>
+            <option value="cobra">cobra</option>
+            <option value="webrtc">webrtc</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Deepgram API Key (optional)</label>
+          <input type="password" class="input-field" id="voice-deepgram-key" placeholder="dg_..." />
+        </div>
+        <div class="input-group">
+          <label class="input-label">Picovoice Access Key (optional)</label>
+          <input type="password" class="input-field" id="voice-picovoice-key" placeholder="pv_..." />
+        </div>
+      `
+    }
+
+    function renderCredentialsForm() {
+      const form = document.getElementById("credentials-form")
+      const title = document.getElementById("credentials-title")
+      const desc = document.getElementById("credentials-desc")
+
+      switch (selectedProvider) {
+        case "groq":
+          title.textContent = "Groq API Key"
+          desc.textContent = "Get your free API key from console.groq.com"
+          form.innerHTML = `
+            <div class="input-group">
+              <label class="input-label">GROQ_API_KEY</label>
+              <input type="password" class="input-field" id="groq-key" placeholder="gsk_..." />
+              <a href="https://console.groq.com" target="_blank" class="input-link">Get API key from console.groq.com</a>
+            </div>
+            ${renderVoiceOptions()}
+          `
+          break
+        case "ollama":
+          title.textContent = "Ollama Setup"
+          desc.textContent = "Make sure Ollama is installed and running."
+          form.innerHTML = `
+            <div class="checkbox-group">
+              <input type="checkbox" id="ollama-installed" />
+              <label class="checkbox-label" for="ollama-installed">I have Ollama installed and running</label>
+            </div>
+            <a href="https://ollama.ai" target="_blank" class="install-btn">Download Ollama</a>
+            ${renderVoiceOptions()}
+          `
+          break
+        case "anthropic":
+          title.textContent = "Anthropic API Key"
+          desc.textContent = "Get your API key from console.anthropic.com"
+          form.innerHTML = `
+            <div class="input-group">
+              <label class="input-label">ANTHROPIC_API_KEY</label>
+              <input type="password" class="input-field" id="anthropic-key" placeholder="sk-ant-..." />
+              <a href="https://console.anthropic.com" target="_blank" class="input-link">Get API key from console.anthropic.com</a>
+            </div>
+            ${renderVoiceOptions()}
+          `
+          break
+        case "openai":
+          title.textContent = "OpenAI API Key"
+          desc.textContent = "Get your API key from platform.openai.com"
+          form.innerHTML = `
+            <div class="input-group">
+              <label class="input-label">OPENAI_API_KEY</label>
+              <input type="password" class="input-field" id="openai-key" placeholder="sk-..." />
+              <a href="https://platform.openai.com/api-keys" target="_blank" class="input-link">Get API key from platform.openai.com</a>
+            </div>
+            ${renderVoiceOptions()}
+          `
+          break
+      }
+
+      bindVoiceControls()
+    }
+
+    function bindVoiceControls() {
+      const browseButton = document.getElementById("voice-model-browse")
+      if (!browseButton) {
+        return
+      }
+
+      if (!window.edith?.pickWakeModel) {
+        browseButton.style.display = "none"
+        return
+      }
+
+      browseButton.addEventListener("click", async () => {
+        try {
+          const result = await window.edith.pickWakeModel()
+          if (!result?.ok || !result.path) {
+            return
+          }
+
+          const input = document.getElementById("voice-wake-model-path")
+          if (input) {
+            input.value = result.path
+          }
+        } catch (err) {
+          console.error("Failed to pick wake model:", err)
+        }
+      })
+    }
+
+    function collectVoiceConfig() {
+      return {
+        enabled: document.getElementById("voice-enabled")?.checked ?? true,
+        mode: document.getElementById("voice-mode")?.value || "push-to-talk",
+        sttEngine: document.getElementById("voice-stt-engine")?.value || "auto",
+        language: document.getElementById("voice-language")?.value || "auto",
+        whisperModel: document.getElementById("voice-whisper-model")?.value || "base",
+        ttsVoice: (document.getElementById("voice-tts-voice")?.value || "en-US-GuyNeural").trim() || "en-US-GuyNeural",
+        wakeEngine: document.getElementById("voice-wake-engine")?.value || "openwakeword",
+        wakeWord: (document.getElementById("voice-wake-word")?.value || "hey-edith").trim() || "hey-edith",
+        wakeModelPath: (document.getElementById("voice-wake-model-path")?.value || "").trim(),
+        vadEngine: document.getElementById("voice-vad-engine")?.value || "silero",
+        deepgramApiKey: (document.getElementById("voice-deepgram-key")?.value || "").trim(),
+        picovoiceAccessKey: (document.getElementById("voice-picovoice-key")?.value || "").trim(),
+      }
+    }
+
+    function buildVoiceConfig(voiceInput) {
+      return {
+        enabled: !!voiceInput.enabled,
+        mode: voiceInput.mode || "push-to-talk",
+        stt: {
+          engine: voiceInput.sttEngine || "auto",
+          language: voiceInput.language || "auto",
+          whisperModel: voiceInput.whisperModel || "base",
+          providers: {
+            deepgram: {
+              apiKey: voiceInput.deepgramApiKey || "",
+            },
+          },
+        },
+        tts: {
+          engine: "edge",
+          voice: voiceInput.ttsVoice || "en-US-GuyNeural",
+        },
+        wake: {
+          engine: voiceInput.wakeEngine || "openwakeword",
+          keyword: voiceInput.wakeWord || "hey-edith",
+          modelPath: voiceInput.wakeModelPath || undefined,
+          providers: {
+            picovoice: {
+              accessKey: voiceInput.picovoiceAccessKey || "",
+            },
+          },
+        },
+        vad: {
+          engine: voiceInput.vadEngine || "silero",
+        },
+      }
+    }
+
+    function collectCredentials() {
+      const nextCredentials = {
+        provider: selectedProvider,
+        voice: collectVoiceConfig(),
+      }
+
+      switch (selectedProvider) {
+        case "groq":
+          nextCredentials.GROQ_API_KEY = document.getElementById("groq-key")?.value || ""
+          break
+        case "ollama":
+          nextCredentials.OLLAMA_HOST = "http://127.0.0.1:11434"
+          break
+        case "anthropic":
+          nextCredentials.ANTHROPIC_API_KEY = document.getElementById("anthropic-key")?.value || ""
+          break
+        case "openai":
+          nextCredentials.OPENAI_API_KEY = document.getElementById("openai-key")?.value || ""
+          break
+      }
+
+      return nextCredentials
+    }
+
+    async function testConnection() {
+      const btn = document.getElementById("step3-test")
+      const status = document.getElementById("test-status")
+      btn.disabled = true
+      btn.textContent = "Testing..."
+      status.style.display = "none"
+
+      credentials = collectCredentials()
+
+      try {
+        const providerResult = await window.edith.testProvider(selectedProvider, credentials)
+        if (!providerResult.ok) {
+          status.style.display = "block"
+          status.className = "test-status error"
+          status.textContent = `Connection failed (${providerResult.error || "status " + providerResult.status}). Check your credentials.`
+          return
+        }
+
+        if (credentials.voice.enabled && credentials.voice.deepgramApiKey) {
+          const deepgramResult = await window.edith.testProvider("deepgram", {
+            apiKey: credentials.voice.deepgramApiKey,
+          })
+
+          if (!deepgramResult.ok) {
+            status.style.display = "block"
+            status.className = "test-status error"
+            status.textContent = `AI provider verified, but Deepgram failed (${deepgramResult.error || "status " + deepgramResult.status}).`
+            return
+          }
+        }
+
+        status.style.display = "block"
+        status.className = "test-status success"
+        status.textContent = credentials.voice.enabled && credentials.voice.deepgramApiKey
+          ? "AI provider and Deepgram verified."
+          : "Connection successful!"
+        setTimeout(() => showStep(4), 1000)
+      } catch (err) {
+        status.style.display = "block"
+        status.className = "test-status error"
+        status.textContent = "Connection test error: " + err.message
+      } finally {
+        btn.disabled = false
+        btn.textContent = "Test Connection"
+      }
+    }
+
+    async function saveCredentials() {
+      const currentCredentials = Object.keys(credentials).length > 0 ? credentials : collectCredentials()
+
+      const edithConfig = {
+        env: {},
+        voice: buildVoiceConfig(currentCredentials.voice || collectVoiceConfig()),
+        identity: { name: "EDITH", emoji: "✦", theme: "dark minimal" },
+        agents: {
+          defaults: {
+            model: { primary: "", fallbacks: [] },
+            workspace: "./workspace",
+          },
+        },
+      }
+
+      switch (selectedProvider) {
+        case "groq":
+          edithConfig.env.GROQ_API_KEY = currentCredentials.GROQ_API_KEY || ""
+          edithConfig.agents.defaults.model.primary = "groq/llama-3.3-70b-versatile"
+          break
+        case "ollama":
+          edithConfig.env.OLLAMA_HOST = "http://127.0.0.1:11434"
+          edithConfig.agents.defaults.model.primary = "ollama/llama3.2"
+          break
+        case "anthropic":
+          edithConfig.env.ANTHROPIC_API_KEY = currentCredentials.ANTHROPIC_API_KEY || ""
+          edithConfig.agents.defaults.model.primary = "anthropic/claude-sonnet-4-20250514"
+          break
+        case "openai":
+          edithConfig.env.OPENAI_API_KEY = currentCredentials.OPENAI_API_KEY || ""
+          edithConfig.agents.defaults.model.primary = "openai/gpt-4o"
+          break
+      }
+
+      const result = await window.edith.saveConfig(edithConfig)
+      if (!result.ok || result.error) {
+        console.error("Failed to save config:", result.error)
+        alert("Failed to save configuration: " + result.error)
+        return false
+      }
+
+      console.log("Config saved to", result.path)
+      return true
+    }
+
+    document.querySelectorAll(".provider-option").forEach((option) => {
+      option.addEventListener("click", () => {
+        document.querySelectorAll(".provider-option").forEach((item) => item.classList.remove("selected"))
+        option.classList.add("selected")
+        option.querySelector("input").checked = true
+        selectedProvider = option.dataset.provider
         document.getElementById("step2-next").disabled = false
       })
     })
@@ -396,154 +747,11 @@
     })
 
     document.getElementById("step4-done").addEventListener("click", async () => {
-      await saveCredentials()
-      // Reload — main.js will detect edith.json exists and start gateway + load chat
-      window.location.href = "index.html"
+      const saved = await saveCredentials()
+      if (saved) {
+        window.location.href = "index.html"
+      }
     })
-
-    function renderCredentialsForm() {
-      const form = document.getElementById("credentials-form")
-      const title = document.getElementById("credentials-title")
-      const desc = document.getElementById("credentials-desc")
-
-      switch (selectedProvider) {
-        case "groq":
-          title.textContent = "Groq API Key"
-          desc.textContent = "Get your free API key from console.groq.com"
-          form.innerHTML = `
-            <div class="input-group">
-              <label class="input-label">GROQ_API_KEY</label>
-              <input type="password" class="input-field" id="groq-key" placeholder="gsk_..." />
-              <a href="https://console.groq.com" target="_blank" class="input-link">Get API key from console.groq.com</a>
-            </div>
-          `
-          break
-        case "ollama":
-          title.textContent = "Ollama Setup"
-          desc.textContent = "Make sure Ollama is installed and running."
-          form.innerHTML = `
-            <div class="checkbox-group">
-              <input type="checkbox" id="ollama-installed" />
-              <label class="checkbox-label" for="ollama-installed">I have Ollama installed and running</label>
-            </div>
-            <a href="https://ollama.ai" target="_blank" class="install-btn">Download Ollama</a>
-          `
-          break
-        case "anthropic":
-          title.textContent = "Anthropic API Key"
-          desc.textContent = "Get your API key from console.anthropic.com"
-          form.innerHTML = `
-            <div class="input-group">
-              <label class="input-label">ANTHROPIC_API_KEY</label>
-              <input type="password" class="input-field" id="anthropic-key" placeholder="sk-ant-..." />
-              <a href="https://console.anthropic.com" target="_blank" class="input-link">Get API key from console.anthropic.com</a>
-            </div>
-          `
-          break
-        case "openai":
-          title.textContent = "OpenAI API Key"
-          desc.textContent = "Get your API key from platform.openai.com"
-          form.innerHTML = `
-            <div class="input-group">
-              <label class="input-label">OPENAI_API_KEY</label>
-              <input type="password" class="input-field" id="openai-key" placeholder="sk-..." />
-              <a href="https://platform.openai.com/api-keys" target="_blank" class="input-link">Get API key from platform.openai.com</a>
-            </div>
-          `
-          break
-      }
-    }
-
-    function collectCredentials() {
-      const creds = { provider: selectedProvider }
-      switch (selectedProvider) {
-        case "groq":
-          creds.GROQ_API_KEY = document.getElementById("groq-key")?.value || ""
-          break
-        case "ollama":
-          creds.OLLAMA_INSTALLED = document.getElementById("ollama-installed")?.checked || false
-          break
-        case "anthropic":
-          creds.ANTHROPIC_API_KEY = document.getElementById("anthropic-key")?.value || ""
-          break
-        case "openai":
-          creds.OPENAI_API_KEY = document.getElementById("openai-key")?.value || ""
-          break
-      }
-      return creds
-    }
-
-    async function testConnection() {
-      const btn = document.getElementById("step3-test")
-      const status = document.getElementById("test-status")
-      btn.disabled = true
-      btn.textContent = "Testing..."
-      status.style.display = "none"
-
-      credentials = collectCredentials()
-
-      try {
-        const result = await window.edith.testProvider(selectedProvider, credentials)
-        status.style.display = "block"
-        if (result.ok) {
-          status.className = "test-status success"
-          status.textContent = "Connection successful!"
-          setTimeout(() => showStep(4), 1000)
-        } else {
-          status.className = "test-status error"
-          status.textContent = `Connection failed (${result.error || "status " + result.status}). Check your credentials.`
-          btn.disabled = false
-          btn.textContent = "Test Connection"
-        }
-      } catch (err) {
-        status.style.display = "block"
-        status.className = "test-status error"
-        status.textContent = "Connection test error: " + err.message
-        btn.disabled = false
-        btn.textContent = "Test Connection"
-      }
-    }
-
-    async function saveCredentials() {
-      // Build edith.json config from wizard selections
-      const edithConfig = {
-        env: {},
-        identity: { name: "EDITH", emoji: "✦", theme: "dark minimal" },
-        agents: {
-          defaults: {
-            model: { primary: "", fallbacks: [] },
-            workspace: "./workspace"
-          }
-        }
-      }
-
-      switch (selectedProvider) {
-        case "groq":
-          edithConfig.env.GROQ_API_KEY = credentials.GROQ_API_KEY || ""
-          edithConfig.agents.defaults.model.primary = "groq/llama-3.3-70b-versatile"
-          break
-        case "ollama":
-          edithConfig.env.OLLAMA_HOST = "http://127.0.0.1:11434"
-          edithConfig.agents.defaults.model.primary = "ollama/llama3.2"
-          break
-        case "anthropic":
-          edithConfig.env.ANTHROPIC_API_KEY = credentials.ANTHROPIC_API_KEY || ""
-          edithConfig.agents.defaults.model.primary = "anthropic/claude-sonnet-4-20250514"
-          break
-        case "openai":
-          edithConfig.env.OPENAI_API_KEY = credentials.OPENAI_API_KEY || ""
-          edithConfig.agents.defaults.model.primary = "openai/gpt-4o"
-          break
-      }
-
-      const result = await window.edith.saveConfig(edithConfig)
-      if (result.error) {
-        console.error("Failed to save config:", result.error)
-        alert("Failed to save configuration: " + result.error)
-        return
-      }
-      console.log("Config saved to", result.path)
-    }
 
     updateDots()
   </script>

@@ -108,6 +108,7 @@ const VoiceIOConfigSchema = z
   .object({
     enabled: z.boolean().default(false),
     wakeWord: z.string().default("hey-edith"),
+    wakeWordModelPath: z.string().optional(),
     wakeWordEngine: z.enum(["porcupine", "openwakeword"]).default("openwakeword"),
     sttEngine: z.enum(["whisper-local", "deepgram", "google", "azure"]).default("whisper-local"),
     vadEngine: z.enum(["silero", "webrtc"]).default("silero"),
@@ -124,6 +125,105 @@ const VoiceIOConfigSchema = z
     whisperModel: "base",
     fullDuplex: true,
     language: "en",
+  })
+
+const VoiceConfigSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    mode: z.enum(["push-to-talk", "always-on"]).default("push-to-talk"),
+    stt: z
+      .object({
+        engine: z.enum(["auto", "python-whisper", "deepgram"]).default("auto"),
+        language: z.enum(["auto", "id", "en", "multi"]).default("auto"),
+        whisperModel: z.enum(["tiny", "base", "small", "medium", "large"]).default("base"),
+        providers: z
+          .object({
+            deepgram: z
+              .object({
+                apiKey: z.string().optional(),
+              })
+              .default({}),
+          })
+          .default({
+            deepgram: {},
+          }),
+      })
+      .default({
+        engine: "auto",
+        language: "auto",
+        whisperModel: "base",
+        providers: {
+          deepgram: {},
+        },
+      }),
+    tts: z
+      .object({
+        engine: z.enum(["edge"]).default("edge"),
+        voice: z.string().default("en-US-GuyNeural"),
+      })
+      .default({
+        engine: "edge",
+        voice: "en-US-GuyNeural",
+      }),
+    wake: z
+      .object({
+        engine: z.enum(["porcupine", "openwakeword"]).default("openwakeword"),
+        keyword: z.string().default("hey-edith"),
+        modelPath: z.string().optional(),
+        providers: z
+          .object({
+            picovoice: z
+              .object({
+                accessKey: z.string().optional(),
+              })
+              .default({}),
+          })
+          .default({
+            picovoice: {},
+          }),
+      })
+      .default({
+        engine: "openwakeword",
+        keyword: "hey-edith",
+        modelPath: undefined,
+        providers: {
+          picovoice: {},
+        },
+      }),
+    vad: z
+      .object({
+        engine: z.enum(["cobra", "silero", "webrtc"]).default("silero"),
+      })
+      .default({
+        engine: "silero",
+      }),
+  })
+  .default({
+    enabled: true,
+    mode: "push-to-talk",
+    stt: {
+      engine: "auto",
+      language: "auto",
+      whisperModel: "base",
+      providers: {
+        deepgram: {},
+      },
+    },
+    tts: {
+      engine: "edge",
+      voice: "en-US-GuyNeural",
+    },
+    wake: {
+      engine: "openwakeword",
+      keyword: "hey-edith",
+      modelPath: undefined,
+      providers: {
+        picovoice: {},
+      },
+    },
+    vad: {
+      engine: "silero",
+    },
   })
 
 const SystemConfigSchema = z
@@ -219,6 +319,8 @@ const OSAgentConfigSchema = z
 const EdithConfigSchema = z.object({
   /** Env-var overrides — injected into process.env before dotenv runs */
   env: EnvSectionSchema,
+
+  voice: VoiceConfigSchema,
 
   identity: AgentIdentitySchema.default({
     name: "EDITH",

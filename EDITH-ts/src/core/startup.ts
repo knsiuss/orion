@@ -7,27 +7,28 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 
+import { agentRunner } from "../agents/runner.js"
+import { registerOSAgentTool } from "../agents/tools.js"
+import { daemon } from "../background/daemon.js"
 import config from "../config.js"
+import { loadEdithConfig } from "../config/edith-config.js"
 import { prisma } from "../database/index.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
-import { memory } from "../memory/store.js"
-import { daemon } from "../background/daemon.js"
-import { agentRunner } from "../agents/runner.js"
-import { registerOSAgentTool } from "../agents/tools.js"
-import { skillLoader } from "../skills/loader.js"
 import { causalGraph } from "../memory/causal-graph.js"
-import { pluginLoader } from "../plugin-sdk/loader.js"
+import { memory } from "../memory/store.js"
+import { mcpClient, type MCPServerConfig } from "../mcp/client.js"
 import { initializeTracing, shutdownTracing } from "../observability/tracing.js"
+import { getDefaultOSAgentConfig, getEdithOSConfig } from "../os-agent/defaults.js"
+import { OSAgent } from "../os-agent/index.js"
+import type { OSAgentConfig } from "../os-agent/types.js"
+import { resolveOSVoiceConfig } from "../os-agent/voice-config.js"
+import { pluginLoader } from "../plugin-sdk/loader.js"
+import { skillLoader } from "../skills/loader.js"
+import { resolveRuntimeVoiceConfig } from "../voice/runtime-config.js"
+import { bootstrapLoader } from "./bootstrap.js"
 import { eventBus } from "./event-bus.js"
 import { processMessage } from "./message-pipeline.js"
-import { mcpClient, type MCPServerConfig } from "../mcp/client.js"
-import { bootstrapLoader } from "./bootstrap.js"
-// Phase H: OS-Agent layer
-import { OSAgent } from "../os-agent/index.js"
-import { getDefaultOSAgentConfig, getEdithOSConfig } from "../os-agent/defaults.js"
-import type { OSAgentConfig } from "../os-agent/types.js"
-import { loadEdithConfig } from "../config/edith-config.js"
 
 const log = createLogger("startup")
 
@@ -82,9 +83,9 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
   skillLoader.startWatching({ enabled: true, debounceMs: 1_500 })
   await pluginLoader.loadAllFromDefaultDir()
   void agentRunner
+  void bootstrapLoader
   initializeEventHandlers()
 
-  // Initialize MCP Client with configuration from edith.json (T-2)
   try {
     const edithJsonPath = path.join(workspaceDir, "..", "edith.json")
     const edithJson = await fs.readFile(edithJsonPath, "utf-8").catch(() => "{}")
@@ -105,40 +106,78 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
     log.warn("no engines available")
   }
 
-  // ── Phase H: Initialize OS-Agent layer ──
+  const edithConfig = await loadEdithConfig()
+  const edithMode = config.EDITH_MODE
+  const runtimeVoice = resolveRuntimeVoiceConfig(edithConfig)
+  const edithOsAgent = (edithConfig as Record<string, unknown>).osAgent as
+    | { enabled?: boolean; gui?: object; vision?: object; voice?: object; system?: object; iot?: object; perceptionIntervalMs?: number }
+    | undefined
+  const shouldStartOSAgent = config.OS_AGENT_ENABLED
+    || edithMode
+    || Boolean(edithOsAgent?.enabled)
+    || (runtimeVoice.enabled && runtimeVoice.mode === "always-on")
+
   let osAgent: OSAgent | null = null
-  if (config.OS_AGENT_ENABLED || config.EDITH_MODE) {
+  if (shouldStartOSAgent) {
     try {
-      const edithConfig = await loadEdithConfig()
-      const edithMode = config.EDITH_MODE
-
-      // Build OS-Agent config from edith.json or EDITH preset
-      // Note: osAgent is defined in EdithConfigSchema but z.infer
-      // with deeply nested defaults can confuse TS — safe to cast.
-      const edithOsAgent = (edithConfig as Record<string, unknown>).osAgent as
-        | { enabled?: boolean; gui?: object; vision?: object; voice?: object; system?: object; iot?: object; perceptionIntervalMs?: number }
-        | undefined
-
       let osAgentConfig: OSAgentConfig
       if (edithMode) {
-        osAgentConfig = getEdithOSConfig()
+        const defaults = getEdithOSConfig()
+        osAgentConfig = {
+          gui: defaults.gui,
+          vision: defaults.vision,
+          voice: resolveOSVoiceConfig(
+            defaults.voice,
+            runtimeVoice,
+            edithOsAgent?.voice as
+              | {
+                enabled?: boolean
+                wakeWord?: string
+                wakeWordModelPath?: string
+                wakeWordEngine?: "porcupine" | "openwakeword"
+                sttEngine?: "whisper-local" | "deepgram" | "google" | "azure"
+                vadEngine?: "cobra" | "silero" | "webrtc"
+                whisperModel?: "tiny" | "base" | "small" | "medium" | "large"
+                fullDuplex?: boolean
+                language?: string
+                ttsVoice?: string
+              }
+              | undefined,
+          ),
+          system: defaults.system,
+          iot: defaults.iot,
+          perceptionIntervalMs: defaults.perceptionIntervalMs,
+        }
         log.info("OS-Agent: EDITH mode enabled (all features ON)")
-      } else if (edithOsAgent?.enabled) {
-        // Merge edith.json osAgent config with defaults
+      } else {
         const defaults = getDefaultOSAgentConfig()
         osAgentConfig = {
-          gui: { ...defaults.gui, ...(edithOsAgent.gui as object ?? {}) },
-          vision: { ...defaults.vision, ...(edithOsAgent.vision as object ?? {}) },
-          voice: { ...defaults.voice, ...(edithOsAgent.voice as object ?? {}) },
-          system: { ...defaults.system, ...(edithOsAgent.system as object ?? {}) },
-          iot: { ...defaults.iot, ...(edithOsAgent.iot as object ?? {}) },
-          perceptionIntervalMs: edithOsAgent.perceptionIntervalMs ?? defaults.perceptionIntervalMs,
+          gui: { ...defaults.gui, ...(edithOsAgent?.gui as object ?? {}) },
+          vision: { ...defaults.vision, ...(edithOsAgent?.vision as object ?? {}) },
+          voice: resolveOSVoiceConfig(
+            defaults.voice,
+            runtimeVoice,
+            edithOsAgent?.voice as
+              | {
+                enabled?: boolean
+                wakeWord?: string
+                wakeWordModelPath?: string
+                wakeWordEngine?: "porcupine" | "openwakeword"
+                sttEngine?: "whisper-local" | "deepgram" | "google" | "azure"
+                vadEngine?: "cobra" | "silero" | "webrtc"
+                whisperModel?: "tiny" | "base" | "small" | "medium" | "large"
+                fullDuplex?: boolean
+                language?: string
+                ttsVoice?: string
+              }
+              | undefined,
+          ),
+          system: { ...defaults.system, ...(edithOsAgent?.system as object ?? {}) },
+          iot: { ...defaults.iot, ...(edithOsAgent?.iot as object ?? {}) },
+          perceptionIntervalMs: edithOsAgent?.perceptionIntervalMs ?? defaults.perceptionIntervalMs,
         }
-      } else {
-        osAgentConfig = getDefaultOSAgentConfig()
       }
 
-      // Inject Home Assistant env vars into IoT config
       if (config.HOME_ASSISTANT_URL) {
         osAgentConfig.iot.homeAssistantUrl = config.HOME_ASSISTANT_URL
       }
@@ -147,12 +186,58 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
       }
 
       osAgent = new OSAgent(osAgentConfig)
+
+      if (osAgentConfig.voice.enabled && osAgentConfig.voice.mode === "always-on") {
+        let activeVoiceTurn: AbortController | null = null
+        const voiceUserId = config.DEFAULT_USER_ID
+
+        osAgent.voice.on("speechEnd", (transcription: string) => {
+          const trimmed = transcription.trim()
+          if (!trimmed) {
+            return
+          }
+
+          void (async () => {
+            activeVoiceTurn?.abort("superseded")
+            const turnAbort = new AbortController()
+            activeVoiceTurn = turnAbort
+
+            try {
+              const result = await processMessage(voiceUserId, trimmed, {
+                channel: "voice",
+                signal: turnAbort.signal,
+              })
+
+              if (turnAbort.signal.aborted) {
+                return
+              }
+
+              await osAgent?.voice.speak(result.response, {
+                voice: osAgentConfig.voice.ttsVoice,
+              })
+            } catch (voiceError) {
+              if (!turnAbort.signal.aborted) {
+                log.warn("OS-Agent voice turn failed", {
+                  transcription: trimmed,
+                  error: String(voiceError),
+                })
+              }
+            }
+          })()
+        })
+
+        osAgent.voice.on("error", (voiceError: Error) => {
+          log.warn("OS-Agent voice loop error", { error: voiceError.message })
+        })
+      }
+
       await osAgent.initialize()
 
-      // Store globally so tools.ts and pipeline can access it
-      ;(globalThis as any).__edithOSAgent = osAgent
+      if (osAgentConfig.voice.enabled && osAgentConfig.voice.mode === "always-on") {
+        await osAgent.voice.startListening()
+      }
 
-      // Register the OS-Agent tool into the live edithTools registry
+      ;(globalThis as any).__edithOSAgent = osAgent
       registerOSAgentTool(osAgent)
 
       log.info("OS-Agent layer initialized", {
@@ -172,11 +257,9 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
     if (daemon.isRunning()) {
       daemon.stop()
     }
-    // Shutdown OS-Agent
     if (osAgent) {
       await osAgent.shutdown().catch((err) => log.warn("OS-Agent shutdown error", err))
     }
-    // Shutdown MCP clients
     await mcpClient.shutdown().catch((err) => log.warn("MCP shutdown error", err))
     await shutdownTracing().catch((err) => log.warn("tracing shutdown error", err))
     await prisma.$disconnect()

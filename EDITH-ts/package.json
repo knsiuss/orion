@@ -20,6 +20,8 @@
     "lint:ci": "biome lint .",
     "typecheck": "tsc --noEmit",
     "doctor": "tsx src/cli/doctor.ts",
+    "voice:deps:check": "tsx src/cli/voice-deps-check.ts",
+    "voice:deps:setup": "tsx src/cli/voice-deps-setup.ts",
     "onboard": "tsx src/cli/onboard.ts",
     "quickstart": "tsx src/cli/onboard.ts --flow quickstart",
     "setup": "tsx src/cli/onboard.ts --flow quickstart",

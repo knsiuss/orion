@@ -1,17 +1,25 @@
 import { execa } from "execa"
+import fs from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
-import { fileURLToPath } from "node:url"
 
 import config from "../config.js"
 import { createLogger } from "../logger.js"
+import { VOICE_PYTHON_CWD, resolveVoicePythonCommand } from "./python-runtime.js"
 import { EdgeEngine } from "./edge-engine.js"
 import { AudioDSP } from "./dsp.js"
 import { EDITH_VOICE, EDITH_DSP, CLEAN_DSP } from "./edith-preset.js"
 import type { DSPPreset } from "./edith-preset.js"
 
 const logger = createLogger("voice")
-const PY = config.PYTHON_PATH ?? "python"
-const CWD = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../python")
+const PY = resolveVoicePythonCommand()
+const CWD = VOICE_PYTHON_CWD
+
+export interface VoiceTtsOverrides {
+  voice?: string
+  rate?: string | number
+  pitch?: string
+}
 
 /**
  * VoiceBridge — Native TypeScript voice engine with EDITH personality.
@@ -44,7 +52,11 @@ export class VoiceBridge {
    * @param text - Text to speak.
    * @param _voiceProfile - Legacy param, ignored. Use VOICE_EDGE_VOICE env var.
    */
-  async speak(text: string, _voiceProfile = "default"): Promise<Buffer | void> {
+  async speak(
+    text: string,
+    _voiceProfile = "default",
+    overrides: VoiceTtsOverrides = {},
+  ): Promise<Buffer | void> {
     if (!config.VOICE_ENABLED) {
       return
     }
@@ -52,7 +64,7 @@ export class VoiceBridge {
     const backend = config.VOICE_TTS_BACKEND ?? "edge"
 
     if (backend === "edge") {
-      return this.speakWithEdge(text)
+      return this.speakWithEdge(text, overrides)
     }
 
     // Legacy fallback to Python
@@ -70,6 +82,7 @@ export class VoiceBridge {
     text: string,
     _voiceProfile: string,
     onChunk: (audio: Buffer) => void,
+    overrides: VoiceTtsOverrides = {},
   ): Promise<void> {
     if (!config.VOICE_ENABLED) {
       return
@@ -80,9 +93,9 @@ export class VoiceBridge {
     if (backend === "edge") {
       try {
         await this.edge.stream(text, onChunk, {
-          voice: config.VOICE_EDGE_VOICE ?? EDITH_VOICE.voice,
-          rate: config.VOICE_EDGE_RATE ?? EDITH_VOICE.rate,
-          pitch: config.VOICE_EDGE_PITCH ?? EDITH_VOICE.pitch,
+          voice: overrides.voice ?? config.VOICE_EDGE_VOICE ?? EDITH_VOICE.voice,
+          rate: overrides.rate ?? config.VOICE_EDGE_RATE ?? EDITH_VOICE.rate,
+          pitch: overrides.pitch ?? config.VOICE_EDGE_PITCH ?? EDITH_VOICE.pitch,
         })
         return
       } catch (err) {
@@ -103,12 +116,12 @@ export class VoiceBridge {
 
   // ============== Edge TTS Implementation ==============
 
-  private async speakWithEdge(text: string): Promise<Buffer> {
+  private async speakWithEdge(text: string, overrides: VoiceTtsOverrides = {}): Promise<Buffer> {
     try {
       const audio = await this.edge.generate(text, {
-        voice: config.VOICE_EDGE_VOICE ?? EDITH_VOICE.voice,
-        rate: config.VOICE_EDGE_RATE ?? EDITH_VOICE.rate,
-        pitch: config.VOICE_EDGE_PITCH ?? EDITH_VOICE.pitch,
+        voice: overrides.voice ?? config.VOICE_EDGE_VOICE ?? EDITH_VOICE.voice,
+        rate: overrides.rate ?? config.VOICE_EDGE_RATE ?? EDITH_VOICE.rate,
+        pitch: overrides.pitch ?? config.VOICE_EDGE_PITCH ?? EDITH_VOICE.pitch,
       })
       logger.info("edge tts generated", { bytes: audio.length, text: text.slice(0, 50) })
       return audio
@@ -212,6 +225,29 @@ export class VoiceBridge {
       return ""
     }
 
+    return this.transcribeWithPython(audioSource)
+  }
+
+  async transcribeBuffer(audio: Buffer, extension = ".wav"): Promise<string> {
+    if (!config.VOICE_ENABLED) {
+      return ""
+    }
+
+    const normalizedExtension = extension.startsWith(".") ? extension : `.${extension}`
+    const tempFile = path.join(os.tmpdir(), `edith-voice-${Date.now()}-${Math.random().toString(36).slice(2)}${normalizedExtension}`)
+
+    try {
+      await fs.writeFile(tempFile, audio)
+      return await this.transcribeWithPython(tempFile)
+    } catch (err) {
+      logger.error("transcribeBuffer failed", err)
+      return ""
+    } finally {
+      await fs.unlink(tempFile).catch(() => {})
+    }
+  }
+
+  private async transcribeWithPython(audioSource: string): Promise<string> {
     try {
       const { stdout } = await execa(
         PY,

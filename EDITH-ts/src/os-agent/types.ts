@@ -41,15 +41,18 @@ export interface VisionConfig {
 
 export interface VoiceIOConfig {
   enabled: boolean
+  mode: "push-to-talk" | "always-on"
   /** Wake word: "hey-edith" | "edith" | custom */
   wakeWord: string
+  /** Optional host-local wake model path (.ppn / .onnx / .tflite). */
+  wakeWordModelPath?: string
   /** Wake word engine: "porcupine" | "openwakeword" */
   wakeWordEngine: "porcupine" | "openwakeword"
-  /** STT engine: "whisper-local" | "deepgram" | "google" | "azure" */
-  sttEngine: "whisper-local" | "deepgram" | "google" | "azure"
-  /** VAD: "silero" | "webrtc" */
-  vadEngine: "silero" | "webrtc"
-  /** Whisper model size (if local): "tiny" | "base" | "small" | "medium" | "large" */
+  /** STT engine for host-side always-on mode. */
+  sttEngine: "auto" | "python-whisper" | "deepgram"
+  /** VAD engine preference for host-side turn detection. */
+  vadEngine: "cobra" | "silero" | "webrtc"
+  /** Whisper model size (if local): "tiny" | "base" | "small" | "medium" | "large". */
   whisperModel?: "tiny" | "base" | "small" | "medium" | "large"
   /** Audio input device index (undefined = default) */
   inputDeviceIndex?: number
@@ -57,8 +60,19 @@ export interface VoiceIOConfig {
   outputDeviceIndex?: number
   /** Enable full-duplex (barge-in / interruption support) */
   fullDuplex: boolean
-  /** Language for STT */
-  language: string
+  /** Language for STT and transcript normalization. */
+  language: "auto" | "id" | "en" | "multi"
+  /** Preferred TTS voice for host-side playback. */
+  ttsVoice?: string
+  /** Optional provider credentials stored in edith.json, never env-injected. */
+  providers?: {
+    deepgram?: {
+      apiKey?: string
+    }
+    picovoice?: {
+      accessKey?: string
+    }
+  }
 }
 
 export interface SystemConfig {

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } = require("electron")
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog } = require("electron")
 const { spawn } = require("child_process")
 const path = require("path")
 const fs = require("fs")
@@ -27,6 +27,25 @@ function readEdithConfig() {
 function writeEdithConfig(config) {
   fs.mkdirSync(path.dirname(EDITH_CONFIG_PATH), { recursive: true })
   fs.writeFileSync(EDITH_CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", "utf-8")
+}
+
+function deepMerge(target, source) {
+  const result = { ...target }
+  for (const [key, value] of Object.entries(source || {})) {
+    if (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      result[key] &&
+      typeof result[key] === "object" &&
+      !Array.isArray(result[key])
+    ) {
+      result[key] = deepMerge(result[key], value)
+    } else {
+      result[key] = value
+    }
+  }
+  return result
 }
 
 function isConfigured() {
@@ -183,6 +202,14 @@ ipcMain.handle("send:message", async (_, content, userId = "owner") => {
   return { ok: true }
 })
 
+ipcMain.handle("send:gateway", async (_, payload) => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    return { error: "Gateway not ready" }
+  }
+  ws.send(JSON.stringify(payload))
+  return { ok: true }
+})
+
 ipcMain.handle("get:status", async () => {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     return { error: "Not connected" }
@@ -194,9 +221,8 @@ ipcMain.handle("get:status", async () => {
 // ── Config IPC (EDITH-style — writes edith.json) ─────────────────
 ipcMain.handle("config:save", async (_, config) => {
   try {
-    // Build the edith.json structure from onboarding credentials
     const existing = readEdithConfig() || {}
-    const merged = { ...existing, ...config }
+    const merged = deepMerge(existing, config)
     writeEdithConfig(merged)
     return { ok: true, path: EDITH_CONFIG_PATH }
   } catch (err) {
@@ -215,6 +241,26 @@ ipcMain.handle("config:load", async () => {
 
 ipcMain.handle("config:is-configured", async () => {
   return { configured: isConfigured() }
+})
+
+ipcMain.handle("config:pick-wake-model", async () => {
+  try {
+    const result = await dialog.showOpenDialog({
+      title: "Select Wake Word Model",
+      filters: [
+        { name: "Wake Word Models", extensions: ["ppn", "onnx", "tflite"] },
+      ],
+      properties: ["openFile"],
+    })
+
+    if (result.canceled || !result.filePaths?.[0]) {
+      return { ok: false, cancelled: true }
+    }
+
+    return { ok: true, path: result.filePaths[0] }
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
 })
 
 ipcMain.handle("config:test-provider", async (_, provider, credentials) => {
@@ -252,6 +298,14 @@ ipcMain.handle("config:test-provider", async (_, provider, credentials) => {
       case "ollama": {
         const host = credentials.OLLAMA_HOST || "http://127.0.0.1:11434"
         const res = await fetch(`${host}/api/tags`)
+        return { ok: res.ok, status: res.status }
+      }
+      case "deepgram": {
+        const res = await fetch("https://api.deepgram.com/v1/projects", {
+          headers: {
+            Authorization: `Token ${credentials.apiKey || ""}`
+          }
+        })
         return { ok: res.ok, status: res.status }
       }
       default:
