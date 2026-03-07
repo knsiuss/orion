@@ -1,16 +1,16 @@
-# Phase 6 — Advanced JARVIS Features (Proactive + Automation + Security)
+# Phase 6 — Advanced EDITH Features (Proactive + Automation + Security)
 
 **Durasi Estimasi:** 3–4 minggu  
-**Prioritas:** 🟢 ENHANCEMENT — Fitur yang membuat Nova benar-benar seperti JARVIS  
+**Prioritas:** 🟢 ENHANCEMENT — Fitur yang membuat EDITH benar-benar seperti EDITH  
 **Status Saat Ini:** Daemon ✅ | Triggers YAML ✅ | File Watcher ❌ | Notifications ❌ | Macros ❌ | CaMeL ❌  
 
 ---
 
 ## 1. Tujuan
 
-Setelah Phase 1-5 selesai (voice, tests, vision, IoT, bugfix), Phase 6 menambahkan kemampuan **proaktif dan otomasi** yang membedakan JARVIS dari chatbot biasa:
+Setelah Phase 1-5 selesai (voice, tests, vision, IoT, bugfix), Phase 6 menambahkan kemampuan **proaktif dan otomasi** yang membedakan EDITH dari chatbot biasa:
 
-1. **Proactive Assistance** → Nova memberitahu user tanpa diminta (battery low, meeting reminder, unusual activity)
+1. **Proactive Assistance** → EDITH memberitahu user tanpa diminta (battery low, meeting reminder, unusual activity)
 2. **File Watcher** → Deteksi perubahan file penting, auto-backup, notify
 3. **System Notifications** → Push notifications ke desktop + mobile
 4. **Macros & Workflows** → User buat custom automation (voice trigger → multi-step action)
@@ -119,7 +119,7 @@ Setelah Phase 1-5 selesai (voice, tests, vision, IoT, bugfix), Phase 6 menambahk
 │  └──────────────────────────────────────────┘ │
 │                                                │
 │  Optional: Auto-backup important file changes  │
-│  → Copy to .nova-backup/ with timestamp        │
+│  → Copy to .edith-backup/ with timestamp        │
 └───────────────────────────────────────────────┘
 ```
 
@@ -130,10 +130,10 @@ Setelah Phase 1-5 selesai (voice, tests, vision, IoT, bugfix), Phase 6 menambahk
 │                  Macro / Workflow Engine                    │
 │                                                            │
 │  User defines macros via:                                  │
-│  1. Chat: "Nova, buat macro 'deploy': git push,           │
+│  1. Chat: "EDITH, buat macro 'deploy': git push,           │
 │           run tests, notify me when done"                  │
 │  2. Config file: macros.yaml                               │
-│  3. Voice: "Hey Nova, save this as a macro called deploy"  │
+│  3. Voice: "Hey EDITH, save this as a macro called deploy"  │
 │                                                            │
 │  ┌──────────────────────────────────────────────────────┐ │
 │  │  Macro Definition (macros.yaml)                       │ │
@@ -305,7 +305,7 @@ Setelah Phase 1-5 selesai (voice, tests, vision, IoT, bugfix), Phase 6 menambahk
 
 ### 3.1 Desktop Notification System
 
-**File:** NEW `orion-ts/src/os-agent/notification.ts`
+**File:** NEW `EDITH-ts/src/os-agent/notification.ts`
 
 ```typescript
 export class NotificationDispatcher {
@@ -342,7 +342,7 @@ $texts = $xml.GetElementsByTagName("text")
 $texts[0].AppendChild($xml.CreateTextNode("${escapePS(n.title)}")) | Out-Null
 $texts[1].AppendChild($xml.CreateTextNode("${escapePS(n.body)}")) | Out-Null
 $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Nova").Show($toast)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("EDITH").Show($toast)
 `
       await execa("powershell", ["-command", ps])
     } else if (process.platform === "darwin") {
@@ -373,7 +373,7 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
 
 ### 3.2 File Watcher
 
-**File:** NEW `orion-ts/src/os-agent/file-watcher.ts`
+**File:** NEW `EDITH-ts/src/os-agent/file-watcher.ts`
 
 **Dependency:** `chokidar` (file system watcher)
 
@@ -428,7 +428,7 @@ export class FileWatcher {
 
 ### 3.3 Macro Engine
 
-**File:** NEW `orion-ts/src/os-agent/macro-engine.ts`
+**File:** NEW `EDITH-ts/src/os-agent/macro-engine.ts`
 
 **Capabilities:**
 - Load macros from YAML config + runtime chat definitions
@@ -440,7 +440,7 @@ export class FileWatcher {
 
 ### 3.4 CaMeL Security Module
 
-**File:** NEW `orion-ts/src/security/camel-guard.ts`
+**File:** NEW `EDITH-ts/src/security/camel-guard.ts`
 
 **Implementation phases:**
 1. **Taint tracking** — tag all data from untrusted sources (memory, web, email)
@@ -509,7 +509,7 @@ Mobile Dependencies:
 | Conditional steps | macro-engine.ts | if/then/else evaluation |
 | Cron scheduler | macro-engine.ts | node-cron for time-based triggers |
 | Voice trigger matching | macro-engine.ts | Match user speech to macro name/alias |
-| Chat-based macro creation | macro-engine.ts | "Nova, create a macro..." → parse + save |
+| Chat-based macro creation | macro-engine.ts | "EDITH, create a macro..." → parse + save |
 | Mobile: MacroBuilder screen | MacroBuilder.tsx | Visual step builder |
 | Mobile: Quick-launch grid | App.tsx | Macro buttons in chat screen |
 | Tests: macro execution | __tests__/ | Full macro flow with mocked steps |
@@ -550,16 +550,16 @@ import * as Notifications from "expo-notifications"
 const { status } = await Notifications.requestPermissionsAsync()
 
 // Configure channels (Android-specific)
-await Notifications.setNotificationChannelAsync("nova-alerts", {
-  name: "Nova Alerts",
+await Notifications.setNotificationChannelAsync("edith-alerts", {
+  name: "EDITH Alerts",
   importance: Notifications.AndroidImportance.HIGH,
   vibrationPattern: [0, 250, 250, 250],
   lightColor: "#2196F3",
   sound: "notification.wav",
 })
 
-await Notifications.setNotificationChannelAsync("nova-info", {
-  name: "Nova Info", 
+await Notifications.setNotificationChannelAsync("edith-info", {
+  name: "EDITH Info", 
   importance: Notifications.AndroidImportance.DEFAULT,
 })
 ```
@@ -573,7 +573,7 @@ await Notifications.setNotificationChannelAsync("nova-info", {
 ```
 Android Widget (future, requires native module):
 ┌──────────────────────────┐
-│  Nova Macros             │
+│  EDITH Macros             │
 │  [🌅] [🚀] [🔒] [+]    │
 │   AM  Deploy Lock  More  │
 └──────────────────────────┘
@@ -654,7 +654,7 @@ Integration Tests (5 tests):
 | `src/os-agent/__tests__/file-watcher.test.ts` | NEW | +80 |
 | `src/os-agent/__tests__/macro-engine.test.ts` | NEW | +120 |
 | `src/security/__tests__/camel-guard.test.ts` | NEW | +100 |
-| `orion-ts/package.json` | Add chokidar, node-cron | +2 |
+| `EDITH-ts/package.json` | Add chokidar, node-cron | +2 |
 | **Total** | | **~2087 lines** |
 
 ---
@@ -668,13 +668,13 @@ Integration Tests (5 tests):
 | Phase 3 | Vision Intelligence | ~690 | 2 weeks |
 | Phase 4 | IoT & Smart Home | ~1151 | 1-2 weeks |
 | Phase 5 | Critical Bug Fixes | ~181 | 3-5 days |
-| Phase 6 | Advanced JARVIS Features | ~2087 | 3-4 weeks |
+| Phase 6 | Advanced EDITH Features | ~2087 | 3-4 weeks |
 | **Total** | | **~6744 lines** | **~12-15 weeks** |
 
 **Recommended Execution Order:**
 1. **Phase 5** (Bug Fixes) — paling cepat, paling critical
 2. **Phase 2** (Tests) — foundation untuk development selanjutnya
-3. **Phase 1** (Voice) — core JARVIS feature
+3. **Phase 1** (Voice) — core EDITH feature
 4. **Phase 3** (Vision) — enables smart GUI automation
 5. **Phase 4** (IoT) — smart home completion
 6. **Phase 6** (Advanced) — polish dan pro features

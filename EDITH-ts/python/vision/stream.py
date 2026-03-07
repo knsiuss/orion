@@ -1,9 +1,9 @@
 """
 stream.py
 
-Camera capture and frame sampling for Orion.
+Camera capture and frame sampling for EDITH.
 Provides live camera capture, screen capture, motion detection, and frame utilities.
-Part of Orion — Persistent AI Companion System.
+Part of EDITH — Persistent AI Companion System.
 """
 
 import base64
@@ -17,7 +17,7 @@ import numpy as np
 
 import config
 
-_log = logging.getLogger("orion.vision")
+_log = logging.getLogger("edith.vision")
 _log_file = config.LOGS_DIR / "vision.log"
 _handler = logging.FileHandler(_log_file)
 _handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)-8s | %(message)s"))

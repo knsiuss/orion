@@ -6,7 +6,7 @@ import { stdin as input, stdout as output } from "node:process"
 import { pathToFileURL } from "node:url"
 
 import dotenv from "dotenv"
-import { writeNovaConfig } from "../config/nova-config.js"
+import { writeEdithConfig } from "../config/edith-config.js"
 
 type ChannelChoice = "telegram" | "discord" | "whatsapp" | "webchat"
 type ProviderChoice = "groq" | "openrouter" | "anthropic" | "openai" | "gemini" | "ollama"
@@ -37,7 +37,7 @@ interface QuickstartPlan {
   channel: ChannelChoice
   provider: ProviderChoice
   updates: Record<string, string>
-  /** Structured nova.json config object to merge/write (not needed for buildNextSteps) */
+  /** Structured edith.json config object to merge/write (not needed for buildNextSteps) */
   jsonConfig?: Record<string, unknown>
 }
 
@@ -299,8 +299,8 @@ async function loadEnvTemplate(cwd: string): Promise<EnvTemplate> {
 }
 
 function resolveOnboardEnvPaths(cwd: string): OnboardEnvPaths {
-  const explicitEnvPath = typeof process.env.NOVA_ENV_FILE === "string" && process.env.NOVA_ENV_FILE.trim().length > 0
-    ? path.resolve(process.env.NOVA_ENV_FILE.trim())
+  const explicitEnvPath = typeof process.env.EDITH_ENV_FILE === "string" && process.env.EDITH_ENV_FILE.trim().length > 0
+    ? path.resolve(process.env.EDITH_ENV_FILE.trim())
     : null
 
   return {
@@ -324,14 +324,14 @@ function redactSecretValue(key: string, value: string): string {
 }
 
 function defaultNextStepCommands(env: NodeJS.ProcessEnv = process.env): NextStepCommands {
-  const usingGlobalWrapper = [env.NOVA_ENV_FILE, env.NOVA_WORKSPACE, env.NOVA_STATE_DIR]
+  const usingGlobalWrapper = [env.EDITH_ENV_FILE, env.EDITH_WORKSPACE, env.EDITH_STATE_DIR]
     .some((value) => typeof value === "string" && value.trim().length > 0)
 
   if (usingGlobalWrapper) {
     return {
-      doctor: "nova doctor",
-      all: "nova all",
-      onboard: "nova onboard",
+      doctor: "edith doctor",
+      all: "edith all",
+      onboard: "edith onboard",
     }
   }
 
@@ -485,7 +485,7 @@ function buildQuickstartBanner(): void {
   console.log("- choose a test channel (Telegram / Discord / WhatsApp / WebChat)")
   console.log("- for WhatsApp: choose Scan QR (quick test) or Cloud API (official)")
   console.log("- choose a model provider")
-  console.log("- write the config to edith.json (legacy nova.json is still supported)")
+  console.log("- write the config to edith.json (legacy edith.json is still supported)")
 }
 
 async function collectQuickstartPlan(
@@ -661,7 +661,7 @@ async function collectQuickstartPlan(
       updates.AUTO_START_GATEWAY = "true"
     }
 
-    // ── Build structured nova.json config (OpenClaw-style) ──────────
+    // ── Build structured edith.json config (EDITH-style) ──────────
     const jsonConfig: Record<string, unknown> = {}
 
     // env section: provider API keys
@@ -789,7 +789,7 @@ function deepMerge(target: Record<string, unknown>, source: Record<string, unkno
   return result
 }
 
-async function loadExistingNovaJson(configPath: string): Promise<Record<string, unknown>> {
+async function loadExistingEdithJson(configPath: string): Promise<Record<string, unknown>> {
   try {
     const raw = await fs.readFile(configPath, "utf-8")
     return JSON.parse(raw) as Record<string, unknown>
@@ -806,21 +806,21 @@ async function runOnboarding(argv: string[]): Promise<void> {
 
   const cwd = process.cwd()
 
-  // Load existing env values for the wizard prompts (from .env OR nova.json)
+  // Load existing env values for the wizard prompts (from .env OR edith.json)
   const template = await loadEnvTemplate(cwd)
   const currentEnv = readEnvValueMap(template.content)
 
-  // Prefer the EDITH config path, but keep legacy nova.json compatible.
+  // Prefer the EDITH config path, but keep legacy edith.json compatible.
   const edithConfigPath = path.resolve(cwd, "edith.json")
-  const legacyConfigPath = path.resolve(cwd, "nova.json")
+  const legacyConfigPath = path.resolve(cwd, "edith.json")
   const configPath = await fs.access(edithConfigPath).then(() => edithConfigPath).catch(async () => {
     return await fs.access(legacyConfigPath).then(() => legacyConfigPath).catch(() => edithConfigPath)
   })
-  const existingJson = await loadExistingNovaJson(configPath)
+  const existingJson = await loadExistingEdithJson(configPath)
   const existingEnv = (typeof existingJson.env === "object" && existingJson.env !== null)
     ? existingJson.env as Record<string, string>
     : {}
-  // Merge: nova.json env values override .env values for display purposes
+  // Merge: edith.json env values override .env values for display purposes
   const mergedCurrentEnv = { ...currentEnv, ...existingEnv }
 
   const plan = await collectQuickstartPlan(args, mergedCurrentEnv)
@@ -842,13 +842,13 @@ async function runOnboarding(argv: string[]): Promise<void> {
     }
 
     if (shouldWrite) {
-      // Deep-merge new config into existing nova.json
+      // Deep-merge new config into existing edith.json
       const merged = deepMerge(existingJson, plan.jsonConfig ?? {})
-      await writeNovaConfig(merged, configPath)
+      await writeEdithConfig(merged, configPath)
       console.log("")
       console.log(`Wrote ${configPath}`)
       console.log("")
-      console.log("Your config is stored in edith.json when present, or nova.json for legacy compatibility.")
+      console.log("Your config is stored in edith.json when present, or edith.json for legacy compatibility.")
       console.log("No need to edit .env manually - EDITH reads config values directly.")
     } else {
       console.log("")

@@ -4,7 +4,7 @@ import { generateText, type LanguageModel } from "ai"
 
 import config from "../config.js"
 import { orchestrator } from "../engines/orchestrator.js"
-import { novaTools } from "./tools.js"
+import { edithTools } from "./tools.js"
 import { createLogger } from "../logger.js"
 import { acpRouter } from "../acp/router.js"
 import { signMessage, type ACPMessage, type AgentCredential } from "../acp/protocol.js"
@@ -91,7 +91,7 @@ export class AgentRunner {
       const engine = orchestrator.route("reasoning")
       const inferredTaskType = inferTaskType(task.task)
       const taskScope = getScopeForTask(inferredTaskType)
-      const scopeResult = applyTaskScope(novaTools, taskScope, {
+      const scopeResult = applyTaskScope(edithTools, taskScope, {
         actorId: task.userId ?? "runner",
       })
       const scopedTools = scopeResult.tools
@@ -107,7 +107,7 @@ export class AgentRunner {
           id: task.id,
           result: "",
           error:
-            "Task requires explicit approval for system-level tools. Set NOVA_SYSTEM_TOOL_APPROVED=true to allow.",
+            "Task requires explicit approval for system-level tools. Set EDITH_SYSTEM_TOOL_APPROVED=true to allow.",
           durationMs: Date.now() - start,
         }
       }

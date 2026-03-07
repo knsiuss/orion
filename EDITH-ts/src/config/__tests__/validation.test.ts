@@ -4,7 +4,7 @@ import { ConfigValidationError, validateRequired } from "../../config.js"
 
 describe("config/validateRequired", () => {
   it("does not throw when keys have non-empty string values", () => {
-    // DATABASE_URL always has a default ("file:./nova.db")
+    // DATABASE_URL always has a default ("file:./edith.db")
     expect(() => validateRequired(["DATABASE_URL"])).not.toThrow()
   })
 

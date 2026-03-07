@@ -1,9 +1,9 @@
 """
 voice.py
 
-Full voice pipeline for Orion with voice cloning support.
+Full voice pipeline for EDITH with voice cloning support.
 Uses Whisper local for STT and Coqui TTS for TTS with XTTS-v2 voice cloning.
-Part of Orion — Persistent AI Companion System.
+Part of EDITH — Persistent AI Companion System.
 """
 
 import json
@@ -24,7 +24,7 @@ try:
 except Exception:
     Qwen3TTS = None  # type: ignore
 
-_log = logging.getLogger("orion.voice")
+_log = logging.getLogger("edith.voice")
 _log_file = config.LOGS_DIR / "voice.log"
 _handler = logging.FileHandler(_log_file)
 _handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)-8s | %(message)s"))
@@ -36,7 +36,7 @@ _training_handler = logging.FileHandler(VOICE_TRAINING_LOG)
 _training_handler.setFormatter(
     logging.Formatter("%(asctime)s | %(levelname)-8s | %(message)s")
 )
-_training_log = logging.getLogger("orion.voice.training")
+_training_log = logging.getLogger("edith.voice.training")
 _training_log.addHandler(_training_handler)
 _training_log.setLevel(logging.INFO)
 
@@ -381,7 +381,7 @@ class VoicePipeline:
         """
         _log.info("CONVERSATION LOOP | Starting")
         print(
-            "Conversation loop started. Say 'Orion' to activate. Press Ctrl+C to stop."
+            "Conversation loop started. Say 'EDITH' to activate. Press Ctrl+C to stop."
         )
 
         try:
@@ -423,12 +423,12 @@ class VoicePipeline:
             print("\nConversation loop stopped.")
             _log.info("CONVERSATION LOOP | Stopped by user")
 
-    def detect_wake_word(self, keyword: str = "orion") -> bool:
+    def detect_wake_word(self, keyword: str = "edith") -> bool:
         """
         Listen in short windows and detect wake word.
 
         Args:
-            keyword: Wake word to detect. Defaults to "orion".
+            keyword: Wake word to detect. Defaults to "edith".
 
         Returns:
             True if keyword detected.

@@ -1,4 +1,4 @@
-# Nova-TS Research Roadmap — Superhuman Target
+# EDITH-TS Research Roadmap — Superhuman Target
 
 ## Vision
 
@@ -21,7 +21,7 @@ Phase D: Personality Layer      (Four-Quadrant Taxonomy)          ✅ DONE
 Phase E: Security Hardening     (AURA — arXiv 2508.06124)        ✅ DONE
 Phase F: Real-time Architecture (Async Event Bus)                 🔶 PARTIAL
 Phase G: Multi-Agent Combat     (ALAS + MCP/A2A)                 🔶 PARTIAL
-Phase H: JARVIS OS-Agent        (System-Level Integration)       🚧 IN PROGRESS
+Phase H: EDITH OS-Agent        (System-Level Integration)       🚧 IN PROGRESS
 ```
 
 ## Files
@@ -33,4 +33,4 @@ Phase H: JARVIS OS-Agent        (System-Level Integration)       🚧 IN PROGRES
 - `phase-E-security.md`
 - `phase-F-realtime.md`
 - `phase-G-multiagent.md`
-- `phase-H-jarvis-os-agent.md` ← **NEW: JARVIS system-level integration**
+- `phase-H-edith-os-agent.md` ← **NEW: EDITH system-level integration**

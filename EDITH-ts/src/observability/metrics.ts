@@ -9,7 +9,7 @@ import {
 import config from "../config.js"
 
 const registry = new Registry()
-const METRICS_PREFIX = config.METRICS_PREFIX || "nova_"
+const METRICS_PREFIX = config.METRICS_PREFIX || "edith_"
 const METRICS_ENABLED = config.METRICS_ENABLED
 
 let defaultsInitialized = false

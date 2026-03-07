@@ -86,7 +86,7 @@ function readPackageVersion(): string {
 const APP_VERSION = readPackageVersion()
 const CONTENT_SECURITY_POLICY = "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 const CSRF_HEADER_NAME = "x-csrf-token"
-const CSRF_COOKIE_NAME = "nova_csrf_token"
+const CSRF_COOKIE_NAME = "edith_csrf_token"
 const CSRF_TOKEN_BYTES = 32
 
 const CSRF_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"])
@@ -852,16 +852,16 @@ export class GatewayServer {
         },
       )
 
-      // ── Config API (OpenClaw-style — for mobile/remote setup) ──────
+      // ── Config API (EDITH-style — for mobile/remote setup) ──────
 
       /**
-       * GET /api/config — read current nova.json (redacts secret values).
+       * GET /api/config — read current edith.json (redacts secret values).
        * No auth required for initial setup (no token exists yet).
        */
       app.get("/api/config", async (_req, reply) => {
-        const { loadNovaConfig } = await import("../config/nova-config.js")
+        const { loadEdithConfig } = await import("../config/edith-config.js")
         try {
-          const cfg = await loadNovaConfig()
+          const cfg = await loadEdithConfig()
           // Redact API keys for security — only expose structure + provider info
           const redacted = JSON.parse(JSON.stringify(cfg))
           if (redacted.env) {
@@ -878,7 +878,7 @@ export class GatewayServer {
       })
 
       /**
-       * PUT /api/config — write nova.json (full replace).
+       * PUT /api/config — write edith.json (full replace).
        * Used by mobile app and CLI to configure the engine remotely.
        */
       app.put<{ Body?: Record<string, unknown> }>(
@@ -889,9 +889,9 @@ export class GatewayServer {
             return reply.code(400).send({ error: "JSON body required" })
           }
 
-          const { writeNovaConfig } = await import("../config/nova-config.js")
+          const { writeEdithConfig } = await import("../config/edith-config.js")
           try {
-            const target = await writeNovaConfig(body)
+            const target = await writeEdithConfig(body)
             return { ok: true, path: target }
           } catch (err) {
             return reply.code(500).send({ error: (err as Error).message })
@@ -900,7 +900,7 @@ export class GatewayServer {
       )
 
       /**
-       * PATCH /api/config — merge partial config into existing nova.json.
+       * PATCH /api/config — merge partial config into existing edith.json.
        * Convenient for mobile: send only `{ env: { GROQ_API_KEY: "..." } }`.
        */
       app.patch<{ Body?: Record<string, unknown> }>(
@@ -911,11 +911,11 @@ export class GatewayServer {
             return reply.code(400).send({ error: "JSON body required" })
           }
 
-          const { loadNovaConfig, writeNovaConfig } = await import("../config/nova-config.js")
+          const { loadEdithConfig, writeEdithConfig } = await import("../config/edith-config.js")
           try {
-            const existing = await loadNovaConfig()
+            const existing = await loadEdithConfig()
             const merged = deepMerge(existing as Record<string, unknown>, body)
-            const target = await writeNovaConfig(merged)
+            const target = await writeEdithConfig(merged)
             return { ok: true, path: target }
           } catch (err) {
             return reply.code(500).send({ error: (err as Error).message })
@@ -1173,7 +1173,7 @@ export class GatewayServer {
   }
 
   private async handleWakeWord(userId: string, msg: GatewayClientMessage): Promise<GatewayResponse> {
-    const keyword = msg.keyword ?? "nova"
+    const keyword = msg.keyword ?? "edith"
     const windowSeconds = msg.windowSeconds ?? 2
 
     try {

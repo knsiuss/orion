@@ -1,7 +1,7 @@
 /**
  * @file os-agent/iot-bridge.ts — Smart Home & IoT Integration
- * @description Bridges Nova with smart home systems (Home Assistant, MQTT).
- * Enables JARVIS-style home control: lights, climate, locks, cameras, etc.
+ * @description Bridges EDITH with smart home systems (Home Assistant, MQTT).
+ * Enables EDITH-style home control: lights, climate, locks, cameras, etc.
  *
  * Supports:
  * - Home Assistant REST API + WebSocket

@@ -1,4 +1,4 @@
-# Nova-TS — Research Prompt Index
+# EDITH-TS — Research Prompt Index
 # Semua paper sudah diverifikasi di arXiv
 
 ## Quick Reference Per Phase
@@ -54,7 +54,7 @@ Phase G (Multi-Agent) ←── Butuh Phase F selesai
 6. Iterasi sampai zero TypeScript errors
 
 ## Notes untuk Session Context
-- Repo: C:\Users\test\OneDrive\Desktop\nova\nova-ts
+- Repo: C:\Users\test\OneDrive\Desktop\edith\EDITH-ts
 - Branch: typescript
 - Node: 22+, ESM modules
 - Package manager: pnpm

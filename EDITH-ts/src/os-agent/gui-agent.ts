@@ -1,7 +1,7 @@
 /**
  * @file os-agent/gui-agent.ts — GUI Automation Agent
- * @description Cross-platform GUI automation for JARVIS-style computer control.
- * Enables Nova to see the screen, click, type, and navigate applications.
+ * @description Cross-platform GUI automation for EDITH-style computer control.
+ * Enables EDITH to see the screen, click, type, and navigate applications.
  *
  * Based on:
  * - OSWorld (arXiv:2404.07972) — OS-level agent benchmark
@@ -136,7 +136,7 @@ export class GUIAgent {
    * Capture a screenshot and return as Buffer.
    */
   async captureScreenshot(region?: { x: number; y: number; width: number; height: number }): Promise<Buffer> {
-    const tmpPath = path.join(os.tmpdir(), `nova-screenshot-${Date.now()}.png`)
+    const tmpPath = path.join(os.tmpdir(), `edith-screenshot-${Date.now()}.png`)
 
     try {
       if (this.platform === "win32") {

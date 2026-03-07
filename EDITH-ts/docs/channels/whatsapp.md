@@ -4,7 +4,7 @@ Date: 2026-02-26
 
 ## Which mode should you use?
 
-For a fast test (OpenClaw-style), use **QR Scan mode** first.
+For a fast test (EDITH-style), use **QR Scan mode** first.
 
 - `WHATSAPP_MODE=baileys` -> scan QR in WhatsApp app (quickest)
 - `WHATSAPP_MODE=cloud` -> Meta Cloud API + webhook (official, more setup)
@@ -13,7 +13,7 @@ If your goal is "I just want to test from my phone right now", choose **QR Scan*
 
 ## Mode A (recommended for quick test): QR Scan / Baileys
 
-This matches the "tinggal scan" flow you expect from tools like OpenClaw.
+This matches the "tinggal scan" flow you expect from tools like EDITH.
 
 ### Environment (QR scan)
 
@@ -33,38 +33,38 @@ pnpm wa:scan
 If you installed the global wrapper:
 
 ```bash
-nova profile init
-nova self-test
-nova self-test --fix
-nova wa scan
+edith profile init
+edith self-test
+edith self-test --fix
+edith wa scan
 ```
 
-OpenClaw-style namespace equivalent:
+EDITH-style namespace equivalent:
 
 ```bash
-nova channels login --channel whatsapp
-nova channels status --channel whatsapp
-nova channels status --channel whatsapp --json
-nova channels logs --channel whatsapp
+edith channels login --channel whatsapp
+edith channels status --channel whatsapp
+edith channels status --channel whatsapp --json
+edith channels logs --channel whatsapp
 ```
 
-`nova channels status --channel whatsapp` now reports runtime auth/session hints for QR mode (for example: auth dir missing, `creds.json` unreadable, or paired session detected), not just env readiness. The same CLI status command also adds lightweight runtime hints for other channels (for example WebChat localhost reachability and token-format sanity hints for Telegram/Discord).
+`edith channels status --channel whatsapp` now reports runtime auth/session hints for QR mode (for example: auth dir missing, `creds.json` unreadable, or paired session detected), not just env readiness. The same CLI status command also adds lightweight runtime hints for other channels (for example WebChat localhost reachability and token-format sanity hints for Telegram/Discord).
 
-`nova channels logs --channel whatsapp` now does best-effort live filtering for WhatsApp logs (including Baileys JSON logs) while still passing through fatal process errors. It also runs profile DB migration preflight before starting logs, so fresh profiles are less likely to spam `P2021` table-missing errors.
+`edith channels logs --channel whatsapp` now does best-effort live filtering for WhatsApp logs (including Baileys JSON logs) while still passing through fatal process errors. It also runs profile DB migration preflight before starting logs, so fresh profiles are less likely to spam `P2021` table-missing errors.
 
 Non-interactive (scriptable) variant:
 
 ```bash
-nova wa scan --yes --provider groq
+edith wa scan --yes --provider groq
 ```
 
 Namespace variant:
 
 ```bash
-nova channels login --channel whatsapp --non-interactive --provider groq
+edith channels login --channel whatsapp --non-interactive --provider groq
 ```
 
-This keeps WhatsApp auth/session files under your Nova profile state dir (for example `~/.nova/profiles/default/.nova/whatsapp-auth`) instead of the repo root.
+This keeps WhatsApp auth/session files under your EDITH profile state dir (for example `~/.edith/profiles/default/.edith/whatsapp-auth`) instead of the repo root.
 
 or use the general wizard:
 
@@ -72,9 +72,9 @@ or use the general wizard:
 pnpm quickstart
 ```
 
-1. Run Nova:
+1. Run EDITH:
    - repo mode: `pnpm all`
-   - global wrapper mode: `nova all`
+   - global wrapper mode: `edith all`
 2. Wait for WhatsApp QR code in terminal.
 3. On your phone:
    - WhatsApp -> Linked Devices -> Link a Device
@@ -93,10 +93,10 @@ pnpm quickstart
   - ensure `baileys` dependency is installed
   - if you see `WhatsApp QR payload (renderer missing)`, install a terminal QR renderer:
     - `pnpm add qrcode-terminal`
-    - then restart `nova all`
+    - then restart `edith all`
 - Connected then disconnects:
   - check logs for `whatsapp-channel`
-  - delete local auth cache only if you intentionally want to re-pair (`.nova/whatsapp-auth`)
+  - delete local auth cache only if you intentionally want to re-pair (`.edith/whatsapp-auth`)
 
 ## Mode B (advanced / official): WhatsApp Cloud API
 
@@ -108,7 +108,7 @@ Implementation goals:
 
 - official API path (token + phone number id)
 - webhook-based inbound messages
-- same Nova pipeline path used by web/Telegram/Discord
+- same EDITH pipeline path used by web/Telegram/Discord
 - safe defaults with optional sender allowlist
 
 ## Research-informed behavior (same first-principles defaults)
@@ -117,7 +117,7 @@ Implementation goals:
 
 Webhook providers retry on slow responses. To reduce duplicate deliveries and timeout loops:
 
-- Nova webhook ingestion parses messages quickly
+- EDITH webhook ingestion parses messages quickly
 - webhook route responds immediately
 - message processing continues via serialized async tasks inside the channel adapter
 - duplicate `message.id` deliveries are deduped in-memory (best-effort)
@@ -129,7 +129,7 @@ Instead of opaque failures, the channel provides:
 - `/help`, `!help`
 - `/id`, `!id`
 - `/ping`, `!ping`
-- explicit failure reply if Nova pipeline processing fails
+- explicit failure reply if EDITH pipeline processing fails
 
 ### 3. Optional sender allowlist
 
@@ -179,7 +179,7 @@ WHATSAPP_ENABLED=true
 WHATSAPP_MODE=cloud
 WHATSAPP_CLOUD_ACCESS_TOKEN=EAAG...
 WHATSAPP_CLOUD_PHONE_NUMBER_ID=123456789012345
-WHATSAPP_CLOUD_VERIFY_TOKEN=nova-wh-verify-123
+WHATSAPP_CLOUD_VERIFY_TOKEN=edith-wh-verify-123
 WHATSAPP_CLOUD_ALLOWED_WA_IDS=628123456789
 WHATSAPP_CLOUD_API_VERSION=v20.0
 AUTO_START_GATEWAY=true
@@ -196,12 +196,12 @@ pnpm wa:cloud
 Global wrapper equivalent:
 
 ```bash
-nova wa cloud
+edith wa cloud
 ```
 
 1. Create/configure a Meta app and WhatsApp Cloud API phone number.
 2. Set the Cloud API env vars above (`WHATSAPP_MODE=cloud`).
-3. Run Nova with gateway + channels:
+3. Run EDITH with gateway + channels:
    - `pnpm all`
 4. Expose the gateway publicly (example):
    - `cloudflared tunnel --url http://127.0.0.1:18789`
@@ -222,7 +222,7 @@ nova wa cloud
   - check `WHATSAPP_CLOUD_VERIFY_TOKEN`
   - confirm callback path is exactly `/webhooks/whatsapp`
   - ensure gateway is reachable publicly (not only localhost)
-- Messages arrive but no Nova reply:
+- Messages arrive but no EDITH reply:
   - check `WHATSAPP_CLOUD_ACCESS_TOKEN` and `WHATSAPP_CLOUD_PHONE_NUMBER_ID`
   - check logs for `whatsapp-channel` and `gateway`
   - confirm `WHATSAPP_ENABLED=true` and `WHATSAPP_MODE=cloud`

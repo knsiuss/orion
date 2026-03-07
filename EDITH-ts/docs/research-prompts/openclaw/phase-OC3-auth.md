@@ -4,14 +4,14 @@ always commit dan push setiap step
 **[1] AURA: Affordance-Understanding and Risk-aware Alignment**
 arXiv: 2508.06124 | Aug 2025
 Security bukan tentang prompt guardrails — itu gampang di-bypass.
-Harus ada architectural constraints: siapa yang boleh bicara ke Nova adalah boundary pertama.
+Harus ada architectural constraints: siapa yang boleh bicara ke EDITH adalah boundary pertama.
 
-**[2] OpenClaw Security Docs (Official)**
-docs.openclaw.ai/gateway/security
+**[2] EDITH Security Docs (Official)**
+docs.edith.ai/gateway/security
 Prinsip: Identity first → Scope next → Model last
-Ini yang bikin OpenClaw lebih secure dari competitor yang hanya pakai "don't do bad things" prompts.
+Ini yang bikin EDITH lebih secure dari competitor yang hanya pakai "don't do bad things" prompts.
 
-## OpenClaw Auth Pattern (Dipelajari dari Source)
+## EDITH Auth Pattern (Dipelajari dari Source)
 
 ### Device Pairing Flow
 ```
@@ -41,7 +41,7 @@ Command Authorization:
 - Session operations confined ke `agent/sessions/` directory
 - Per-client auth-failure throttling (429 + Retry-After)
 
-## Nova Sekarang
+## EDITH Sekarang
 `pairing/manager.ts` sudah ada tapi basic.
 Tidak ada proper device token management.
 Tidak ada access control hierarchy.
@@ -49,8 +49,8 @@ Tidak ada access control hierarchy.
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Nova-TS. Upgrade auth system ke production-grade.
-Reference: docs.openclaw.ai/gateway/security
+Kamu sedang memodifikasi EDITH-TS. Upgrade auth system ke production-grade.
+Reference: docs.edith.ai/gateway/security
 Paper: arXiv:2508.06124
 
 ### TASK: Phase OC-3 — Production Auth
@@ -335,7 +335,7 @@ pnpm dev --mode text
 # Input: "/pair confirm 123456"
 
 # Check database
-sqlite3 .nova/nova.db "SELECT * FROM DeviceToken"
+sqlite3 .edith/edith.db "SELECT * FROM DeviceToken"
 ```
 
 ## Expected Outcome

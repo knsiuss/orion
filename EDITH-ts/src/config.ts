@@ -3,8 +3,8 @@ import { z } from "zod"
 
 const envFilePath = typeof process.env.EDITH_ENV_FILE === "string" && process.env.EDITH_ENV_FILE.trim().length > 0
   ? process.env.EDITH_ENV_FILE.trim()
-  : typeof process.env.NOVA_ENV_FILE === "string" && process.env.NOVA_ENV_FILE.trim().length > 0
-  ? process.env.NOVA_ENV_FILE.trim()
+  : typeof process.env.EDITH_ENV_FILE === "string" && process.env.EDITH_ENV_FILE.trim().length > 0
+  ? process.env.EDITH_ENV_FILE.trim()
   : ".env"
 
 dotenv.config({ path: envFilePath })
@@ -79,7 +79,7 @@ const ConfigSchema = z.object({
   BLUEBUBBLES_URL: z.string().default(""),
   BLUEBUBBLES_PASSWORD: z.string().default(""),
   WEBCHAT_PORT: intFromEnv.default(8080),
-  DATABASE_URL: z.string().default("file:./nova.db"),
+  DATABASE_URL: z.string().default("file:./edith.db"),
   DEFAULT_USER_ID: z.string().default("owner"),
   LOG_LEVEL: logLevelSchema.default("info"),
   LOG_FORMAT: logFormatSchema.default("text"),
@@ -114,12 +114,12 @@ const ConfigSchema = z.object({
   VISION_ENGINE: z.string().default("gemini"),
   // Voice configuration (T-3)
   VOICE_WHISPER_MODEL: z.string().default("base"),
-  // Phase 11: TARS Voice — native TypeScript TTS
+  // Phase 11: EDITH Voice — native TypeScript TTS
   VOICE_TTS_BACKEND: z.string().default("edge"),           // "edge" | "python"
   VOICE_EDGE_VOICE: z.string().default("en-US-GuyNeural"), // Edge TTS neural voice
-  VOICE_EDGE_RATE: z.string().default("-8%"),               // TARS measured cadence
+  VOICE_EDGE_RATE: z.string().default("-8%"),               // EDITH measured cadence
   VOICE_EDGE_PITCH: z.string().default("-5Hz"),             // Slightly deeper
-  VOICE_DSP_ENABLED: boolFromEnv.default(true),            // Apply TARS DSP
+  VOICE_DSP_ENABLED: boolFromEnv.default(true),            // Apply EDITH DSP
   VOICE_DSP_PRESET: z.string().default("tars"),            // "tars" | "clean"
   // Phase I-0: Hybrid Search
   HYBRID_SEARCH_ENABLED: boolFromEnv.default(true),
@@ -150,19 +150,19 @@ const ConfigSchema = z.object({
   GATEWAY_CORS_ORIGINS: z.string().default(""),
   // Observability
   OTEL_ENABLED: boolFromEnv.default(false),
-  OTEL_SERVICE_NAME: z.string().default("nova-ts"),
+  OTEL_SERVICE_NAME: z.string().default("EDITH-ts"),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://127.0.0.1:4318/v1/traces"),
   METRICS_ENABLED: boolFromEnv.default(true),
-  METRICS_PREFIX: z.string().default("nova_"),
+  METRICS_PREFIX: z.string().default("edith_"),
   // Supervisor / Agent limits
   AGENT_TIMEOUT_MS: intFromEnv.default(120_000),
   AGENT_MAX_SUBTASKS: intFromEnv.default(8),
   AGENT_MAX_LLM_CALLS: intFromEnv.default(40),
   LATS_EARLY_STOP_THRESHOLD: floatFromEnv.default(0.95),
   SHUTDOWN_TIMEOUT_MS: intFromEnv.default(10_000),
-  // Phase H: OS-Agent / JARVIS mode
+  // Phase H: OS-Agent / EDITH mode
   OS_AGENT_ENABLED: boolFromEnv.default(false),
-  JARVIS_MODE: boolFromEnv.default(false),
+  EDITH_MODE: boolFromEnv.default(false),
   HOME_ASSISTANT_URL: z.string().default(""),
   HOME_ASSISTANT_TOKEN: z.string().default(""),
 })

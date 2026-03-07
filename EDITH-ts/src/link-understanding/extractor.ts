@@ -85,7 +85,7 @@ export class LinkExtractor {
         response = await fetch(url, {
           signal: controller.signal,
           headers: {
-            "User-Agent": "Mozilla/5.0 (compatible; NovaBot/1.0)",
+            "User-Agent": "Mozilla/5.0 (compatible; EdithBot/1.0)",
           },
         })
       } finally {

@@ -1,10 +1,10 @@
 /**
  * @file os-agent/os-agent-tool.ts — Agent Tool for OS-Level Operations
  * @description Exposes OS-Agent capabilities as an agent tool that can be used
- * by the Nova agent runner. This is the bridge between the LLM agent layer
+ * by the EDITH agent runner. This is the bridge between the LLM agent layer
  * and the OS-Agent infrastructure.
  *
- * This tool replaces/extends the existing system.ts tool with full JARVIS
+ * This tool replaces/extends the existing system.ts tool with full EDITH
  * capabilities: GUI automation, screen reading, voice, and IoT control.
  *
  * Based on:
@@ -27,7 +27,7 @@ const log = createLogger("tools.os-agent")
  */
 export function createOSAgentTool(osAgent: OSAgent) {
   return tool({
-    description: `JARVIS-level OS control. Actions:
+    description: `EDITH-level OS control. Actions:
 - screenshot: Capture & analyze the current screen (OCR + element detection)
 - click(x, y): Click at screen coordinates
 - type(text): Type text at current cursor position

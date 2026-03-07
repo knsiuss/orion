@@ -83,9 +83,9 @@ export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
     if (!provider) return
     setSaving(true)
 
-    const novaConfig: Record<string, unknown> = {
+    const edithConfig: Record<string, unknown> = {
       env: {} as Record<string, string>,
-      identity: { name: "Nova", emoji: "✦", theme: "dark minimal" },
+      identity: { name: "EDITH", emoji: "✦", theme: "dark minimal" },
       agents: {
         defaults: {
           model: { primary: MODEL_MAP[provider], fallbacks: [] },
@@ -94,7 +94,7 @@ export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
       },
     }
 
-    const env = novaConfig.env as Record<string, string>
+    const env = edithConfig.env as Record<string, string>
     const field = KEY_FIELD[provider]
     if (field) {
       env[field.envKey] = apiKey
@@ -106,11 +106,11 @@ export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
       const res = await fetch(`${httpBase}/api/config`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(novaConfig),
+        body: JSON.stringify(edithConfig),
       })
       const data = await res.json()
       if (data.ok) {
-        Alert.alert("Setup Complete", "Nova is configured and ready!", [
+        Alert.alert("Setup Complete", "EDITH is configured and ready!", [
           { text: "Start Chatting", onPress: onComplete },
         ])
       } else {
@@ -127,7 +127,7 @@ export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
   if (step === 1) {
     return (
       <ScrollView style={s.container}>
-        <Text style={s.title}>Setup Nova</Text>
+        <Text style={s.title}>Setup EDITH</Text>
         <Text style={s.desc}>Choose your AI provider</Text>
 
         {PROVIDERS.map((p) => (
@@ -217,7 +217,7 @@ export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
     <ScrollView style={s.container}>
       <Text style={s.title}>All Set!</Text>
       <Text style={s.desc}>
-        Nova is ready. Tap below to save your config and start chatting.
+        EDITH is ready. Tap below to save your config and start chatting.
       </Text>
 
       <TouchableOpacity style={s.btn} onPress={saveConfig} disabled={saving}>

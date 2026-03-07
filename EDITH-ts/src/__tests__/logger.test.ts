@@ -8,7 +8,7 @@ const originalCwd = process.cwd()
 const originalEnv = { ...process.env }
 
 function setupIsolatedWorkspace(): string {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "nova-logger-"))
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "edith-logger-"))
   process.chdir(tempDir)
   fs.writeFileSync(path.join(tempDir, ".env"), "")
   return tempDir
@@ -74,6 +74,6 @@ describe("logger formatting and rotation", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 80))
 
-    expect(fs.existsSync(path.join(tempDir, "logs", "nova.log.1"))).toBe(true)
+    expect(fs.existsSync(path.join(tempDir, "logs", "edith.log.1"))).toBe(true)
   })
 })

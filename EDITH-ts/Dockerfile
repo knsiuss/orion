@@ -24,8 +24,8 @@ RUN pnpm run build
 FROM node:22-alpine AS production
 
 # Security: non-root user
-RUN addgroup -g 1001 -S nova && \
-    adduser -S nova -u 1001 -G nova
+RUN addgroup -g 1001 -S edith && \
+    adduser -S edith -u 1001 -G edith
 
 WORKDIR /app
 
@@ -43,17 +43,17 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/bin ./bin
 
 # Create data directory with correct permissions
-RUN mkdir -p /data && chown nova:nova /data
+RUN mkdir -p /data && chown edith:edith /data
 
 EXPOSE 18789 8080
 
 ENV NODE_ENV=production
-ENV DATABASE_URL=file:/data/nova.db
+ENV DATABASE_URL=file:/data/edith.db
 
 VOLUME ["/data"]
 
 # Run as non-root
-USER nova
+USER edith
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:18789/health || exit 1

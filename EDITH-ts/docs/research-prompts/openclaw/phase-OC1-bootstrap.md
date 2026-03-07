@@ -2,9 +2,9 @@
 always commit dan push setiap step
 ## Tujuan
 Implement sistem yang inject semua bootstrap files ke system prompt setiap turn,
-persis seperti OpenClaw's `buildAgentSystemPrompt()` di `src/agents/system-prompt.ts`.
+persis seperti EDITH's `buildAgentSystemPrompt()` di `src/agents/system-prompt.ts`.
 
-## Real OpenClaw Implementation Detail
+## Real EDITH Implementation Detail
 
 Dari DeepWiki source analysis (commit 4199f9):
 
@@ -43,9 +43,9 @@ Paper ini validate: ada hierarki memory, dan bootstrap layer harus always-presen
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Nova-TS. Implement bootstrap injection engine mengikuti
-OpenClaw pattern yang sudah terbukti.
-Reference: github.com/openclaw/openclaw/src/agents/system-prompt.ts
+Kamu sedang memodifikasi EDITH-TS. Implement bootstrap injection engine mengikuti
+EDITH pattern yang sudah terbukti.
+Reference: github.com/edith/edith/src/agents/system-prompt.ts
 Paper: arXiv 2508.16609
 
 ### TASK: Phase OC-1 — Bootstrap Injection Engine
@@ -66,11 +66,11 @@ import { createLogger } from "../logger.js"
 const log = createLogger("core.bootstrap")
 
 // --- Constants (configurable) ---
-const DEFAULT_BOOTSTRAP_MAX_CHARS = 65_536     // per-file cap (matches OpenClaw default)
+const DEFAULT_BOOTSTRAP_MAX_CHARS = 65_536     // per-file cap (matches EDITH default)
 const DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS = 100_000  // total cap (conservative for free-tier)
 
 // Bootstrap files — lookup order matters (earlier = higher priority in prompt)
-// Per OpenClaw bootstrap-files.ts source
+// Per EDITH bootstrap-files.ts source
 const ALWAYS_INJECT = ["AGENTS.md", "SOUL.md", "TOOLS.md", "IDENTITY.md", "USER.md", "HEARTBEAT.md", "BOOTSTRAP.md"]
 const DM_ONLY_INJECT = ["MEMORY.md"]  // Only for DM sessions — can get large
 const SUBAGENT_INJECT = ["AGENTS.md", "TOOLS.md"]  // Minimal for sub-agents
@@ -143,7 +143,7 @@ export class BootstrapLoader extends EventEmitter {
 
   /** Load a single bootstrap file with cache + mtime invalidation */
   private async loadOne(filename: string): Promise<BootstrapFile> {
-    // Case-insensitive lookup (OpenClaw does this)
+    // Case-insensitive lookup (EDITH does this)
     const filepath = await this.resolvePath(filename)
 
     if (!filepath) {
@@ -224,7 +224,7 @@ export class BootstrapLoader extends EventEmitter {
 
     for (const file of files) {
       if (file.missing) {
-        // Include missing-file marker (matches OpenClaw behavior)
+        // Include missing-file marker (matches EDITH behavior)
         blocks.push(`\n## ${file.filename}\n${file.content}`)
       } else {
         blocks.push(`\n## ${file.filename}\n\n${file.content}`)
@@ -301,7 +301,7 @@ let _bootstrapLoader: BootstrapLoader | null = null
 
 export function getBootstrapLoader(): BootstrapLoader {
   if (!_bootstrapLoader) {
-    const workspace = process.env.NOVA_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
+    const workspace = process.env.EDITH_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
     _bootstrapLoader = new BootstrapLoader(workspace)
   }
   return _bootstrapLoader
@@ -311,7 +311,7 @@ export function getBootstrapLoader(): BootstrapLoader {
 #### Step 2: Buat src/core/system-prompt-builder.ts
 
 Compose full system prompt dari semua layers.
-Ikuti OpenClaw build order.
+Ikuti EDITH build order.
 
 ```typescript
 import { getBootstrapLoader, type SessionMode } from "./bootstrap.js"
@@ -444,7 +444,7 @@ Di app startup (src/main.ts atau src/app.ts):
 import fs from "node:fs/promises"
 import path from "node:path"
 
-const workspace = process.env.NOVA_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
+const workspace = process.env.EDITH_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
 
 // Ensure workspace exists
 await fs.mkdir(workspace, { recursive: true })
@@ -469,7 +469,7 @@ ls workspace/
 
 pnpm dev --mode text
 # Input: "siapa kamu?"
-# Nova harusnya respond dengan personality dari SOUL.md
+# EDITH harusnya respond dengan personality dari SOUL.md
 # BUKAN generic "I am an AI assistant"
 
 # Input: "nama gue Budi"
@@ -477,13 +477,13 @@ pnpm dev --mode text
 cat workspace/USER.md | grep -i "nama\|name"
 
 # Check logs untuk bootstrap stats:
-grep "system prompt built" logs/nova*.log
+grep "system prompt built" logs/edith*.log
 # Harusnya ada: bootstrapFiles count, bootstrapChars count
 ```
 
 ## Expected Outcome
-- Setiap turn, Nova menerima context dari semua bootstrap files
-- Karakter Nova consistent setelah restart karena di-load dari file
+- Setiap turn, EDITH menerima context dari semua bootstrap files
+- Karakter EDITH consistent setelah restart karena di-load dari file
 - USER.md update otomatis saat profiler extract facts baru
 - Logs menunjukkan berapa chars di-inject per turn
 - Foundation untuk SaaS: nanti hook `agent:bootstrap` bisa swap SOUL.md per user

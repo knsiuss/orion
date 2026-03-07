@@ -4,7 +4,7 @@ import { createLogger } from "../logger.js"
 
 const log = createLogger("core.event-bus")
 
-export type NovaEvent =
+export type EdithEvent =
   | {
     type: "user.message.received"
     userId: string
@@ -60,25 +60,25 @@ export type NovaEvent =
     timestamp: number
   }
 
-class NovaEventBus extends EventEmitter {
+class EdithEventBus extends EventEmitter {
   constructor() {
     super()
     this.setMaxListeners(50)
   }
 
-  emit<T extends NovaEvent["type"]>(
+  emit<T extends EdithEvent["type"]>(
     eventType: T,
-    data: Extract<NovaEvent, { type: T }>,
+    data: Extract<EdithEvent, { type: T }>,
   ): boolean {
     log.debug("event emitted", { type: eventType })
     return super.emit(eventType, data)
   }
 
-  on<T extends NovaEvent["type"]>(
+  on<T extends EdithEvent["type"]>(
     eventType: T,
-    listener: (data: Extract<NovaEvent, { type: T }>) => void | Promise<void>,
+    listener: (data: Extract<EdithEvent, { type: T }>) => void | Promise<void>,
   ): this {
-    return super.on(eventType, (data: Extract<NovaEvent, { type: T }>) => {
+    return super.on(eventType, (data: Extract<EdithEvent, { type: T }>) => {
       try {
         const result = listener(data)
         if (result instanceof Promise) {
@@ -92,13 +92,13 @@ class NovaEventBus extends EventEmitter {
     })
   }
 
-  dispatch<T extends NovaEvent["type"]>(
+  dispatch<T extends EdithEvent["type"]>(
     eventType: T,
-    data: Omit<Extract<NovaEvent, { type: T }>, "type">,
+    data: Omit<Extract<EdithEvent, { type: T }>, "type">,
   ): void {
-    const fullData = { ...data, type: eventType } as Extract<NovaEvent, { type: T }>
+    const fullData = { ...data, type: eventType } as Extract<EdithEvent, { type: T }>
     this.emit(eventType, fullData)
   }
 }
 
-export const eventBus = new NovaEventBus()
+export const eventBus = new EdithEventBus()

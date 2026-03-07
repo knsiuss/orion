@@ -1,6 +1,6 @@
 # Phase OC-3 — Auth Hardening + SaaS Foundation
 always commit dan push setiap step
-## OpenClaw Auth (dari docs.openclaw.ai/channels + source)
+## EDITH Auth (dari docs.edith.ai/channels + source)
 
 ### DM Pairing Flow (per-channel default)
 ```
@@ -19,7 +19,7 @@ Sender approved → added ke session trusted senders
 Subsequent messages dari sender ini diproses normal
 ```
 
-### Config per-channel (dari openclaw.json schema):
+### Config per-channel (dari edith.json schema):
 ```json
 {
   "channels": {
@@ -53,7 +53,7 @@ Subsequent messages dari sender ini diproses normal
 
 ### SaaS Multi-Tenant Architecture
 
-OpenClaw per-design adalah single-user.
+EDITH per-design adalah single-user.
 Untuk SaaS/multi-tenant, pakai lifecycle hooks + workspace isolation:
 
 ```
@@ -67,7 +67,7 @@ Per-user workspace:
 ```
 
 Hook `agent:bootstrap` → swap workspace path per request/session.
-Ini yang bikin satu Nova instance serve banyak users.
+Ini yang bikin satu EDITH instance serve banyak users.
 
 ## Paper Backing
 
@@ -75,15 +75,15 @@ Ini yang bikin satu Nova instance serve banyak users.
 "Model last" philosophy — don't rely on LLM for security enforcement.
 Auth hardening adalah architectural layer, BUKAN prompt layer.
 
-**OpenClaw Security Audit** (vallettasoftware.com, Feb 2026)
+**EDITH Security Audit** (vallettasoftware.com, Feb 2026)
 CVE-2026-25253 (CVSS 8.8): WebSocket gateway token leak via malicious page.
 Lesson: Token JANGAN exposed ke browser, validation HARUS server-side.
 
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Nova-TS. Implement auth hardening dan SaaS foundation.
-Reference: docs.openclaw.ai/concepts/security, vallettasoftware.com/blog/post/openclaw-2026-guide
+Kamu sedang memodifikasi EDITH-TS. Implement auth hardening dan SaaS foundation.
+Reference: docs.edith.ai/concepts/security, vallettasoftware.com/blog/post/edith-2026-guide
 Paper: arXiv 2508.06124
 
 ### TASK: Phase OC-3 — Auth Hardening + SaaS Foundation
@@ -91,7 +91,7 @@ Paper: arXiv 2508.06124
 Target files:
 - src/pairing/device-store.ts (buat baru — production auth)
 - src/pairing/manager.ts (upgrade existing)
-- src/config/nova-config.ts (buat baru — schema-validated config)
+- src/config/edith-config.ts (buat baru — schema-validated config)
 - prisma/schema.prisma (tambah DeviceToken model)
 - src/core/workspace-resolver.ts (buat baru — untuk SaaS multi-tenant)
 
@@ -133,7 +133,7 @@ import crypto from "node:crypto"
 
 const log = createLogger("pairing.device-store")
 
-const PAIRING_CODE_EXPIRE_MS = 5 * 60 * 1000  // 5 menit (matches OpenClaw)
+const PAIRING_CODE_EXPIRE_MS = 5 * 60 * 1000  // 5 menit (matches EDITH)
 const TOKEN_BYTES = 32                          // 64 hex chars
 const MAX_FAILURES = 5
 const FAILURE_WINDOW_MS = 15 * 60 * 1000       // 15 menit throttle window
@@ -287,9 +287,9 @@ export const deviceStore = {
 }
 ```
 
-#### Step 3: Buat src/config/nova-config.ts
+#### Step 3: Buat src/config/edith-config.ts
 
-Config schema-validated, mirip OpenClaw's openclaw.json:
+Config schema-validated, mirip EDITH's edith.json:
 
 ```typescript
 import { z } from "zod"
@@ -297,7 +297,7 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { createLogger } from "../logger.js"
 
-const log = createLogger("config.nova-config")
+const log = createLogger("config.edith-config")
 
 const ChannelPolicySchema = z.enum(["pairing", "allowlist", "open"])
 
@@ -309,7 +309,7 @@ const ChannelConfigSchema = z.object({
 }).partial()
 
 const AgentIdentitySchema = z.object({
-  name: z.string().default("Nova"),
+  name: z.string().default("EDITH"),
   emoji: z.string().default("✦"),
   theme: z.string().default("dark minimal"),
 })
@@ -320,7 +320,7 @@ const SkillConfigSchema = z.object({
   env: z.record(z.string()).default({}),
 }).partial()
 
-const NovaConfigSchema = z.object({
+const EdithConfigSchema = z.object({
   identity: AgentIdentitySchema.default({}),
 
   agents: z.object({
@@ -353,34 +353,34 @@ const NovaConfigSchema = z.object({
   }).default({}),
 })
 
-export type NovaConfig = z.infer<typeof NovaConfigSchema>
+export type EdithConfig = z.infer<typeof EdithConfigSchema>
 
-let _config: NovaConfig | null = null
+let _config: EdithConfig | null = null
 
-export async function loadNovaConfig(): Promise<NovaConfig> {
+export async function loadEdithConfig(): Promise<EdithConfig> {
   if (_config) return _config
 
-  const configPath = path.resolve(process.cwd(), "nova.json")
+  const configPath = path.resolve(process.cwd(), "edith.json")
 
   try {
     const raw = await fs.readFile(configPath, "utf-8")
     const parsed = JSON.parse(raw)
-    _config = NovaConfigSchema.parse(parsed)
-    log.info("nova.json loaded", { workspace: _config.agents.defaults.workspace })
+    _config = EdithConfigSchema.parse(parsed)
+    log.info("edith.json loaded", { workspace: _config.agents.defaults.workspace })
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      log.info("nova.json not found, using defaults")
+      log.info("edith.json not found, using defaults")
     } else {
-      log.warn("nova.json parse error, using defaults", error)
+      log.warn("edith.json parse error, using defaults", error)
     }
-    _config = NovaConfigSchema.parse({})
+    _config = EdithConfigSchema.parse({})
   }
 
   return _config
 }
 
-export function getNovaConfig(): NovaConfig {
-  if (!_config) throw new Error("Config not loaded — call loadNovaConfig() first")
+export function getEdithConfig(): EdithConfig {
+  if (!_config) throw new Error("Config not loaded — call loadEdithConfig() first")
   return _config
 }
 ```
@@ -390,7 +390,7 @@ export function getNovaConfig(): NovaConfig {
 ```typescript
 import path from "node:path"
 import fs from "node:fs/promises"
-import { getNovaConfig } from "../config/nova-config.js"
+import { getEdithConfig } from "../config/edith-config.js"
 
 // Resolves workspace path per user/tenant
 // Single-user mode: all users share default workspace
@@ -400,8 +400,8 @@ export class WorkspaceResolver {
   private readonly saasDataDir: string
 
   constructor() {
-    this.saasMode = process.env.NOVA_SAAS_MODE === "true"
-    this.saasDataDir = process.env.NOVA_SAAS_DATA_DIR ?? path.resolve(process.cwd(), "data/users")
+    this.saasMode = process.env.EDITH_SAAS_MODE === "true"
+    this.saasDataDir = process.env.EDITH_SAAS_DATA_DIR ?? path.resolve(process.cwd(), "data/users")
   }
 
   /** Get workspace path for a user */
@@ -430,7 +430,7 @@ export class WorkspaceResolver {
     }
 
     // Single-user mode: use default workspace from config
-    const config = getNovaConfig()
+    const config = getEdithConfig()
     const workspace = path.resolve(process.cwd(), config.agents.defaults.workspace)
     await fs.mkdir(workspace, { recursive: true })
     return workspace
@@ -468,11 +468,11 @@ pnpm dev --mode text
 
 # Simulate confirm (dari authorized interface):
 # Check database untuk verify token hash tersimpan, bukan raw token
-sqlite3 .nova/nova.db "SELECT tokenHash, userId, channel FROM DeviceToken LIMIT 5"
+sqlite3 .edith/edith.db "SELECT tokenHash, userId, channel FROM DeviceToken LIMIT 5"
 # tokenHash harusnya 64-char hex, bukan token asli
 
 # SaaS test:
-NOVA_SAAS_MODE=true pnpm dev --mode text
+EDITH_SAAS_MODE=true pnpm dev --mode text
 # Harusnya buat per-user workspace di data/users/{userId}/workspace/
 ls data/users/
 ```
@@ -481,6 +481,6 @@ ls data/users/
 - Auth yang tidak bisa di-bypass via prompt injection (architectural, bukan prompt)
 - Device tokens tersimpan hashed — breach database tidak expose raw tokens
 - Pairing codes single-use + TTL 5 menit
-- Config schema-validated dengan nova.json (mirip OpenClaw's openclaw.json)
+- Config schema-validated dengan edith.json (mirip EDITH's edith.json)
 - Foundation untuk SaaS: per-user workspace isolation siap
 - Per-channel dmPolicy support (pairing/allowlist/open)

@@ -14,7 +14,7 @@ Files:
 - onUnload()
 
 ## Loader Behavior
-- Default plugin dir: `.nova/plugins`.
+- Default plugin dir: `.edith/plugins`.
 - Loads JS modules and directory `index.js` entries.
 - Registers hook contributions automatically.
 - Calls plugin lifecycle callbacks.

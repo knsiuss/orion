@@ -10,7 +10,7 @@ describe("engine-stats persistence", () => {
   let persistPath: string
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "nova-stats-"))
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "edith-stats-"))
     persistPath = path.join(tmpDir, "engine-stats.json")
     engineStats.reset()
     engineStats.setPersistPath(persistPath)

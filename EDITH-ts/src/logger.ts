@@ -21,7 +21,7 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   error: 3,
 }
 
-const LOG_FILE_NAME = "nova.log"
+const LOG_FILE_NAME = "edith.log"
 const currentLevel = LOG_LEVELS[config.LOG_LEVEL] ?? LOG_LEVELS.info
 const currentFormat: LogFormat = config.LOG_FORMAT === "json" ? "json" : "text"
 const maxLogFileSizeBytes = Math.max(0, config.LOG_FILE_MAX_SIZE_MB) * 1_048_576

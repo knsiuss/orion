@@ -1,7 +1,7 @@
 /**
  * system-prompt-builder.ts — Compose the full system prompt for each LLM call.
  *
- * Assembly order (mirrors OpenClaw's injection sequence):
+ * Assembly order (mirrors EDITH's injection sequence):
  *   1. Tooling block         — available tools and usage guidelines
  *   2. Safety block          — guardrails and prompt injection defense
  *   3. Always-active skills  — skill content that is always in context
@@ -58,7 +58,7 @@ export interface BuildPromptOptions {
 }
 
 function buildWorkspaceInfoSection(sessionMode: SessionMode): string {
-  const workspaceDir = process.env.NOVA_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
+  const workspaceDir = process.env.EDITH_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
   return `# Workspace\nDirectory: ${workspaceDir}\nSession mode: ${sessionMode}`
 }
 
@@ -82,7 +82,7 @@ function buildRuntimeInfoSection(): string {
  * is currently doing on their machine.
  */
 function buildPerceptionSection(): string | null {
-  const osAgent = (globalThis as any).__novaOSAgent as OSAgent | undefined
+  const osAgent = (globalThis as any).__edithOSAgent as OSAgent | undefined
   if (!osAgent) return null
 
   try {

@@ -7,7 +7,7 @@
  * Security gates:
  *   - Only sends to channels the user is subscribed to
  *   - Rate limit: max 10 proactive sends per 5 minutes per channel
- *   - Requires NOVA_ALLOW_PROACTIVE_CHANNEL_SEND=true
+ *   - Requires EDITH_ALLOW_PROACTIVE_CHANNEL_SEND=true
  *
  * @module agents/tools/channel-send
  */
@@ -44,7 +44,7 @@ function checkRateLimit(channel: string): boolean {
 
 export const channelSendTool = tool({
   description: `Send a message to a communication channel (WhatsApp, Telegram, Signal, LINE, etc).
-Requires NOVA_ALLOW_PROACTIVE_CHANNEL_SEND=true in config.
+Requires EDITH_ALLOW_PROACTIVE_CHANNEL_SEND=true in config.
 Use for: sending reminders, alerts, summaries to user's messaging apps.
 Note: Rate limited to 10 messages per 5 minutes per channel.`,
   inputSchema: z.object({
@@ -55,7 +55,7 @@ Note: Rate limited to 10 messages per 5 minutes per channel.`,
   execute: async ({ channel, message, userId }) => {
     // Guard: permission must be explicitly enabled
     if (!config.ALLOW_PROACTIVE_CHANNEL_SEND) {
-      return "Channel send not enabled. Set NOVA_ALLOW_PROACTIVE_CHANNEL_SEND=true to allow."
+      return "Channel send not enabled. Set EDITH_ALLOW_PROACTIVE_CHANNEL_SEND=true to allow."
     }
 
     // Guard: permission sandbox check
@@ -95,7 +95,7 @@ Use before channelSendTool to verify a channel is connected.`,
     const channels = channelManager.getConnectedChannels()
 
     if (channels.length === 0) {
-      return "No channels connected. Channels are configured in nova.json."
+      return "No channels connected. Channels are configured in edith.json."
     }
 
     return `Connected channels (${channels.length}):\n${channels.map((c) => `  - ${c}`).join("\n")}`

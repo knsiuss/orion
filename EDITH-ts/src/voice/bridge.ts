@@ -6,15 +6,15 @@ import config from "../config.js"
 import { createLogger } from "../logger.js"
 import { EdgeEngine } from "./edge-engine.js"
 import { AudioDSP } from "./dsp.js"
-import { TARS_VOICE, TARS_DSP, CLEAN_DSP } from "./tars-preset.js"
-import type { DSPPreset } from "./tars-preset.js"
+import { EDITH_VOICE, EDITH_DSP, CLEAN_DSP } from "./edith-preset.js"
+import type { DSPPreset } from "./edith-preset.js"
 
 const logger = createLogger("voice")
 const PY = config.PYTHON_PATH ?? "python"
 const CWD = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../python")
 
 /**
- * VoiceBridge — Native TypeScript voice engine with TARS personality.
+ * VoiceBridge — Native TypeScript voice engine with EDITH personality.
  *
  * Phase 11: Replaces Python-bridge TTS with native TypeScript engines.
  *
@@ -31,7 +31,7 @@ export class VoiceBridge {
   private get dspPreset(): DSPPreset {
     if (!config.VOICE_DSP_ENABLED) return CLEAN_DSP
     if (config.VOICE_DSP_PRESET === "clean") return CLEAN_DSP
-    return TARS_DSP
+    return EDITH_DSP
   }
 
   // ============== Phase 11: Native TypeScript TTS ==============
@@ -39,7 +39,7 @@ export class VoiceBridge {
   /**
    * Speak text using the native TypeScript TTS engine.
    *
-   * Pipeline: text → Edge TTS (neural voice) → DSP (TARS character) → audio
+   * Pipeline: text → Edge TTS (neural voice) → DSP (EDITH character) → audio
    *
    * @param text - Text to speak.
    * @param _voiceProfile - Legacy param, ignored. Use VOICE_EDGE_VOICE env var.
@@ -80,9 +80,9 @@ export class VoiceBridge {
     if (backend === "edge") {
       try {
         await this.edge.stream(text, onChunk, {
-          voice: config.VOICE_EDGE_VOICE ?? TARS_VOICE.voice,
-          rate: config.VOICE_EDGE_RATE ?? TARS_VOICE.rate,
-          pitch: config.VOICE_EDGE_PITCH ?? TARS_VOICE.pitch,
+          voice: config.VOICE_EDGE_VOICE ?? EDITH_VOICE.voice,
+          rate: config.VOICE_EDGE_RATE ?? EDITH_VOICE.rate,
+          pitch: config.VOICE_EDGE_PITCH ?? EDITH_VOICE.pitch,
         })
         return
       } catch (err) {
@@ -106,9 +106,9 @@ export class VoiceBridge {
   private async speakWithEdge(text: string): Promise<Buffer> {
     try {
       const audio = await this.edge.generate(text, {
-        voice: config.VOICE_EDGE_VOICE ?? TARS_VOICE.voice,
-        rate: config.VOICE_EDGE_RATE ?? TARS_VOICE.rate,
-        pitch: config.VOICE_EDGE_PITCH ?? TARS_VOICE.pitch,
+        voice: config.VOICE_EDGE_VOICE ?? EDITH_VOICE.voice,
+        rate: config.VOICE_EDGE_RATE ?? EDITH_VOICE.rate,
+        pitch: config.VOICE_EDGE_PITCH ?? EDITH_VOICE.pitch,
       })
       logger.info("edge tts generated", { bytes: audio.length, text: text.slice(0, 50) })
       return audio
@@ -346,10 +346,10 @@ pipeline.run_conversation(on_speech, on_chunk, get_llm_response, stop_event)
    * Check if wake word has been detected in recent audio.
    * Runs a short background listen and returns immediately with result.
    *
-   * @param keyword - Wake word to listen for (default: "nova")
+   * @param keyword - Wake word to listen for (default: "edith")
    * @param windowSeconds - How long to listen (default: 2s)
    */
-  async checkWakeWord(keyword = "nova", windowSeconds = 2): Promise<boolean> {
+  async checkWakeWord(keyword = "edith", windowSeconds = 2): Promise<boolean> {
     if (!config.VOICE_ENABLED) return false
 
     try {

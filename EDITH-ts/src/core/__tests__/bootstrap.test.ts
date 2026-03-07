@@ -11,7 +11,7 @@ describe("BootstrapLoader", () => {
   let loader: BootstrapLoader
 
   beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nova-bootstrap-"))
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "edith-bootstrap-"))
     loader = new BootstrapLoader(tempDir)
   })
 

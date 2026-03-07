@@ -1,19 +1,19 @@
-# NOVA — OpenClaw-Style Architecture Study
+# NOVA — EDITH-Style Architecture Study
 ## Dari Source Code + Docs Resmi (Verified Feb 2026)
 
 ---
 
-## 1. APA ITU OPENCLAW SEBENARNYA
+## 1. APA ITU EDITH SEBENARNYA
 
-OpenClaw adalah **OS untuk AI agents** — bukan chatbot wrapper.
+EDITH adalah **OS untuk AI agents** — bukan chatbot wrapper.
 Dibangun oleh Peter Steinberger (ex-PSPDFKit). Launch Nov 2025, viral Jan-Feb 2026.
 Saat ini: 216,000+ GitHub stars, MIT-licensed, 600+ contributors.
-Feb 14 2026: Steinberger joined OpenAI, OpenClaw dilanjutkan independent foundation.
+Feb 14 2026: Steinberger joined OpenAI, EDITH dilanjutkan independent foundation.
 
 Insight kunci dari Medium/DeepWiki analysis:
-> "The LLM provides intelligence. OpenClaw provides the execution environment."
+> "The LLM provides intelligence. EDITH provides the execution environment."
 
-Nova sekarang sudah punya ~70% dari arsitektur ini. Yang missing adalah lapisan
+EDITH sekarang sudah punya ~70% dari arsitektur ini. Yang missing adalah lapisan
 identity (SOUL/AGENTS/USER), skill lazy-loading yang benar, dan security hardening.
 
 ---
@@ -61,7 +61,7 @@ Caps (dari source):
 File lookup: case-insensitive, di workspace directory.
 Missing file → inject short missing-file marker (tidak crash).
 
-### Skill System (REAL implementation dari docs.openclaw.ai/tools/skills)
+### Skill System (REAL implementation dari docs.edith.ai/tools/skills)
 
 **PENTING:** Skills bukan lazy-load dalam arti "agent baca on-demand."
 Skills di-inject FULL content ke system prompt kalau tool-nya tersedia.
@@ -89,7 +89,7 @@ Cost formula:
 
 **Skill precedence (tinggi ke rendah):**
 1. `<workspace>/skills/` (highest)
-2. `~/.openclaw/skills/` (managed)
+2. `~/.edith/skills/` (managed)
 3. bundled skills (lowest)
 
 Skill directory structure:
@@ -110,7 +110,7 @@ name: my-skill
 description: "What this skill does (masuk XML index — keep under 97 chars!)"
 version: 1.2.0
 metadata:
-  openclaw:                  # alias: clawdbot, clawdis
+  edith:                  # alias: clawdbot, clawdis
     requires:
       env:
         - API_KEY_NAME       # required env vars
@@ -165,7 +165,7 @@ Context overflow → auto-compaction:
 - Older turns di-summarize, preserving semantic content
 - MEMORY.md bisa tumbuh seiring waktu → monitor token usage
 
-### Auth & Access Control (dari docs.openclaw.ai/concepts/security)
+### Auth & Access Control (dari docs.edith.ai/concepts/security)
 
 **DM Pairing Flow (default mode):**
 ```
@@ -193,7 +193,7 @@ Channel access modes:
 - `allowlist` → hanya specific IDs/numbers
 - `open` → siapa saja (JANGAN pakai kecuali internal/trusted network)
 
-**Tool Policy (dari docs.openclaw.ai/gateway/sandbox-vs-tool-policy):**
+**Tool Policy (dari docs.edith.ai/gateway/sandbox-vs-tool-policy):**
 - Default: tools run on HOST untuk main session (full access untuk personal use)
 - Group/channel safety: `agents.defaults.sandbox.mode: "non-main"` → Docker sandbox untuk non-main sessions
 - Tool policy per-session: bisa restrict tools per channel atau per group
@@ -203,7 +203,7 @@ Channel access modes:
 2. Scope next → di mana agent boleh act
 3. Model last → assume model bisa dimanipulasi, minimize blast radius
 
-### SOUL.md Security Vulnerability (PENTING untuk Nova!)
+### SOUL.md Security Vulnerability (PENTING untuk EDITH!)
 
 Dari mmntm.net + penligent.ai analysis:
 - SOUL.md adalah file yang PALING SERING diserang
@@ -213,7 +213,7 @@ Dari mmntm.net + penligent.ai analysis:
 - CVE-2026-25253 (CVSS 8.8): patched — malicious webpage bisa leak gateway auth token via WebSocket
 - ClawHub audit: 341 dari 2,857 skills ditemukan malicious
 
-**Defense untuk Nova:**
+**Defense untuk EDITH:**
 - Treat SOUL.md dan semua bootstrap files seperti executable code, bukan config files
 - File Integrity Monitoring (FIM) untuk bootstrap files
 - Read-only permissions pada SOUL.md saat runtime normal
@@ -222,13 +222,13 @@ Dari mmntm.net + penligent.ai analysis:
 ### Multi-Agent (Sub-agent mode)
 
 Sub-agents pakai `promptMode: minimal`:
-- Omit: Skills, Memory Recall, OpenClaw Self-Update, User Identity, Reply Tags, Heartbeats
+- Omit: Skills, Memory Recall, EDITH Self-Update, User Identity, Reply Tags, Heartbeats
 - Keep: Tooling, Safety, Workspace, Sandbox, Date/Time, Runtime
 - Bootstrap files trimmed: hanya AGENTS.md + TOOLS.md (dilabel "Project Context")
 
 ### Webhook + Cron (untuk proactive behavior)
 
-Cron jobs config (`~/.openclaw/cron/jobs.json`):
+Cron jobs config (`~/.edith/cron/jobs.json`):
 ```json
 {
   "name": "Morning Brief",
@@ -257,20 +257,20 @@ Webhook config:
 
 ### Lifecycle Hooks (untuk SaaS — important!)
 
-OpenClaw punya hook system: `workspace/hooks/` + `~/.openclaw/hooks/`
+EDITH punya hook system: `workspace/hooks/` + `~/.edith/hooks/`
 Setiap hook adalah TypeScript file dengan `HOOK.md`.
 Hook bisa intercept lifecycle events: `agent:bootstrap`, `agent:turn`, dll.
 
-Use case untuk Nova SaaS:
+Use case untuk EDITH SaaS:
 - `agent:bootstrap` → swap SOUL.md per user/tenant
 - `agent:turn` → inject user-specific context
 - `agent:session-end` → save session state ke user DB
 
 ---
 
-## 3. GAP ANALYSIS: NOVA vs OPENCLAW
+## 3. GAP ANALYSIS: NOVA vs EDITH
 
-| Komponen | OpenClaw | Nova Sekarang | Gap Level |
+| Komponen | EDITH | EDITH Sekarang | Gap Level |
 |---|---|---|---|
 | SOUL.md | ✅ File-based, always-inject | ❌ Tidak ada | CRITICAL |
 | AGENTS.md | ✅ Operating instructions | ❌ Tidak ada | CRITICAL |
@@ -284,7 +284,7 @@ Use case untuk Nova SaaS:
 | Lifecycle hooks | ✅ TypeScript hooks | ❌ Belum ada | HIGH (for SaaS) |
 | Multi-agent minimal | ✅ promptMode: minimal | ❌ Belum ada | MEDIUM |
 | Memory compaction | ✅ Auto-safeguard mode | ❌ Belum ada | HIGH |
-| Config system | ✅ openclaw.json full schema | Partial (.env only) | MEDIUM |
+| Config system | ✅ edith.json full schema | Partial (.env only) | MEDIUM |
 | FIM bootstrap | ❌ Community tool (ClawSec) | ❌ Tidak ada | HIGH |
 
 ---
@@ -318,7 +318,7 @@ Use case untuk Nova SaaS:
 
 ## 5. ROADMAP IMPLEMENTASI
 
-### Tahap 1: OpenClaw-Compatible (Target: Nova works like OpenClaw)
+### Tahap 1: EDITH-Compatible (Target: EDITH works like EDITH)
 
 ```
 OC-0: Workspace Structure Setup
@@ -363,6 +363,6 @@ SAAS-3: File Integrity Monitoring
   → Alert jika SOUL.md atau AGENTS.md berubah unexpectedly
 
 SAAS-4: Config Schema
-  → nova.json equivalent dengan full schema (Zod validation)
+  → edith.json equivalent dengan full schema (Zod validation)
   → Per-channel, per-agent configuration
 ```

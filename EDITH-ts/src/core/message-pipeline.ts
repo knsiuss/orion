@@ -1,5 +1,5 @@
 /**
- * MessagePipeline - The canonical Nova message processing pipeline.
+ * MessagePipeline - The canonical EDITH message processing pipeline.
  *
  * This module is the single source of truth for how a user message is
  * processed from raw input to final response. Both the CLI transport
@@ -357,7 +357,7 @@ function computeProvisionalReward(retrievedMemoryIds: string[]): number {
 }
 
 /**
- * Process a single user message through the full Nova pipeline.
+ * Process a single user message through the full EDITH pipeline.
  *
  * @param userId  - The authenticated user's ID
  * @param rawText - The raw, unfiltered message text from the user

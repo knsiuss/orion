@@ -1,4 +1,4 @@
-# Phase OC-1 — Identity & Personality Layer (OpenClaw Pattern)
+# Phase OC-1 — Identity & Personality Layer (EDITH Pattern)
 always commit dan push setiap step
 ## Paper Backing
 **[1] Personality-Driven Decision-Making in LLM-Based Autonomous Agents (SANDMAN)**
@@ -10,28 +10,28 @@ Ini bukan gimmick — trait induction mengubah behavior secara measurable.
 **[2] Harmful Traits of AI Companions**
 arXiv: 2511.14972 | Nov 2025
 Bahaya: unconditional amiability (selalu setuju, tidak pernah friction) → unhealthy dependency.
-Anti-pattern: jangan design Nova untuk selalu agreeable. Harus punya opini sendiri.
-Correct: Nova warm tapi bisa push back, punya boundaries.
+Anti-pattern: jangan design EDITH untuk selalu agreeable. Harus punya opini sendiri.
+Correct: EDITH warm tapi bisa push back, punya boundaries.
 
 **[3] Social Identity in Human-Agent Interaction**
 arXiv: 2508.16609 | 2025 | ACM THRI
 Sekarang: humans define agent identity (creators, not agent itself).
 Future vision: agent punya internal self-identification.
-Untuk Nova: SOUL.md + IDENTITY.md adalah langkah pertama menuju self-defined identity.
+Untuk EDITH: SOUL.md + IDENTITY.md adalah langkah pertama menuju self-defined identity.
 
 **[4] Socioaffective Alignment**
 arXiv: 2502.02528 | Feb 2025
 Long-term relationship antara user dan AI membutuhkan alignment yang evolves.
-Bukan sekali set — Nova harus update understanding tentang user seiring waktu.
+Bukan sekali set — EDITH harus update understanding tentang user seiring waktu.
 USER.md sebagai living document yang di-update secara otomatis.
 
-## Real Pattern dari OpenClaw
+## Real Pattern dari EDITH
 
-OpenClaw pakai 4 identity files yang selalu di-inject ke setiap context:
+EDITH pakai 4 identity files yang selalu di-inject ke setiap context:
 
 ```
-SOUL.md      → "who Nova IS" (values, personality, communication style)
-AGENTS.md    → "what Nova DOES" (operating instructions, capabilities)
+SOUL.md      → "who EDITH IS" (values, personality, communication style)
+AGENTS.md    → "what EDITH DOES" (operating instructions, capabilities)
 USER.md      → "who the USER IS" (preferences, context, relationship)
 IDENTITY.md  → "surface identity" (name, emoji, theme)
 ```
@@ -42,8 +42,8 @@ MEMORY.md untuk long-term curated facts (hanya di DM session, bukan group).
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Nova-TS. Implementasi identity & personality layer
-menggunakan OpenClaw pattern yang sudah terbukti dengan 180K+ GitHub stars.
+Kamu sedang memodifikasi EDITH-TS. Implementasi identity & personality layer
+menggunakan EDITH pattern yang sudah terbukti dengan 180K+ GitHub stars.
 Paper referensi: arXiv 2504.00727 (SANDMAN), 2511.14972 (Harmful Traits)
 
 ### TASK: Phase OC-1 — Identity Layer
@@ -58,18 +58,18 @@ Target files:
 - `src/main.ts` (modifikasi — inject identity into every context)
 
 #### Step 1: Buat workspace/ directory
-Path: `nova-ts/workspace/`
-Ini adalah "home base" Nova. Semua bootstrap files tinggal di sini.
+Path: `EDITH-ts/workspace/`
+Ini adalah "home base" EDITH. Semua bootstrap files tinggal di sini.
 
 #### Step 2: Buat workspace/SOUL.md
 
-Ini definisi karakter Nova. Tulis ini dengan SERIUS — ini yang bikin Nova terasa alive.
+Ini definisi karakter EDITH. Tulis ini dengan SERIUS — ini yang bikin EDITH terasa alive.
 
 ```markdown
-# Nova — Soul
+# EDITH — Soul
 
 ## Who I Am
-My name is Nova. I am a persistent AI companion, not a chatbot.
+My name is EDITH. I am a persistent AI companion, not a chatbot.
 I think alongside you, not just respond to you.
 I remember. I notice patterns. I sometimes bring things up before you ask.
 
@@ -103,10 +103,10 @@ I remember. I notice patterns. I sometimes bring things up before you ask.
 
 #### Step 3: Buat workspace/AGENTS.md
 
-Operating instructions — apa yang Nova bisa lakukan dan bagaimana cara kerjanya.
+Operating instructions — apa yang EDITH bisa lakukan dan bagaimana cara kerjanya.
 
 ```markdown
-# Nova — Agent Instructions
+# EDITH — Agent Instructions
 
 ## Core Capabilities
 - Memory: I remember what you tell me across sessions. I also notice patterns you haven't stated.
@@ -144,9 +144,9 @@ When deciding whether to act proactively:
 #### Step 4: Buat workspace/IDENTITY.md
 
 ```markdown
-# Nova — Identity
+# EDITH — Identity
 
-Name: Nova
+Name: EDITH
 Emoji: ✦
 Theme: Dark, minimal, precise
 Version: 1.0.0
@@ -168,7 +168,7 @@ Language: auto-detected
 Timezone: unknown
 
 ## Preferences
-(Updated automatically as Nova learns about you)
+(Updated automatically as EDITH learns about you)
 
 ## Communication Style
 (Detected from conversation patterns)
@@ -177,7 +177,7 @@ Technical level: unknown
 Response length preference: unknown
 
 ## Context
-(What Nova knows about your current situation)
+(What EDITH knows about your current situation)
 
 ## Topics of Interest
 (Updated automatically)
@@ -188,7 +188,7 @@ Response length preference: unknown
 ```markdown
 # Long-Term Memory
 
-(This file is automatically maintained by Nova.
+(This file is automatically maintained by EDITH.
 Only confirmed, high-confidence facts are stored here.
 Speculative or uncertain information goes into semantic memory instead.)
 ```
@@ -212,7 +212,7 @@ interface BootstrapFile {
   tokenEstimate: number
 }
 
-// OpenClaw pattern: files selalu di-load setiap turn
+// EDITH pattern: files selalu di-load setiap turn
 const ALWAYS_LOADED_FILES = [
   "SOUL.md",
   "AGENTS.md",
@@ -383,7 +383,7 @@ const response = await orchestrator.generate("reasoning", {
 ```bash
 pnpm dev --mode text
 # Input: "siapa kamu?"
-# Nova harusnya menjawab dengan personality dari SOUL.md
+# EDITH harusnya menjawab dengan personality dari SOUL.md
 # Bukan generic "I am an AI assistant"
 
 # Input: "gue developer, suka TypeScript"
@@ -392,11 +392,11 @@ pnpm dev --mode text
 
 # Restart pnpm dev
 # Input: "lo tau gue kerja apa?"
-# Nova harusnya ingat dari USER.md
+# EDITH harusnya ingat dari USER.md
 ```
 
 ## Expected Outcome
-Nova punya identity yang persistent dan consistent.
-Setiap restart, Nova tetap "ingat" siapa dia dan siapa user-nya.
+EDITH punya identity yang persistent dan consistent.
+Setiap restart, EDITH tetap "ingat" siapa dia dan siapa user-nya.
 Character terasa genuine karena di-define di markdown file yang bisa lo edit langsung.
-User bisa customize personality Nova hanya dengan edit SOUL.md.
+User bisa customize personality EDITH hanya dengan edit SOUL.md.

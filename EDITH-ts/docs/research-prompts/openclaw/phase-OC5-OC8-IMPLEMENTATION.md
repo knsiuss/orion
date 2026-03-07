@@ -1,4 +1,4 @@
-# Nova — Phase OC-5 to OC-8: Gap Feature Implementation Prompt
+# EDITH — Phase OC-5 to OC-8: Gap Feature Implementation Prompt
 # Focus: Loop Detection, Exec Approvals (HITL), Context Compaction, Adaptive Routing
 # Backed by: RESEARCH-PAPERS-GAP-FEATURES.md
 # Date: Feb 22, 2026
@@ -7,7 +7,7 @@
 
 ## KONTEKS UNTUK AI (baca dulu sebelum mulai)
 
-Nova adalah AI companion dengan full TypeScript stack di `nova-ts/`. Setelah OC-0 sampai OC-4 selesai (identity, bootstrap, skills, auth, heartbeat), sekarang kita implement fitur-fitur yang OpenClaw punya tapi Nova belum: loop detection, exec approvals, context compaction auto-trigger, dan adaptive engine routing.
+EDITH adalah AI companion dengan full TypeScript stack di `EDITH-ts/`. Setelah OC-0 sampai OC-4 selesai (identity, bootstrap, skills, auth, heartbeat), sekarang kita implement fitur-fitur yang EDITH punya tapi EDITH belum: loop detection, exec approvals, context compaction auto-trigger, dan adaptive engine routing.
 
 Semua file baru masuk ke `src/` sesuai path yang ditentukan. Tidak ada perubahan breaking ke existing API. Setiap fitur = satu file baru + patch minimal ke file yang sudah ada.
 
@@ -16,7 +16,7 @@ Semua file baru masuk ke `src/` sesuai path yang ditentukan. Tidak ada perubahan
 ## OC-5: LOOP DETECTION + CIRCUIT BREAKER
 
 **Research basis**: arXiv 2510.23883 (Agentic AI Security), arXiv 2511.15755 (Multi-Agent Zero Variance)
-**Gap**: Nova tidak punya mekanisme deteksi kalau agent stuck looping. Kalau tool dipanggil berulang dengan params yang sama, atau agent tidak membuat progress, tidak ada yang interrupt.
+**Gap**: EDITH tidak punya mekanisme deteksi kalau agent stuck looping. Kalau tool dipanggil berulang dengan params yang sama, atau agent tidak membuat progress, tidak ada yang interrupt.
 
 ### Buat file baru: `src/core/loop-detector.ts`
 
@@ -174,7 +174,7 @@ this.loopDetector.record({
 ## OC-6: EXEC APPROVALS — HUMAN IN THE LOOP (ASYNC)
 
 **Research basis**: arXiv 2601.06223 (Safe & Responsible AI), OWASP AI Top 10 2026, Permit.io HITL patterns
-**Gap**: Nova `tool-guard.ts` hanya block atau allow — tidak ada middle ground "tanya user dulu". OpenClaw kirim approval request ke chat, user approve/reject, agent resume.
+**Gap**: EDITH `tool-guard.ts` hanya block atau allow — tidak ada middle ground "tanya user dulu". EDITH kirim approval request ke chat, user approve/reject, agent resume.
 
 ### Buat file baru: `src/security/approval-gate.ts`
 
@@ -406,7 +406,7 @@ if (approveMatch) {
   const req = pending.find(r => r.id.startsWith(shortId));
   if (req) {
     await approvalGate.resolveApproval(req.id, true);
-    return { reply: `✅ Action approved. Nova will proceed.` };
+    return { reply: `✅ Action approved. EDITH will proceed.` };
   }
 }
 
@@ -754,7 +754,7 @@ Jalankan ini secara berurutan:
 
 ## SETELAH OC-5 SAMPAI OC-8 SELESAI
 
-Feature parity Nova vs OpenClaw akan tercapai. Langkah selanjutnya (OC-9+):
+Feature parity EDITH vs EDITH akan tercapai. Langkah selanjutnya (OC-9+):
 
 - **OC-9**: Hindsight Memory upgrade — 4-network memory model (arXiv 2512.12818)
 - **OC-10**: FTS fallback di LanceDB search (keyword search backup)

@@ -19,7 +19,7 @@ Pipeline Recursive Self-Critique:
 3. Meta-Critic (engine "fast") → critique critiknya
 4. Synthesizer → gabungkan semua menjadi final response
 
-Untuk Nova, versi yang lebih pragmatis (2 level cukup):
+Untuk EDITH, versi yang lebih pragmatis (2 level cukup):
 1. Generator → draft response
 2. Critic → evaluasi 3 aspek: accuracy, helpfulness, completeness
 3. Refiner → perbaiki draft berdasarkan critique
@@ -29,7 +29,7 @@ Ini berbeda dari simple retry karena:
 - Critique diarahkan ke aspek spesifik bukan hanya "improve this"
 - Loop hanya jalan kalau critique score di bawah threshold
 
-## Gap di Nova Sekarang
+## Gap di EDITH Sekarang
 `agents/runner.ts` → `runSingle()` langsung return tanpa verifikasi.
 `main.ts` → response langsung dipakai tanpa critique pass.
 Tidak ada feedback loop untuk improve quality.
@@ -37,7 +37,7 @@ Tidak ada feedback loop untuk improve quality.
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Nova-TS. Implementasi Recursive Self-Critique pattern.
+Kamu sedang memodifikasi EDITH-TS. Implementasi Recursive Self-Critique pattern.
 Paper referensi: arXiv 2502.04675
 
 ### TASK: Phase C — Recursive Self-Critique
@@ -278,7 +278,7 @@ CRITIQUE_THRESHOLD: z.preprocess(v => parseFloat(String(v)), z.number()).default
 pnpm dev --mode text
 # Tanya pertanyaan yang butuh reasoning
 # Check log untuk melihat critique scores
-# Grep logs: grep "critique result" logs/nova*.log
+# Grep logs: grep "critique result" logs/edith*.log
 ```
 
 ## Expected Outcome

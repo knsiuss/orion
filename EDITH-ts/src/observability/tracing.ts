@@ -7,7 +7,7 @@ import config from "../config.js"
 import { createLogger } from "../logger.js"
 
 const log = createLogger("observability.tracing")
-const tracer = trace.getTracer("nova")
+const tracer = trace.getTracer("edith")
 
 let sdk: NodeSDK | null = null
 let started = false

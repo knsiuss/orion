@@ -15,33 +15,33 @@ Formalize timing optimal untuk intervene:
 - Terlalu late: efek berkurang
 - Window optimal: setelah context change, sebelum user lanjut ke activity baru
 
-**[3] OpenClaw Heartbeat Architecture (Production Pattern)**
+**[3] EDITH Heartbeat Architecture (Production Pattern)**
 "The agent wakes itself periodically, reviews recent context, reflects,
 and decides whether action is needed." — from leonisnewsletter.substack.com
 Ini bukan polling. Ini conscious reflection cycle.
 
-## OpenClaw vs Nova Heartbeat
+## EDITH vs EDITH Heartbeat
 
-OpenClaw approach:
+EDITH approach:
 - Agent "tidur" untuk duration adaptive
 - Saat bangun: baca recent context → reflect → decide
 - Tidak hanya check YAML triggers — agent reason tentang apakah ada yang perlu dilakukan
 - HEARTBEAT.md adalah checklist yang di-inject ke system prompt saat heartbeat run
 
-Nova sekarang:
+EDITH sekarang:
 - `daemon.ts` polling setiap 10-60 detik
 - Evaluate YAML-defined triggers
 - VoI calculator ada tapi triggers masih static
 - Tidak ada reflection phase
 
-Perbedaan fundamental: OpenClaw heartbeat adalah **agent reasoning run**,
+Perbedaan fundamental: EDITH heartbeat adalah **agent reasoning run**,
 bukan hanya trigger evaluation. Agent bisa notice hal yang tidak ada di trigger list.
 
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Nova-TS. Upgrade proactive system ke heartbeat pattern.
-Reference: OpenClaw heartbeat architecture + CHI 2025 Inner Thoughts paper
+Kamu sedang memodifikasi EDITH-TS. Upgrade proactive system ke heartbeat pattern.
+Reference: EDITH heartbeat architecture + CHI 2025 Inner Thoughts paper
 
 ### TASK: Phase OC-4 — Heartbeat Architecture
 
@@ -56,7 +56,7 @@ Ini adalah checklist yang di-inject saat heartbeat run.
 Agent akan reasoning berdasarkan ini:
 
 ```markdown
-# Nova Heartbeat Protocol
+# EDITH Heartbeat Protocol
 
 When running a heartbeat check, review the following:
 
@@ -259,7 +259,7 @@ Ganti simple polling dengan heartbeat engine:
 ```typescript
 import { heartbeat } from "./heartbeat.js"
 
-// Di NovaDaemon.start():
+// Di EdithDaemon.start():
 async start(): Promise<void> {
   if (this.running) return
   this.running = true
@@ -272,7 +272,7 @@ async start(): Promise<void> {
   // (untuk backward compat dengan triggers.yaml yang sudah ada)
 }
 
-// Di NovaDaemon.stop():
+// Di EdithDaemon.stop():
 stop(): void {
   heartbeat.stop()
   this.running = false
@@ -296,16 +296,16 @@ stop(): void {
 ```bash
 pnpm dev --mode gateway
 # Wait 2-3 menit tanpa interaksi
-# Check logs: grep "heartbeat" logs/nova*.log
+# Check logs: grep "heartbeat" logs/edith*.log
 # Harusnya ada: "heartbeat: no action needed" atau "heartbeat: proactive message sent"
 
 # Edit HEARTBEAT.md untuk test proactive behavior:
 # Tambahkan: "If more than 2 minutes have passed, remind the user to take a break."
-# Tunggu 2 menit → Nova harusnya kirim reminder
+# Tunggu 2 menit → EDITH harusnya kirim reminder
 ```
 
 ## Expected Outcome
-- Nova bukan hanya reactive (tunggu user ngomong) tapi genuinely proactive
+- EDITH bukan hanya reactive (tunggu user ngomong) tapi genuinely proactive
 - Heartbeat reasoning menggunakan full context — bukan hanya static triggers
 - Timing intelligent: tidak interrupt saat subuh atau saat user baru saja aktif
 - Pesan proaktif terasa natural, bukan automated spam

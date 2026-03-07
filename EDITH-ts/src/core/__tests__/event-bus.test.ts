@@ -7,7 +7,7 @@ import { eventBus } from "../event-bus.js"
  * to ensure test isolation. Tests validate dispatch/on/error-handling behavior.
  */
 
-describe("NovaEventBus", () => {
+describe("EdithEventBus", () => {
   beforeEach(() => {
     eventBus.removeAllListeners()
   })

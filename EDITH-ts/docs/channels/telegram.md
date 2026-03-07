@@ -4,7 +4,7 @@ Date: 2026-02-26
 
 ## Why Telegram first (for quick testing)
 
-Telegram is the fastest path to test Nova from a phone with minimal infra:
+Telegram is the fastest path to test EDITH from a phone with minimal infra:
 
 - no custom mobile app needed
 - official Bot API supports long polling (`getUpdates`) for local/dev testing
@@ -20,7 +20,7 @@ Research on chatbot response timing shows shorter response times are generally p
 
 Implementation choice:
 - no artificial delay added
-- send Telegram `typing` action while Nova is processing
+- send Telegram `typing` action while EDITH is processing
 
 ### 2. Better repair than generic failure
 
@@ -43,7 +43,7 @@ Implementation choice:
 
 - Long polling via Telegram Bot API (`getUpdates`)
 - Webhook disabled on startup (`deleteWebhook`) so local polling works
-- Inbound Telegram text messages go through the same Nova incoming-message pipeline path used by gateway (hooks + usage tracking + MemRL follow-up)
+- Inbound Telegram text messages go through the same EDITH incoming-message pipeline path used by gateway (hooks + usage tracking + MemRL follow-up)
 - Outbound messages use Telegram HTML parse mode
 - Telegram formatting hardening:
   - raw HTML (`<`, `>`, `&`) is escaped before sending
@@ -73,7 +73,7 @@ TELEGRAM_CHAT_ID=123456789
 
 1. Create a bot with `@BotFather` and get the token.
 2. Set `TELEGRAM_BOT_TOKEN` in `.env`.
-3. Start Nova in gateway/all mode (channel manager initializes Telegram):
+3. Start EDITH in gateway/all mode (channel manager initializes Telegram):
    - `pnpm dev -- --mode all`
 4. DM your bot on Telegram:
    - `/start`

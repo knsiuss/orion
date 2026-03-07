@@ -8,12 +8,12 @@ import net from "node:net"
 import { spawn } from "node:child_process"
 import { fileURLToPath } from "node:url"
 
-const CLI_CONFIG_DIR_NAME = ".nova"
+const CLI_CONFIG_DIR_NAME = ".edith"
 const CLI_CONFIG_FILE_NAME = "cli.json"
 const CLI_PROFILES_DIR_NAME = "profiles"
 const DEFAULT_PROFILE_NAME = "default"
 const DEV_PROFILE_NAME = "dev"
-const LOCAL_PACKAGE_NAME = "nova"
+const LOCAL_PACKAGE_NAME = "edith"
 const SUPPORTED_CHANNELS = ["telegram", "discord", "whatsapp", "webchat"]
 
 function testIcon(level) {
@@ -63,13 +63,13 @@ function buildMigrationFailureRecoveryHint(profileDir, databaseUrl, stderr = "",
   return [
     "Local profile DB has a failed migration record.",
     "Quick recovery (keeps profile config, resets local DB data only):",
-    `- Stop Nova, then delete: ${normalizedDbPath}`,
-    "- Re-run: `nova status --fix --migrate`",
+    `- Stop EDITH, then delete: ${normalizedDbPath}`,
+    "- Re-run: `edith status --fix --migrate`",
     "",
     "Safer alternative (fresh profile for testing):",
-    "- `nova --profile demo profile init`",
-    "- `nova --profile demo status --fix --migrate`",
-    "- `nova --profile demo dashboard --open`",
+    "- `edith --profile demo profile init`",
+    "- `edith --profile demo status --fix --migrate`",
+    "- `edith --profile demo dashboard --open`",
   ].join("\n")
 }
 
@@ -133,7 +133,7 @@ export function getChannelLogHints(channel, line) {
   ) {
     hints.push({
       id: "db-schema-missing",
-      message: "Profile DB schema looks missing. Run `nova status --fix --migrate` (or just `nova all`, which now auto-migrates before startup).",
+      message: "Profile DB schema looks missing. Run `edith status --fix --migrate` (or just `edith all`, which now auto-migrates before startup).",
     })
   }
 
@@ -141,7 +141,7 @@ export function getChannelLogHints(channel, line) {
     if (/\[whatsapp-channel\]/i.test(text) && /statusCode\":?405/i.test(text)) {
       hints.push({
         id: "wa-405",
-        message: "WhatsApp Baileys disconnected with status 405 during registration. Common fixes: sync system clock, disable VPN/proxy, try another network, clear `~/.nova/.../whatsapp-auth`, then retry QR pairing.",
+        message: "WhatsApp Baileys disconnected with status 405 during registration. Common fixes: sync system clock, disable VPN/proxy, try another network, clear `~/.edith/.../whatsapp-auth`, then retry QR pairing.",
       })
     }
     if (/\"class\"\s*:\s*\"baileys\"/i.test(text) && /Connection Failure/i.test(text)) {
@@ -167,47 +167,47 @@ export function shouldUseShellForCommand(command, platform = process.platform) {
 }
 
 function printHelp() {
-  console.log("Nova CLI (OpenClaw-style wrapper)")
+  console.log("EDITH CLI (EDITH-style wrapper)")
   console.log("==================================")
   console.log("")
   console.log("Usage:")
-  console.log("  nova                           Smart entrypoint (first-run: launches setup wizard)")
-  console.log("  nova link <path-to-nova-ts>     Link your Nova repo once")
-  console.log("  nova repo                        Show linked repo path")
-  console.log("  nova profile                     Show active profile path")
-  console.log("  nova profile init                Create ~/.nova profile files (env/workspace/state)")
-  console.log("  nova setup                       OpenClaw-style setup alias (quickstart wizard)")
-  console.log("  nova init                        Bootstrap profile + run quickstart wizard")
-  console.log("  nova quickstart                  Run onboarding wizard")
-  console.log("  nova configure                   Re-run onboarding wizard (configure alias)")
-  console.log("  nova dashboard                   Start gateway and print dashboard URL")
-  console.log("  nova status                      Readiness/status check (self-test alias)")
-  console.log("  nova logs [all|gateway]          Stream live logs by starting a target mode")
-  console.log("  nova channels login ...          OpenClaw-style channel login namespace (WhatsApp QR / Cloud)")
-  console.log("  nova channels status [--channel] Channel readiness/status alias")
-  console.log("  nova channels logs [--channel]   Channel log entrypoint (live logs fallback)")
-  console.log("  nova self-test                   Check repo/profile/env readiness (beginner-friendly)")
-  console.log("  nova wa scan                     WhatsApp QR setup (OpenClaw-style)")
-  console.log("  nova wa cloud                    WhatsApp Cloud API setup")
-  console.log("  nova all                         Start Nova (gateway + channels + CLI)")
-  console.log("  nova gateway                     Start gateway mode")
-  console.log("  nova doctor                      Run doctor checks")
-  console.log("  nova onboard -- <args>           Pass raw args to onboard CLI")
+  console.log("  edith                           Smart entrypoint (first-run: launches setup wizard)")
+  console.log("  edith link <path-to-EDITH-ts>     Link your EDITH repo once")
+  console.log("  edith repo                        Show linked repo path")
+  console.log("  edith profile                     Show active profile path")
+  console.log("  edith profile init                Create ~/.edith profile files (env/workspace/state)")
+  console.log("  edith setup                       EDITH-style setup alias (quickstart wizard)")
+  console.log("  edith init                        Bootstrap profile + run quickstart wizard")
+  console.log("  edith quickstart                  Run onboarding wizard")
+  console.log("  edith configure                   Re-run onboarding wizard (configure alias)")
+  console.log("  edith dashboard                   Start gateway and print dashboard URL")
+  console.log("  edith status                      Readiness/status check (self-test alias)")
+  console.log("  edith logs [all|gateway]          Stream live logs by starting a target mode")
+  console.log("  edith channels login ...          EDITH-style channel login namespace (WhatsApp QR / Cloud)")
+  console.log("  edith channels status [--channel] Channel readiness/status alias")
+  console.log("  edith channels logs [--channel]   Channel log entrypoint (live logs fallback)")
+  console.log("  edith self-test                   Check repo/profile/env readiness (beginner-friendly)")
+  console.log("  edith wa scan                     WhatsApp QR setup (EDITH-style)")
+  console.log("  edith wa cloud                    WhatsApp Cloud API setup")
+  console.log("  edith all                         Start EDITH (gateway + channels + CLI)")
+  console.log("  edith gateway                     Start gateway mode")
+  console.log("  edith doctor                      Run doctor checks")
+  console.log("  edith onboard -- <args>           Pass raw args to onboard CLI")
   console.log("")
   console.log("Options:")
   console.log("  --repo <path>                     Override linked repo for this command")
-  console.log("  --profile <name|path>             Use a named profile (~/.nova/profiles/<name>) or an explicit path")
-  console.log("  --dev                             Use isolated dev profile (~/.nova/profiles/dev)")
+  console.log("  --profile <name|path>             Use a named profile (~/.edith/profiles/<name>) or an explicit path")
+  console.log("  --dev                             Use isolated dev profile (~/.edith/profiles/dev)")
   console.log("  --help, -h                        Show help")
   console.log("")
   console.log("Examples:")
-  console.log("  nova link C:\\Users\\you\\nova\\nova-ts")
-  console.log("  nova profile init")
-  console.log("  nova --profile work wa scan --yes --provider groq")
-  console.log("  nova channels login --channel whatsapp --non-interactive --provider groq")
-  console.log("  nova --dev dashboard")
-  console.log("  nova wa scan")
-  console.log("  nova all")
+  console.log("  edith link C:\\Users\\you\\edith\\EDITH-ts")
+  console.log("  edith profile init")
+  console.log("  edith --profile work wa scan --yes --provider groq")
+  console.log("  edith channels login --channel whatsapp --non-interactive --provider groq")
+  console.log("  edith --dev dashboard")
+  console.log("  edith wa scan")
+  console.log("  edith all")
 }
 
 function normalizePathInput(value) {
@@ -446,7 +446,7 @@ export function parseDashboardArgs(argv) {
   return { open, help, positionals }
 }
 
-export function parseNovaCliArgs(argv) {
+export function parseEdithCliArgs(argv) {
   const args = [...argv]
   let repoOverride = null
   let profileOverride = null
@@ -512,7 +512,7 @@ export async function saveCliConfig(config, fsModule = fs) {
   await fsModule.writeFile(getCliConfigPath(), content, "utf-8")
 }
 
-export async function isNovaRepoDir(repoDir, fsModule = fs) {
+export async function isEdithRepoDir(repoDir, fsModule = fs) {
   const packageJsonPath = path.join(repoDir, "package.json")
   try {
     const raw = await fsModule.readFile(packageJsonPath, "utf-8")
@@ -523,16 +523,16 @@ export async function isNovaRepoDir(repoDir, fsModule = fs) {
   }
 }
 
-export async function findNovaRepoUpwards(startDir, fsModule = fs) {
+export async function findEdithRepoUpwards(startDir, fsModule = fs) {
   let current = path.resolve(startDir)
 
   while (true) {
-    if (await isNovaRepoDir(current, fsModule)) {
+    if (await isEdithRepoDir(current, fsModule)) {
       return current
     }
 
-    const nestedCandidate = path.join(current, "nova-ts")
-    if (await isNovaRepoDir(nestedCandidate, fsModule)) {
+    const nestedCandidate = path.join(current, "EDITH-ts")
+    if (await isEdithRepoDir(nestedCandidate, fsModule)) {
       return nestedCandidate
     }
 
@@ -550,7 +550,7 @@ export function getProfilePaths(profileDir) {
     profileDir: resolvedProfileDir,
     envPath: path.join(resolvedProfileDir, ".env"),
     workspaceDir: path.join(resolvedProfileDir, "workspace"),
-    stateDir: path.join(resolvedProfileDir, ".nova"),
+    stateDir: path.join(resolvedProfileDir, ".edith"),
   }
 }
 
@@ -559,10 +559,10 @@ function formatEnvLiteral(value) {
 }
 
 function buildProfileBootstrapEnv(profilePaths) {
-  const dbPath = path.join(profilePaths.profileDir, "nova.db").replaceAll("\\", "/")
+  const dbPath = path.join(profilePaths.profileDir, "edith.db").replaceAll("\\", "/")
   const permissionsPath = path.join(profilePaths.profileDir, "permissions", "permissions.yaml")
   return [
-    "# Nova profile env (generated by `nova profile init`)",
+    "# EDITH profile env (generated by `edith profile init`)",
     `DATABASE_URL=${formatEnvLiteral(`file:${dbPath}`)}`,
     `PERMISSIONS_FILE=${formatEnvLiteral(permissionsPath)}`,
     "DEFAULT_USER_ID=owner",
@@ -629,14 +629,14 @@ export async function ensureProfileBootstrap(repoDir, profileDir) {
   return paths
 }
 
-function buildNovaChildEnv(parentEnv, profileDir) {
+function buildEdithChildEnv(parentEnv, profileDir) {
   const paths = getProfilePaths(profileDir)
   return {
     ...parentEnv,
-    NOVA_PROFILE_DIR: paths.profileDir,
-    NOVA_ENV_FILE: paths.envPath,
-    NOVA_WORKSPACE: paths.workspaceDir,
-    NOVA_STATE_DIR: paths.stateDir,
+    EDITH_PROFILE_DIR: paths.profileDir,
+    EDITH_ENV_FILE: paths.envPath,
+    EDITH_WORKSPACE: paths.workspaceDir,
+    EDITH_STATE_DIR: paths.stateDir,
   }
 }
 
@@ -1040,7 +1040,7 @@ async function buildWhatsAppChannelStatusChecks(envMap, profilePaths) {
     checks.push({
       level: "warn",
       label: "WhatsApp Session",
-      detail: "Auth state dir does not exist yet (start `nova all` to generate QR login state)",
+      detail: "Auth state dir does not exist yet (start `edith all` to generate QR login state)",
     })
   } else {
     checks.push({
@@ -1053,7 +1053,7 @@ async function buildWhatsAppChannelStatusChecks(envMap, profilePaths) {
       checks.push({
         level: "warn",
         label: "WhatsApp Session",
-        detail: "Auth dir exists but creds.json is missing (run `nova all` and scan QR, or clear stale auth dir)",
+        detail: "Auth dir exists but creds.json is missing (run `edith all` and scan QR, or clear stale auth dir)",
       })
     } else if (auth.parseError) {
       checks.push({
@@ -1074,8 +1074,8 @@ async function buildWhatsAppChannelStatusChecks(envMap, profilePaths) {
         level: "warn",
         label: "WhatsApp Session",
         detail: auth.creds.hasIdentityMaterial
-          ? "Auth keys exist but account is not paired yet (start `nova all` and scan QR)"
-          : "No usable WhatsApp credentials yet (start `nova all` and scan QR)",
+          ? "Auth keys exist but account is not paired yet (start `edith all` and scan QR)"
+          : "No usable WhatsApp credentials yet (start `edith all` and scan QR)",
       })
     }
   }
@@ -1258,7 +1258,7 @@ export function buildWebchatSelfTestChecks(envMap) {
   return [{
     level: "ok",
     label: "WebChat",
-    detail: `WebChat available on http://127.0.0.1:${port} (when Nova is running)`,
+    detail: `WebChat available on http://127.0.0.1:${port} (when EDITH is running)`,
   }]
 }
 
@@ -1289,7 +1289,7 @@ export function isProfileEnvLikelyConfigured(envMap) {
 
 function buildDefaultPermissionsTemplate() {
   return [
-    "# Nova permissions template (generated by `nova self-test --fix`)",
+    "# EDITH permissions template (generated by `edith self-test --fix`)",
     "# Review and tighten before broader use.",
     "messaging:",
     "  enabled: true",
@@ -1316,14 +1316,14 @@ function buildDefaultPermissionsTemplate() {
 
 function buildProfileBootstrapEnvMap(profilePaths) {
   return {
-    DATABASE_URL: `file:${path.join(profilePaths.profileDir, "nova.db").replaceAll("\\", "/")}`,
+    DATABASE_URL: `file:${path.join(profilePaths.profileDir, "edith.db").replaceAll("\\", "/")}`,
     PERMISSIONS_FILE: path.join(profilePaths.profileDir, "permissions", "permissions.yaml"),
     DEFAULT_USER_ID: "owner",
     LOG_LEVEL: "info",
   }
 }
 
-function mergeMissingEnvKeys(baseContent, updates, sourceLabel = "nova self-test --fix") {
+function mergeMissingEnvKeys(baseContent, updates, sourceLabel = "edith self-test --fix") {
   const normalizedBase = String(baseContent ?? "").replace(/\r\n/g, "\n")
   const lines = normalizedBase.split("\n")
   const present = new Set()
@@ -1391,12 +1391,12 @@ async function applySelfTestFixes(repoDir, profileDir) {
 }
 
 function printSelfTestHelp() {
-  console.log("Nova Self-Test")
+  console.log("EDITH Self-Test")
   console.log("===============")
   console.log("")
   console.log("Usage:")
-  console.log("  nova self-test [--fix] [--migrate] [--json]")
-  console.log("  nova status [--fix] [--migrate] [--json]")
+  console.log("  edith self-test [--fix] [--migrate] [--json]")
+  console.log("  edith status [--fix] [--migrate] [--json]")
   console.log("")
   console.log("Options:")
   console.log("  --fix   Apply safe local fixes (profile bootstrap, permissions template, env baseline keys)")
@@ -1474,7 +1474,7 @@ async function collectSelfTestChecks(repoDir, profileDir) {
     label: "AUTO_START_GATEWAY",
     detail: autoGateway
       ? "Enabled for `pnpm dev`"
-      : "Disabled (fine for `nova all`; required if you expect `pnpm dev` to start gateway automatically)",
+      : "Disabled (fine for `edith all`; required if you expect `pnpm dev` to start gateway automatically)",
   })
 
   checks.push(...buildWhatsAppSelfTestChecks(envMap, profilePaths))
@@ -1542,10 +1542,10 @@ async function maybeAutoMigrateProfileDb(repoDir, profileDir, triggerCommand) {
     return
   }
 
-  console.log(`Ensuring profile database schema is up to date before \`nova ${triggerCommand}\`...`)
+  console.log(`Ensuring profile database schema is up to date before \`edith ${triggerCommand}\`...`)
   const result = await runChildCapture(getPnpmCommand(), ["--dir", repoDir, "exec", "prisma", "migrate", "deploy"], {
     env: {
-      ...buildNovaChildEnv(process.env, profileDir),
+      ...buildEdithChildEnv(process.env, profileDir),
       DATABASE_URL: databaseUrl,
       PRISMA_HIDE_UPDATE_MESSAGE: "1",
     },
@@ -1574,7 +1574,7 @@ async function runProfileDbMigrationPreflight(repoDir, profileDir, triggerComman
 
   const result = await runChildCapture(getPnpmCommand(), ["--dir", repoDir, "exec", "prisma", "migrate", "deploy"], {
     env: {
-      ...buildNovaChildEnv(process.env, profileDir),
+      ...buildEdithChildEnv(process.env, profileDir),
       DATABASE_URL: databaseUrl,
       PRISMA_HIDE_UPDATE_MESSAGE: "1",
     },
@@ -1685,7 +1685,7 @@ async function handleSelfTest(repoOverride, profileOverride, devMode = false, re
     process.exit(errors > 0 || migrationFailed ? 1 : 0)
   }
 
-  console.log("Nova Self-Test")
+  console.log("EDITH Self-Test")
   console.log("===============")
   console.log(`Repo:    ${repoDir}`)
   console.log(`Profile: ${profilePaths.profileDir}`)
@@ -1731,8 +1731,8 @@ async function handleSelfTest(repoOverride, profileOverride, devMode = false, re
   if (errors === 0 && !migrationFailed) {
     console.log("")
     console.log("Next:")
-    console.log("- `nova wa scan` (WhatsApp QR setup)")
-    console.log("- `nova all` (start Nova)")
+    console.log("- `edith wa scan` (WhatsApp QR setup)")
+    console.log("- `edith all` (start EDITH)")
   }
 
   process.exit(errors > 0 || migrationFailed ? 1 : 0)
@@ -1747,11 +1747,11 @@ async function resolveRepoDirWithAutoDetect(repoOverride) {
     return { repoDir: await resolveRepoDir(null), autoLinked: false }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (!/No Nova repo linked/i.test(message)) {
+    if (!/No EDITH repo linked/i.test(message)) {
       throw error
     }
 
-    const detected = await findNovaRepoUpwards(process.cwd())
+    const detected = await findEdithRepoUpwards(process.cwd())
     if (!detected) {
       throw error
     }
@@ -1766,18 +1766,18 @@ async function handleDefaultEntry(repoOverride, profileOverride, devMode = false
     resolved = await resolveRepoDirWithAutoDetect(repoOverride)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (/No Nova repo linked/i.test(message)) {
-      console.log("Nova CLI")
+    if (/No EDITH repo linked/i.test(message)) {
+      console.log("EDITH CLI")
       console.log("=========")
       console.log("")
-      console.log("No linked Nova repo found yet.")
-      console.log("OpenClaw-style first run needs a repo path one time (until standalone package runtime lands).")
+      console.log("No linked EDITH repo found yet.")
+      console.log("EDITH-style first run needs a repo path one time (until standalone package runtime lands).")
       console.log("")
       console.log("Next:")
-      console.log("- `nova link C:\\path\\to\\nova-ts`")
-      console.log("- then run `nova` again (it will launch setup wizard if profile is not configured)")
+      console.log("- `edith link C:\\path\\to\\EDITH-ts`")
+      console.log("- then run `edith` again (it will launch setup wizard if profile is not configured)")
       console.log("")
-      console.log("Tip: if you run this inside the repo, use `nova link .`")
+      console.log("Tip: if you run this inside the repo, use `edith link .`")
       return
     }
     throw error
@@ -1789,7 +1789,7 @@ async function handleDefaultEntry(repoOverride, profileOverride, devMode = false
 
   if (autoLinked && !repoOverride && !profileOverride) {
     await saveCliConfig({ ...(await loadCliConfig()), repoDir, profileDir })
-    console.log(`Auto-linked Nova repo: ${repoDir}`)
+    console.log(`Auto-linked EDITH repo: ${repoDir}`)
     console.log(`Active profile: ${profileDir}`)
     console.log("")
   }
@@ -1797,40 +1797,40 @@ async function handleDefaultEntry(repoOverride, profileOverride, devMode = false
   const { envMap } = await loadProfileEnvMap(profileDir)
   if (!isProfileEnvLikelyConfigured(envMap)) {
     console.log("No provider/channel setup detected for the active profile.")
-    console.log("Launching setup wizard (OpenClaw-style first run)...")
+    console.log("Launching setup wizard (EDITH-style first run)...")
     await runPnpmScript(repoDir, profileDir, "quickstart")
     return
   }
 
-  console.log("Nova CLI is ready.")
+  console.log("EDITH CLI is ready.")
   console.log(`Repo:    ${repoDir}`)
   console.log(`Profile: ${profileDir}`)
   console.log("")
   console.log("Next:")
-  console.log("- `nova dashboard` (web dashboard / gateway)")
-  console.log("- `nova channels login --channel whatsapp` (QR login)")
-  console.log("- `nova all` (run Nova + channels)")
-  console.log("- `nova status` (readiness check)")
+  console.log("- `edith dashboard` (web dashboard / gateway)")
+  console.log("- `edith channels login --channel whatsapp` (QR login)")
+  console.log("- `edith all` (run EDITH + channels)")
+  console.log("- `edith status` (readiness check)")
 }
 
 async function resolveRepoDir(repoOverride) {
   if (repoOverride) {
     const resolved = path.resolve(process.cwd(), repoOverride)
-    if (!(await isNovaRepoDir(resolved))) {
-      throw new Error(`Invalid Nova repo path: ${resolved}`)
+    if (!(await isEdithRepoDir(resolved))) {
+      throw new Error(`Invalid EDITH repo path: ${resolved}`)
     }
     return resolved
   }
 
-  const envRepo = normalizePathInput(process.env.NOVA_REPO_DIR ?? "")
+  const envRepo = normalizePathInput(process.env.EDITH_REPO_DIR ?? "")
   if (envRepo) {
     const resolved = path.resolve(envRepo)
-    if (await isNovaRepoDir(resolved)) {
+    if (await isEdithRepoDir(resolved)) {
       return resolved
     }
   }
 
-  const autoDetected = await findNovaRepoUpwards(process.cwd())
+  const autoDetected = await findEdithRepoUpwards(process.cwd())
   if (autoDetected) {
     return autoDetected
   }
@@ -1839,13 +1839,13 @@ async function resolveRepoDir(repoOverride) {
   const linkedRepo = normalizePathInput(typeof cfg.repoDir === "string" ? cfg.repoDir : "")
   if (linkedRepo) {
     const resolved = path.resolve(linkedRepo)
-    if (await isNovaRepoDir(resolved)) {
+    if (await isEdithRepoDir(resolved)) {
       return resolved
     }
-    throw new Error(`Linked repo not found or invalid: ${resolved}. Run \`nova link <path>\` again.`)
+    throw new Error(`Linked repo not found or invalid: ${resolved}. Run \`edith link <path>\` again.`)
   }
 
-  throw new Error("No Nova repo linked. Run `nova link <path-to-nova-ts>` first.")
+  throw new Error("No EDITH repo linked. Run `edith link <path-to-EDITH-ts>` first.")
 }
 
 async function resolveProfileDir(profileOverride, devMode = false) {
@@ -1857,7 +1857,7 @@ async function resolveProfileDir(profileOverride, devMode = false) {
     return getNamedProfileDir(DEV_PROFILE_NAME)
   }
 
-  const envProfile = normalizePathInput(process.env.NOVA_PROFILE_DIR ?? "")
+  const envProfile = normalizePathInput(process.env.EDITH_PROFILE_DIR ?? "")
   if (envProfile) {
     return resolveProfileSelector(envProfile) ?? getDefaultProfileDir()
   }
@@ -1991,7 +1991,7 @@ function tryOpenUrl(url) {
 async function runPnpmScript(repoDir, profileDir, script, extraArgs = []) {
   const args = ["--dir", repoDir, script, ...extraArgs]
   const code = await runChild(getPnpmCommand(), args, {
-    env: buildNovaChildEnv(process.env, profileDir),
+    env: buildEdithChildEnv(process.env, profileDir),
   })
   process.exit(code)
 }
@@ -2001,7 +2001,7 @@ async function runPnpmScriptFiltered(repoDir, profileDir, script, lineMatcher, e
   const hintChannel = normalizeChannelName(options.hintChannel ?? "") ?? null
   const shownHints = new Set()
   const result = await runChildFilteredLines(getPnpmCommand(), args, lineMatcher, {
-    env: buildNovaChildEnv(process.env, profileDir),
+    env: buildEdithChildEnv(process.env, profileDir),
     onLine(line) {
       if (!hintChannel) {
         return
@@ -2011,7 +2011,7 @@ async function runPnpmScriptFiltered(repoDir, profileDir, script, lineMatcher, e
           continue
         }
         shownHints.add(hint.id)
-        console.log(`[nova-cli] Hint: ${hint.message}`)
+        console.log(`[edith-cli] Hint: ${hint.message}`)
       }
     },
   })
@@ -2023,7 +2023,7 @@ async function runPnpmScriptFiltered(repoDir, profileDir, script, lineMatcher, e
 
 async function runPnpmRaw(repoDir, profileDir, args) {
   const code = await runChild(getPnpmCommand(), ["--dir", repoDir, ...args], {
-    env: buildNovaChildEnv(process.env, profileDir),
+    env: buildEdithChildEnv(process.env, profileDir),
   })
   process.exit(code)
 }
@@ -2031,21 +2031,21 @@ async function runPnpmRaw(repoDir, profileDir, args) {
 async function handleLink(targetPathArg, profileOverride, devMode = false) {
   const candidate = targetPathArg
     ? path.resolve(process.cwd(), targetPathArg)
-    : await findNovaRepoUpwards(process.cwd())
+    : await findEdithRepoUpwards(process.cwd())
 
   if (!candidate) {
-    throw new Error("Could not auto-detect Nova repo here. Pass a path: `nova link <path-to-nova-ts>`")
+    throw new Error("Could not auto-detect EDITH repo here. Pass a path: `edith link <path-to-EDITH-ts>`")
   }
 
-  if (!(await isNovaRepoDir(candidate))) {
-    throw new Error(`Not an Nova repo: ${candidate}`)
+  if (!(await isEdithRepoDir(candidate))) {
+    throw new Error(`Not an EDITH repo: ${candidate}`)
   }
 
   const profileDir = await resolveProfileDir(profileOverride, devMode)
   await saveCliConfig({ repoDir: candidate, profileDir })
-  console.log(`Linked Nova repo: ${candidate}`)
+  console.log(`Linked EDITH repo: ${candidate}`)
   console.log(`Active profile: ${profileDir}`)
-  console.log("You can now run `nova wa scan` or `nova quickstart` from any directory.")
+  console.log("You can now run `edith wa scan` or `edith quickstart` from any directory.")
 }
 
 async function handleRepo(repoOverride) {
@@ -2074,7 +2074,7 @@ async function handleProfile(repoOverride, profileOverride, subcommand, devMode 
     return
   }
 
-  throw new Error("Unknown `nova profile` subcommand. Use `nova profile` or `nova profile init`.")
+  throw new Error("Unknown `edith profile` subcommand. Use `edith profile` or `edith profile init`.")
 }
 
 async function detectGatewayPortFromProfileEnv(profileDir) {
@@ -2094,23 +2094,23 @@ async function detectGatewayPortFromProfileEnv(profileDir) {
 async function handleLogs(repoDir, profileDir, rest) {
   const target = (rest[0] ?? "all").toLowerCase()
   if (target !== "all" && target !== "gateway") {
-    console.log("Nova does not run a persistent daemon log store yet.")
-    console.log("Use `nova logs all` or `nova logs gateway` to stream live logs by starting a process.")
+    console.log("EDITH does not run a persistent daemon log store yet.")
+    console.log("Use `edith logs all` or `edith logs gateway` to stream live logs by starting a process.")
     return
   }
   await maybeAutoMigrateProfileDb(repoDir, profileDir, `logs ${target}`)
-  console.log(`Streaming live logs via \`nova ${target}\` (foreground process). Press Ctrl+C to stop.`)
+  console.log(`Streaming live logs via \`edith ${target}\` (foreground process). Press Ctrl+C to stop.`)
   await runPnpmScript(repoDir, profileDir, target)
 }
 
 async function handleDashboard(repoDir, profileDir, rest = []) {
   const options = parseDashboardArgs(rest)
   if (options.help) {
-    console.log("Nova Dashboard")
+    console.log("EDITH Dashboard")
     console.log("==============")
     console.log("")
     console.log("Usage:")
-    console.log("  nova dashboard [--open|--no-open]")
+    console.log("  edith dashboard [--open|--no-open]")
     console.log("")
     console.log("Options:")
     console.log("  --open      Open dashboard URL in the default browser (best effort)")
@@ -2136,21 +2136,21 @@ async function handleDashboard(repoDir, profileDir, rest = []) {
 }
 
 function printChannelsHelp() {
-  console.log("Nova Channels (OpenClaw-style namespace)")
+  console.log("EDITH Channels (EDITH-style namespace)")
   console.log("=========================================")
   console.log("")
   console.log("Usage:")
-  console.log("  nova channels login --channel whatsapp [--mode scan|cloud] [-- ...args]")
-  console.log("  nova channels status [--channel whatsapp]")
-  console.log("  nova channels logs [all|gateway] [--channel whatsapp]")
+  console.log("  edith channels login --channel whatsapp [--mode scan|cloud] [-- ...args]")
+  console.log("  edith channels status [--channel whatsapp]")
+  console.log("  edith channels logs [all|gateway] [--channel whatsapp]")
   console.log("")
   console.log("Notes:")
-  console.log("  - `channels login` maps to the existing Nova setup/login flows.")
+  console.log("  - `channels login` maps to the existing EDITH setup/login flows.")
   console.log("  - WhatsApp defaults to QR scan mode unless `--mode cloud` is provided.")
   console.log("  - `channels status --channel <name>` prints channel-focused readiness (and runtime auth/session hints where supported).")
-  console.log("  - `channels status` without `--channel` reuses `nova status` (global self-test).")
+  console.log("  - `channels status` without `--channel` reuses `edith status` (global self-test).")
   console.log("  - `channels logs --channel <name>` streams best-effort channel-filtered live logs (foreground).")
-  console.log("  - `channels logs` without `--channel` reuses `nova logs ...`.")
+  console.log("  - `channels logs` without `--channel` reuses `edith logs ...`.")
 }
 
 async function handleChannelsCommand(repoOverride, profileOverride, devMode, rest) {
@@ -2187,7 +2187,7 @@ async function handleChannelsCommand(repoOverride, profileOverride, devMode, res
           },
         }, null, 2))
       } else {
-        console.log(`Nova Channel Status (${channel})`)
+        console.log(`EDITH Channel Status (${channel})`)
         console.log("=".repeat(24 + channel.length))
         console.log(`Repo:    ${repoDir}`)
         console.log(`Profile: ${status.profileDir}`)
@@ -2217,12 +2217,12 @@ async function handleChannelsCommand(repoOverride, profileOverride, devMode, res
     if (channel) {
       const target = (targetArgs[0] ?? "all").toLowerCase()
       if (target !== "all" && target !== "gateway") {
-        console.log("Nova does not run a persistent daemon log store yet.")
-        console.log("Use `nova channels logs --channel <name> [all|gateway]` to stream live filtered logs.")
+        console.log("EDITH does not run a persistent daemon log store yet.")
+        console.log("Use `edith channels logs --channel <name> [all|gateway]` to stream live filtered logs.")
         return
       }
       await maybeAutoMigrateProfileDb(repoDir, profileDir, `channels logs ${target}`)
-      console.log(`Streaming best-effort filtered logs for channel '${channel}' via \`nova ${target}\` (Ctrl+C to stop)...`)
+      console.log(`Streaming best-effort filtered logs for channel '${channel}' via \`edith ${target}\` (Ctrl+C to stop)...`)
       await runPnpmScriptFiltered(
         repoDir,
         profileDir,
@@ -2250,14 +2250,14 @@ async function handleChannelsCommand(repoOverride, profileOverride, devMode, res
     }
 
     if (["telegram", "discord", "webchat"].includes(resolvedChannel)) {
-      console.log(`Channel '${resolvedChannel}' does not have a standalone login flow in Nova yet.`)
+      console.log(`Channel '${resolvedChannel}' does not have a standalone login flow in EDITH yet.`)
       console.log("Launching onboarding quickstart for that channel instead.")
       await runPnpmScript(repoDir, profileDir, "quickstart", ["--channel", resolvedChannel, ...remainingPositionals])
       return
     }
   }
 
-  throw new Error("Unknown `nova channels` subcommand. Use `nova channels help`.")
+  throw new Error("Unknown `edith channels` subcommand. Use `edith channels help`.")
 }
 
 async function handleCommand(repoOverride, profileOverride, devMode, positionals) {
@@ -2279,7 +2279,7 @@ async function handleCommand(repoOverride, profileOverride, devMode, positionals
 
   if (command === "unlink") {
     await saveCliConfig({})
-    console.log("Unlinked Nova repo.")
+    console.log("Unlinked EDITH repo.")
     return
   }
 
@@ -2315,7 +2315,7 @@ async function handleCommand(repoOverride, profileOverride, devMode, positionals
     return
   }
 
-  // Commands below run Nova using the linked profile env/state instead of the repo root.
+  // Commands below run EDITH using the linked profile env/state instead of the repo root.
   await ensureProfileBootstrap(repoDir, profileDir)
 
   if (command === "quickstart" || command === "setup" || command === "configure") {
@@ -2339,7 +2339,7 @@ async function handleCommand(repoOverride, profileOverride, devMode, positionals
       await runPnpmScript(repoDir, profileDir, "wa:cloud", waArgs)
       return
     }
-    throw new Error("Unknown `nova wa` subcommand. Use `nova wa scan` or `nova wa cloud`.")
+    throw new Error("Unknown `edith wa` subcommand. Use `edith wa scan` or `edith wa cloud`.")
   }
 
   if (command === "all" || command === "doctor" || command === "gateway") {
@@ -2368,11 +2368,11 @@ async function handleCommand(repoOverride, profileOverride, devMode, positionals
     return
   }
 
-  throw new Error(`Unknown command: ${command}. Run \`nova help\`.`)
+  throw new Error(`Unknown command: ${command}. Run \`edith help\`.`)
 }
 
 export async function main(argv = process.argv.slice(2)) {
-  const parsed = parseNovaCliArgs(argv)
+  const parsed = parseEdithCliArgs(argv)
   if (parsed.help) {
     printHelp()
     return
@@ -2382,9 +2382,9 @@ export async function main(argv = process.argv.slice(2)) {
     await handleCommand(parsed.repoOverride, parsed.profileOverride, parsed.dev, parsed.positionals)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    console.error(`Nova CLI error: ${message}`)
-    if (/No Nova repo linked/i.test(message)) {
-      console.error("Hint: run `nova link C:\\path\\to\\nova-ts` once, then retry.")
+    console.error(`EDITH CLI error: ${message}`)
+    if (/No EDITH repo linked/i.test(message)) {
+      console.error("Hint: run `edith link C:\\path\\to\\EDITH-ts` once, then retry.")
     }
     process.exit(1)
   }

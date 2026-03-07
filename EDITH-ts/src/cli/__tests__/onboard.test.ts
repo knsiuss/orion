@@ -73,7 +73,7 @@ describe("onboard cli helpers", () => {
     expect(steps.join("\n")).toContain("docs/channels/whatsapp.md")
   })
 
-  it("builds WhatsApp QR scan next steps (OpenClaw-style quick test)", () => {
+  it("builds WhatsApp QR scan next steps (EDITH-style quick test)", () => {
     const steps = __onboardTestUtils.buildNextSteps({
       channel: "whatsapp",
       provider: "groq",
@@ -89,9 +89,9 @@ describe("onboard cli helpers", () => {
     expect(text).toContain("WHATSAPP_MODE=baileys")
   })
 
-  it("uses global `nova` command hints when wrapper env is present", () => {
+  it("uses global `edith` command hints when wrapper env is present", () => {
     const commands = __onboardTestUtils.defaultNextStepCommands({
-      NOVA_ENV_FILE: "C:\\Users\\test\\.nova\\profiles\\default\\.env",
+      EDITH_ENV_FILE: "C:\\Users\\test\\.edith\\profiles\\default\\.env",
     } as any)
 
     const steps = __onboardTestUtils.buildNextSteps(
@@ -107,8 +107,8 @@ describe("onboard cli helpers", () => {
     )
 
     const text = steps.join("\n")
-    expect(text).toContain("`nova doctor`")
-    expect(text).toContain("`nova all`")
+    expect(text).toContain("`edith doctor`")
+    expect(text).toContain("`edith all`")
     expect(text).not.toContain("`pnpm all`")
   })
 })

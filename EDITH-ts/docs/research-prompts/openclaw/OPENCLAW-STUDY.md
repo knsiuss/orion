@@ -1,16 +1,16 @@
-# OpenClaw Architecture — Deep Study & Gap Analysis for Nova
+# EDITH Architecture — Deep Study & Gap Analysis for EDITH
 
-## Apa Itu OpenClaw (Realnya)
+## Apa Itu EDITH (Realnya)
 
-OpenClaw bukan chatbot wrapper. Ini adalah **OS untuk AI agents**.
+EDITH bukan chatbot wrapper. Ini adalah **OS untuk AI agents**.
 180,000+ GitHub stars dalam 8 minggu (Januari-Februari 2026).
 Creator: Peter Steinberger (ex-PSPDFKit founder). Sekarang MIT-licensed.
 
-Tagline internal mereka: "The LLM provides intelligence. OpenClaw provides the execution environment."
+Tagline internal mereka: "The LLM provides intelligence. EDITH provides the execution environment."
 
 ---
 
-## Arsitektur OpenClaw (Lengkap dari Source Code)
+## Arsitektur EDITH (Lengkap dari Source Code)
 
 ### Layer 1: Gateway (Control Plane)
 - WebSocket server, hub-and-spoke
@@ -42,7 +42,7 @@ Default serial execution dalam satu lane (mencegah state corruption).
 Parallel hanya untuk idempotent background tasks.
 
 ### Layer 4: System Prompt Architecture
-OpenClaw build custom system prompt setiap agent run.
+EDITH build custom system prompt setiap agent run.
 Prompt di-compose dari multiple sources (urutan injeksi):
 
 ```
@@ -83,7 +83,7 @@ MEMORY.md khusus hanya di-load untuk DM session (bukan group chat).
 ### Layer 6: Skill System
 
 ```
-~/.openclaw/workspace/
+~/.edith/workspace/
   skills/
     my-skill/
       SKILL.md        ← required: frontmatter + instructions
@@ -101,7 +101,7 @@ name: my-skill
 description: "What this skill does (ini yang masuk index — keep under 97 chars)"
 version: 1.2.0
 metadata:
-  openclaw:
+  edith:
     requires:
       env:
         - API_KEY_NAME
@@ -181,12 +181,12 @@ Slash commands dan directives hanya honored untuk authorized senders.
 
 **Prompt Injection Defense:**
 "Model last" philosophy — architectural constraints, bukan hanya prompt instructions.
-Ini yang bikin OpenClaw lebih secure dari alternative yang hanya pakai prompt guardrails.
+Ini yang bikin EDITH lebih secure dari alternative yang hanya pakai prompt guardrails.
 
 ### Layer 9: Proactive Behavior (Heartbeat Architecture)
 Bukan polling interval biasa. "Heartbeat" waktu agent tidur dan bangun sendiri.
 Agent review recent context saat bangun, reflect, decide apakah perlu action.
-Ini yang buat OpenClaw feel genuinely proactive, bukan reactive.
+Ini yang buat EDITH feel genuinely proactive, bukan reactive.
 
 Cron jobs + webhooks untuk external triggers.
 Webhook config:
@@ -212,9 +212,9 @@ ACP (Agent Client Protocol) via `@agentclientprotocol/sdk`.
 
 ---
 
-## Gap Nova vs OpenClaw
+## Gap EDITH vs EDITH
 
-| Komponen | OpenClaw | Nova Sekarang | Gap |
+| Komponen | EDITH | EDITH Sekarang | Gap |
 |---|---|---|---|
 | Identity files | SOUL.md + AGENTS.md + USER.md + IDENTITY.md | Tidak ada | CRITICAL |
 | Skill system | SKILL.md lazy-loading index | `skills/manager.ts` ada tapi belum lazy | Medium |
@@ -227,7 +227,7 @@ ACP (Agent Client Protocol) via `@agentclientprotocol/sdk`.
 
 ---
 
-## Paper Reference untuk OpenClaw-Style Architecture
+## Paper Reference untuk EDITH-Style Architecture
 
 | Area | Paper | arXiv | Relevansi |
 |---|---|---|---|

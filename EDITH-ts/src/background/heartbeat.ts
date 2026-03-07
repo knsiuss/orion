@@ -183,7 +183,7 @@ export class HeartbeatEngine {
       )
 
       const response = await orchestrator.generate("fast", {
-        systemPrompt: `You are Nova running a heartbeat reflection cycle.\n\n${heartbeatInstructions}\n\nIf nothing needs attention, reply with exactly ${HEARTBEAT_PASS_MARKER}.\nIf something needs attention, respond only with the message to send.`,
+        systemPrompt: `You are EDITH running a heartbeat reflection cycle.\n\n${heartbeatInstructions}\n\nIf nothing needs attention, reply with exactly ${HEARTBEAT_PASS_MARKER}.\nIf something needs attention, respond only with the message to send.`,
         prompt: `Current time: ${currentTime}\nTime since last user interaction: ${minutesSinceLastInteraction} minutes\n\nRecent conversation summary:\n${recentSummary || "(no recent conversations)"}`,
       })
 

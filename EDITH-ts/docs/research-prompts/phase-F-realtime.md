@@ -12,7 +12,7 @@ arXiv: 2512.18706 | Dec 2025 | Event bus architecture, full-duplex
 arXiv: 2505.12501 | May 2025 | Event-driven multi-agent execution
 
 ## Core Idea dari Papers
-Daemon Nova sekarang: polling setiap 10-60 detik.
+Daemon EDITH sekarang: polling setiap 10-60 detik.
 Masalah: lambat, miss events, waste API calls kalau tidak ada activity.
 
 Event-driven architecture (dari X-Talk dan ALAS):
@@ -20,7 +20,7 @@ Event-driven architecture (dari X-Talk dan ALAS):
 - Setiap komponen subscribe ke events yang relevan
 - Action terjadi segera ketika event masuk, bukan tunggu polling interval
 
-Event types untuk Nova:
+Event types untuk EDITH:
 ```
 user.message.received      → trigger memory save + response generation
 user.message.sent          → trigger memrl feedback update
@@ -36,7 +36,7 @@ Manfaat konkret:
 - Daemon tidak perlu loop — hanya react ke events
 - Memory operations bisa overlap dengan response generation (parallel)
 
-## Gap di Nova Sekarang
+## Gap di EDITH Sekarang
 `background/daemon.ts` — polling loop setiap N detik.
 `main.ts` — sequential: save memory → build context → generate → save response.
 Memory save dan LLM call bisa diparalel tapi tidak.
@@ -44,7 +44,7 @@ Memory save dan LLM call bisa diparalel tapi tidak.
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Nova-TS. Implementasi event-driven architecture.
+Kamu sedang memodifikasi EDITH-TS. Implementasi event-driven architecture.
 Paper referensi: arXiv 2410.21620, 2512.18706
 
 ### TASK: Phase F — Event Bus Architecture
@@ -65,7 +65,7 @@ import { createLogger } from "../logger.js"
 const log = createLogger("core.event-bus")
 
 // Definisi semua event types
-export type NovaEvent =
+export type EdithEvent =
   | { type: "user.message.received"; userId: string; content: string; channel: string; timestamp: number }
   | { type: "user.message.sent"; userId: string; content: string; channel: string; timestamp: number }
   | { type: "memory.save.requested"; userId: string; content: string; metadata: Record<string, unknown> }
@@ -77,23 +77,23 @@ export type NovaEvent =
   | { type: "causal.update.requested"; userId: string; content: string }
   | { type: "system.heartbeat"; timestamp: number }
 
-class NovaEventBus extends EventEmitter {
+class EdithEventBus extends EventEmitter {
   constructor() {
     super()
     this.setMaxListeners(50)
   }
 
-  emit<T extends NovaEvent["type"]>(
+  emit<T extends EdithEvent["type"]>(
     eventType: T,
-    data: Extract<NovaEvent, { type: T }>
+    data: Extract<EdithEvent, { type: T }>
   ): boolean {
     log.debug("event emitted", { type: eventType })
     return super.emit(eventType, data)
   }
 
-  on<T extends NovaEvent["type"]>(
+  on<T extends EdithEvent["type"]>(
     eventType: T,
-    listener: (data: Extract<NovaEvent, { type: T }>) => void | Promise<void>
+    listener: (data: Extract<EdithEvent, { type: T }>) => void | Promise<void>
   ): this {
     return super.on(eventType, (data) => {
       const result = listener(data)
@@ -104,16 +104,16 @@ class NovaEventBus extends EventEmitter {
   }
 
   // Fire and forget — emit without waiting
-  dispatch<T extends NovaEvent["type"]>(
+  dispatch<T extends EdithEvent["type"]>(
     eventType: T,
-    data: Omit<Extract<NovaEvent, { type: T }>, "type">
+    data: Omit<Extract<EdithEvent, { type: T }>, "type">
   ): void {
-    const fullData = { ...data, type: eventType } as Extract<NovaEvent, { type: T }>
+    const fullData = { ...data, type: eventType } as Extract<EdithEvent, { type: T }>
     this.emit(eventType, fullData)
   }
 }
 
-export const eventBus = new NovaEventBus()
+export const eventBus = new EdithEventBus()
 ```
 
 #### Step 2: Refactor background/daemon.ts

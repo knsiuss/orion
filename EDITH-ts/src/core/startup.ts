@@ -1,5 +1,5 @@
 /**
- * Nova startup and dependency initialization.
+ * EDITH startup and dependency initialization.
  * Sets up all services and returns a configured MessagePipeline ready to use.
  * Separated from main.ts so startup can be tested and reused by gateway.
  */
@@ -25,9 +25,9 @@ import { mcpClient, type MCPServerConfig } from "../mcp/client.js"
 import { bootstrapLoader } from "./bootstrap.js"
 // Phase H: OS-Agent layer
 import { OSAgent } from "../os-agent/index.js"
-import { getDefaultOSAgentConfig, getJarvisConfig } from "../os-agent/defaults.js"
+import { getDefaultOSAgentConfig, getEdithOSConfig } from "../os-agent/defaults.js"
 import type { OSAgentConfig } from "../os-agent/types.js"
-import { loadNovaConfig } from "../config/nova-config.js"
+import { loadEdithConfig } from "../config/edith-config.js"
 
 const log = createLogger("startup")
 
@@ -63,7 +63,7 @@ async function ensureWorkspaceStructure(workspaceDir: string): Promise<void> {
 }
 
 export async function initialize(workspaceDir: string): Promise<StartupResult> {
-  log.info("starting nova-ts")
+  log.info("starting EDITH-ts")
 
   await ensureWorkspaceStructure(workspaceDir)
   await initializeTracing()
@@ -84,12 +84,12 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
   void agentRunner
   initializeEventHandlers()
 
-  // Initialize MCP Client with configuration from nova.json (T-2)
+  // Initialize MCP Client with configuration from edith.json (T-2)
   try {
-    const novaJsonPath = path.join(workspaceDir, "..", "nova.json")
-    const novaJson = await fs.readFile(novaJsonPath, "utf-8").catch(() => "{}")
-    const novaConfig = JSON.parse(novaJson) as Record<string, unknown>
-    const mcpServers: MCPServerConfig[] = (novaConfig?.mcp as { servers?: MCPServerConfig[] })?.servers || []
+    const edithJsonPath = path.join(workspaceDir, "..", "edith.json")
+    const edithJson = await fs.readFile(edithJsonPath, "utf-8").catch(() => "{}")
+    const edithConfig = JSON.parse(edithJson) as Record<string, unknown>
+    const mcpServers: MCPServerConfig[] = (edithConfig?.mcp as { servers?: MCPServerConfig[] })?.servers || []
     if (mcpServers.length > 0) {
       await mcpClient.init(mcpServers)
       log.info("MCP client initialized", { servers: mcpServers.length })
@@ -107,32 +107,32 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
 
   // ── Phase H: Initialize OS-Agent layer ──
   let osAgent: OSAgent | null = null
-  if (config.OS_AGENT_ENABLED || config.JARVIS_MODE) {
+  if (config.OS_AGENT_ENABLED || config.EDITH_MODE) {
     try {
-      const novaConfig = await loadNovaConfig()
-      const jarvisMode = config.JARVIS_MODE
+      const edithConfig = await loadEdithConfig()
+      const edithMode = config.EDITH_MODE
 
-      // Build OS-Agent config from nova.json or JARVIS preset
-      // Note: osAgent is defined in NovaConfigSchema but z.infer
+      // Build OS-Agent config from edith.json or EDITH preset
+      // Note: osAgent is defined in EdithConfigSchema but z.infer
       // with deeply nested defaults can confuse TS — safe to cast.
-      const novaOsAgent = (novaConfig as Record<string, unknown>).osAgent as
+      const edithOsAgent = (edithConfig as Record<string, unknown>).osAgent as
         | { enabled?: boolean; gui?: object; vision?: object; voice?: object; system?: object; iot?: object; perceptionIntervalMs?: number }
         | undefined
 
       let osAgentConfig: OSAgentConfig
-      if (jarvisMode) {
-        osAgentConfig = getJarvisConfig()
-        log.info("OS-Agent: JARVIS mode enabled (all features ON)")
-      } else if (novaOsAgent?.enabled) {
-        // Merge nova.json osAgent config with defaults
+      if (edithMode) {
+        osAgentConfig = getEdithOSConfig()
+        log.info("OS-Agent: EDITH mode enabled (all features ON)")
+      } else if (edithOsAgent?.enabled) {
+        // Merge edith.json osAgent config with defaults
         const defaults = getDefaultOSAgentConfig()
         osAgentConfig = {
-          gui: { ...defaults.gui, ...(novaOsAgent.gui as object ?? {}) },
-          vision: { ...defaults.vision, ...(novaOsAgent.vision as object ?? {}) },
-          voice: { ...defaults.voice, ...(novaOsAgent.voice as object ?? {}) },
-          system: { ...defaults.system, ...(novaOsAgent.system as object ?? {}) },
-          iot: { ...defaults.iot, ...(novaOsAgent.iot as object ?? {}) },
-          perceptionIntervalMs: novaOsAgent.perceptionIntervalMs ?? defaults.perceptionIntervalMs,
+          gui: { ...defaults.gui, ...(edithOsAgent.gui as object ?? {}) },
+          vision: { ...defaults.vision, ...(edithOsAgent.vision as object ?? {}) },
+          voice: { ...defaults.voice, ...(edithOsAgent.voice as object ?? {}) },
+          system: { ...defaults.system, ...(edithOsAgent.system as object ?? {}) },
+          iot: { ...defaults.iot, ...(edithOsAgent.iot as object ?? {}) },
+          perceptionIntervalMs: edithOsAgent.perceptionIntervalMs ?? defaults.perceptionIntervalMs,
         }
       } else {
         osAgentConfig = getDefaultOSAgentConfig()
@@ -150,9 +150,9 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
       await osAgent.initialize()
 
       // Store globally so tools.ts and pipeline can access it
-      ;(globalThis as any).__novaOSAgent = osAgent
+      ;(globalThis as any).__edithOSAgent = osAgent
 
-      // Register the OS-Agent tool into the live novaTools registry
+      // Register the OS-Agent tool into the live edithTools registry
       registerOSAgentTool(osAgent)
 
       log.info("OS-Agent layer initialized", {

@@ -1,11 +1,11 @@
 services:
-  nova:
+  edith:
     build: .
     ports:
       - "18789:18789"
       - "8080:8080"
     volumes:
-      - nova_data:/data
+      - edith_data:/data
       - ./.env:/app/.env:ro
     restart: unless-stopped
     environment:
@@ -28,4 +28,4 @@ services:
         max-file: "5"
 
 volumes:
-  nova_data:
+  edith_data:

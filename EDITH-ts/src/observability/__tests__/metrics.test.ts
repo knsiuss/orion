@@ -15,9 +15,9 @@ describe("observability metrics", () => {
 
     const metrics = await renderPrometheusMetrics()
 
-    expect(metrics).toContain("nova_http_requests_total")
-    expect(metrics).toContain("nova_engine_calls_total")
-    expect(metrics).toContain("nova_memory_retrievals_total")
+    expect(metrics).toContain("edith_http_requests_total")
+    expect(metrics).toContain("edith_engine_calls_total")
+    expect(metrics).toContain("edith_memory_retrievals_total")
   })
 })
 

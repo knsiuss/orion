@@ -151,7 +151,7 @@ describe("memory/working-memory", () => {
   })
 
   it("persists state across restarts when persistence is enabled", () => {
-    const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "nova-working-"))
+    const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "edith-working-"))
 
     try {
       const first = new WorkingMemory("task-persist", "stabilize release", {

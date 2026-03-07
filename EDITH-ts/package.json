@@ -1,15 +1,15 @@
 {
-  "name": "nova",
+  "name": "edith",
   "version": "0.1.0",
   "packageManager": "pnpm@10.30.1",
   "type": "module",
   "bin": {
-    "nova": "./bin/nova.js"
+    "edith": "./bin/edith.js"
   },
   "scripts": {
     "dev": "tsx src/main.ts",
     "all": "tsx src/main.ts --mode all",
-    "jarvis": "tsx src/main.ts --mode jarvis",
+    "edith": "tsx src/main.ts --mode edith",
     "gateway": "tsx src/main.ts --mode gateway",
     "gateway:watch": "tsx watch src/main.ts --mode gateway",
     "build": "tsup src/main.ts --format esm --dts --external playwright",

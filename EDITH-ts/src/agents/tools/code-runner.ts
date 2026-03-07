@@ -27,7 +27,7 @@ const TIMEOUT_MS = 10_000
 const MAX_OUTPUT_CHARS = 5_000
 
 async function runPython(code: string): Promise<string> {
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "nova-code-"))
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "edith-code-"))
   const scriptPath = path.join(tmpDir, "script.py")
 
   try {
@@ -47,7 +47,7 @@ async function runPython(code: string): Promise<string> {
 }
 
 async function runNode(code: string): Promise<string> {
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "nova-code-"))
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "edith-code-"))
   const scriptPath = path.join(tmpDir, "script.mjs")
 
   try {

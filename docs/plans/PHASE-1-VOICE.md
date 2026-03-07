@@ -1,18 +1,18 @@
-# Phase 1 — Voice Input Pipeline (Full-Duplex JARVIS Voice)
+# Phase 1 — Voice Input Pipeline (Full-Duplex EDITH Voice)
 
 **Durasi Estimasi:** 2–3 minggu  
-**Prioritas:** 🔴 CRITICAL — Ini adalah fondasi interaksi JARVIS  
+**Prioritas:** 🔴 CRITICAL — Ini adalah fondasi interaksi EDITH  
 **Status Saat Ini:** TTS via EdgeEngine ✅ | VAD ❌ | Wake Word ❌ | STT ❌  
 
 ---
 
 ## 1. Tujuan
 
-Membangun pipeline voice end-to-end sehingga user bisa berbicara ke Nova seperti JARVIS:
+Membangun pipeline voice end-to-end sehingga user bisa berbicara ke EDITH seperti EDITH:
 1. Selalu mendengarkan (always-on VAD)
-2. Deteksi wake word ("Hey Nova")  
+2. Deteksi wake word ("Hey EDITH")  
 3. Speech-to-Text real-time
-4. Proses melalui Nova pipeline
+4. Proses melalui EDITH pipeline
 5. Text-to-Speech response
 6. Bisa diinterupsi mid-speech (barge-in / full-duplex)
 
@@ -51,7 +51,7 @@ Membangun pipeline voice end-to-end sehingga user bisa berbicara ke Nova seperti
 │                             │ transcription text              │
 │                             ▼                                 │
 │  ┌──────────────────────────────────────────────────┐        │
-│  │              Nova Core Pipeline                    │        │
+│  │              EDITH Core Pipeline                    │        │
 │  │  context build → MemRL → engine call → feedback   │        │
 │  └──────────────────────┬───────────────────────────┘        │
 │                         │ response text                       │
@@ -118,10 +118,10 @@ Membangun pipeline voice end-to-end sehingga user bisa berbicara ke Nova seperti
           │  WebSocket
           ▼
 ┌──────────────────────────────────────────┐
-│           SERVER (Orion Gateway)          │
+│           SERVER (EDITH Gateway)          │
 │                                           │
 │  voice_chunk → Accumulate → STT          │
-│  STT text → Nova Pipeline                 │
+│  STT text → EDITH Pipeline                 │
 │  Response → TTS → voice_audio chunks     │
 │                                           │
 └──────────────────────────────────────────┘
@@ -146,7 +146,7 @@ Membangun pipeline voice end-to-end sehingga user bisa berbicara ke Nova seperti
 
 ### 3.1 VAD — Voice Activity Detection
 
-**File:** `orion-ts/src/os-agent/voice-io.ts` → `initializeVAD()` + `startVADLoop()`
+**File:** `EDITH-ts/src/os-agent/voice-io.ts` → `initializeVAD()` + `startVADLoop()`
 
 **Status:** ❌ Placeholder (hanya log)
 
@@ -172,7 +172,7 @@ Langkah:
 
 ### 3.2 Wake Word Detection
 
-**File:** `orion-ts/src/os-agent/voice-io.ts` → `initializeWakeWord()`
+**File:** `EDITH-ts/src/os-agent/voice-io.ts` → `initializeWakeWord()`
 
 **Status:** ❌ Placeholder
 
@@ -180,7 +180,7 @@ Langkah:
 ```
 Package: @picovoice/porcupine-node
 Pros:
-  - Pre-trained "Hey Nova" model (atau custom via console.picovoice.ai)
+  - Pre-trained "Hey EDITH" model (atau custom via console.picovoice.ai)
   - Free tier: 3 custom keywords
   - Ultra-low CPU usage (~1% core)
   - Cross-platform (Windows, Mac, Linux, Android, iOS)
@@ -190,8 +190,8 @@ Cons:
 
 Setup:
   1. npm install @picovoice/porcupine-node
-  2. Create "Hey Nova" keyword at console.picovoice.ai
-  3. Download .ppn file → config/hey-nova.ppn
+  2. Create "Hey EDITH" keyword at console.picovoice.ai
+  3. Download .ppn file → config/hey-edith.ppn
   4. Process 512-sample frames (16kHz) → returns keyword index
 ```
 
@@ -210,14 +210,14 @@ Cons:
 
 Setup:
   1. pip install openwakeword onnxruntime
-  2. Train custom "hey nova" model (or use pre-trained)  
+  2. Train custom "hey edith" model (or use pre-trained)  
   3. Bridge: Node spawns Python subprocess
   4. Communication via stdin/stdout JSON
 ```
 
 ### 3.3 Speech-to-Text (STT)
 
-**File:** `orion-ts/src/os-agent/voice-io.ts` → `initializeSTT()`
+**File:** `EDITH-ts/src/os-agent/voice-io.ts` → `initializeSTT()`
 
 **Status:** ❌ Placeholder
 
@@ -259,7 +259,7 @@ Streaming: yes, ~200ms latency
 
 ### 3.4 Gateway Voice Protocol Extension
 
-**File:** `orion-ts/src/gateway/server.ts`
+**File:** `EDITH-ts/src/gateway/server.ts`
 
 **Status:** ⚠️ Has `voice_start`/`voice_stop` handlers but no streaming audio support
 
@@ -354,8 +354,8 @@ Dev/Test Dependencies:
 | Install mic capture | package.json | `pnpm add mic` atau `node-portaudio` |
 | Audio capture loop | voice-io.ts | 16kHz mono, feed chunks ke VAD |
 | Install Porcupine | package.json | `pnpm add @picovoice/porcupine-node` |
-| Create "Hey Nova" keyword | Picovoice console | Download .ppn file |
-| Integrate wake word | voice-io.ts | Process frames → detect "Hey Nova" |
+| Create "Hey EDITH" keyword | Picovoice console | Download .ppn file |
+| Integrate wake word | voice-io.ts | Process frames → detect "Hey EDITH" |
 | Tests: VAD + Wake Word | `__tests__/` | Mock audio, verify detections |
 
 ### Week 2: STT + Pipeline Integration
@@ -403,7 +403,7 @@ Dev/Test Dependencies:
 ```
 Unit Tests (8 tests):
 ├── VAD: process known speech/silence samples → correct detection
-├── Wake Word: process "Hey Nova" audio → triggers
+├── Wake Word: process "Hey EDITH" audio → triggers
 ├── Wake Word: process non-keyword audio → no false trigger
 ├── STT: short utterance → correct transcription  
 ├── STT: empty audio → empty string (no crash)
@@ -474,11 +474,11 @@ Performance Benchmarks:
 
 | File | Action | Lines Est. |
 |------|--------|-----------|
-| `orion-ts/src/os-agent/voice-io.ts` | Major rewrite: real VAD, wake word, STT | +400 |
-| `orion-ts/src/gateway/server.ts` | Add voice_chunk handler, session manager | +80 |
-| `orion-ts/src/gateway/voice-session.ts` | NEW: Voice session manager class | +150 |
+| `EDITH-ts/src/os-agent/voice-io.ts` | Major rewrite: real VAD, wake word, STT | +400 |
+| `EDITH-ts/src/gateway/server.ts` | Add voice_chunk handler, session manager | +80 |
+| `EDITH-ts/src/gateway/voice-session.ts` | NEW: Voice session manager class | +150 |
 | `apps/mobile/components/VoiceButton.tsx` | NEW: Push-to-talk + always-listen UI | +200 |
 | `apps/mobile/App.tsx` | Wire VoiceButton into chat screen | +30 |
-| `orion-ts/src/os-agent/__tests__/voice.test.ts` | NEW: Voice pipeline tests | +150 |
-| `orion-ts/package.json` | Add dependencies | +5 |
+| `EDITH-ts/src/os-agent/__tests__/voice.test.ts` | NEW: Voice pipeline tests | +150 |
+| `EDITH-ts/package.json` | Add dependencies | +5 |
 | **Total** | | **~1015 lines** |

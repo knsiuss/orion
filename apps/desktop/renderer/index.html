@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nova</title>
+  <title>EDITH</title>
   <style>
     * {
       margin: 0;
@@ -230,7 +230,7 @@
 </head>
 <body>
   <div class="titlebar">
-    <span class="titlebar-title">Nova</span>
+    <span class="titlebar-title">EDITH</span>
     <div class="titlebar-buttons">
       <button class="titlebar-btn" id="minimize-btn">-</button>
       <button class="titlebar-btn close" id="close-btn">x</button>
@@ -244,13 +244,13 @@
         <span></span>
         <span></span>
       </div>
-      <span>Nova is thinking...</span>
+      <span>EDITH is thinking...</span>
     </div>
   </div>
 
   <div class="input-bar">
     <div class="input-wrapper">
-      <input type="text" id="message-input" placeholder="Message Nova..." />
+      <input type="text" id="message-input" placeholder="Message EDITH..." />
     </div>
     <button class="send-btn" id="send-btn">-></button>
   </div>
@@ -332,7 +332,7 @@
       sendBtn.disabled = true
 
       try {
-        await window.nova.sendMessage(content, "owner")
+        await window.edith.sendMessage(content, "owner")
       } catch (err) {
         hideTyping()
         addMessage("assistant", "Failed to send message. Please try again.")
@@ -349,19 +349,19 @@
     })
 
     minimizeBtn.addEventListener("click", () => {
-      window.nova.minimizeWindow()
+      window.edith.minimizeWindow()
     })
 
     closeBtn.addEventListener("click", () => {
-      window.nova.closeWindow()
+      window.edith.closeWindow()
     })
 
-    window.nova.onConnected(() => {
+    window.edith.onConnected(() => {
       updateConnectionStatus("connected")
       sendBtn.disabled = false
     })
 
-    window.nova.onMessage((msg) => {
+    window.edith.onMessage((msg) => {
       if (msg.type === "response") {
         hideTyping()
         sendBtn.disabled = false

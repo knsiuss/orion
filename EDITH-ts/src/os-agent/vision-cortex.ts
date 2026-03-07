@@ -1,7 +1,7 @@
 /**
  * @file os-agent/vision-cortex.ts — Screen Understanding & Vision
  * @description Captures and analyzes screen content using OCR and multimodal LLMs.
- * Enables Nova to "see" what's on screen, extract text, detect UI elements,
+ * Enables EDITH to "see" what's on screen, extract text, detect UI elements,
  * and understand visual content.
  *
  * Based on:
@@ -151,7 +151,7 @@ export class VisionCortex {
     }
 
     // Fallback: own implementation (used when GUIAgent is not injected)
-    const tmpPath = path.join(os.tmpdir(), `nova-vision-${Date.now()}.png`)
+    const tmpPath = path.join(os.tmpdir(), `edith-vision-${Date.now()}.png`)
 
     try {
       if (this.platform === "win32") {
@@ -175,8 +175,8 @@ export class VisionCortex {
   }
 
   private async tesseractOCR(imageBuffer: Buffer): Promise<string> {
-    const tmpIn = path.join(os.tmpdir(), `nova-ocr-in-${Date.now()}.png`)
-    const tmpOut = path.join(os.tmpdir(), `nova-ocr-out-${Date.now()}`)
+    const tmpIn = path.join(os.tmpdir(), `edith-ocr-in-${Date.now()}.png`)
+    const tmpOut = path.join(os.tmpdir(), `edith-ocr-out-${Date.now()}`)
 
     try {
       await fs.writeFile(tmpIn, imageBuffer)

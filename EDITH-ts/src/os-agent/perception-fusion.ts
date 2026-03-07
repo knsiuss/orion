@@ -2,7 +2,7 @@
  * @file os-agent/perception-fusion.ts — Unified Perception Snapshot
  * @description Fuses inputs from all sensory subsystems (screen, audio, system, IoT)
  * into a single coherent context snapshot. This is the "situational awareness"
- * layer — giving Nova a unified view of the user's current state.
+ * layer — giving EDITH a unified view of the user's current state.
  *
  * Based on:
  * - Generative Agents (arXiv:2304.03442) — Observation-Planning-Reflection cycle

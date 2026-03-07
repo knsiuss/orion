@@ -119,7 +119,7 @@ function normalizeWhatsAppWaId(value: string): string {
   return bare.replace(/[^\d]/g, "")
 }
 
-function toWhatsAppNovaUserId(waId: string): string {
+function toWhatsAppEdithUserId(waId: string): string {
   return `whatsapp:${normalizeWhatsAppWaId(waId)}`
 }
 
@@ -154,9 +154,9 @@ function normalizeWhatsAppCommand(text: string): string | null {
 }
 
 function resolveWhatsAppAuthStateDir(): string {
-  const stateDir = typeof process.env.NOVA_STATE_DIR === "string" && process.env.NOVA_STATE_DIR.trim().length > 0
-    ? process.env.NOVA_STATE_DIR.trim()
-    : ".nova"
+  const stateDir = typeof process.env.EDITH_STATE_DIR === "string" && process.env.EDITH_STATE_DIR.trim().length > 0
+    ? process.env.EDITH_STATE_DIR.trim()
+    : ".edith"
   return path.join(stateDir, "whatsapp-auth")
 }
 
@@ -605,11 +605,11 @@ export class WhatsAppChannel implements BaseChannel {
     }
 
     this.enqueueSerializedTask(sourceId, async () => {
-      const novaUserId = toWhatsAppNovaUserId(waId)
-      await multiUser.getOrCreate(novaUserId, "whatsapp")
+      const edithUserId = toWhatsAppEdithUserId(waId)
+      await multiUser.getOrCreate(edithUserId, "whatsapp")
 
       try {
-        const response = await handleIncomingUserMessage(novaUserId, text, "whatsapp")
+        const response = await handleIncomingUserMessage(edithUserId, text, "whatsapp")
         const sent = await this.send(sourceId, response)
         if (!sent) {
           log.warn("WhatsApp response send returned false", { sourceId, mode: this.getMode() })
@@ -865,7 +865,7 @@ export const whatsAppChannel = new WhatsAppChannel()
 export const __whatsAppTestUtils = {
   parseAllowedWhatsAppIds,
   normalizeWhatsAppWaId,
-  toWhatsAppNovaUserId,
+  toWhatsAppEdithUserId,
   toWhatsAppCloudRecipient,
   toBaileysJid,
   normalizeWhatsAppCommand,

@@ -7,7 +7,7 @@ import { createLogger } from "../logger.js"
 const log = createLogger("skills.manager")
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const SKILLS_DIR = path.join(__dirname, "..", "..", ".nova", "skills")
+const SKILLS_DIR = path.join(__dirname, "..", "..", ".edith", "skills")
 
 export interface Skill {
   name: string

@@ -6,12 +6,12 @@ import { z } from "zod"
 
 import { createLogger } from "../logger.js"
 
-const log = createLogger("config.nova-config")
+const log = createLogger("config.edith-config")
 
 const ChannelPolicySchema = z.enum(["pairing", "allowlist", "open"])
 
 /**
- * Channel config — OpenClaw-style.
+ * Channel config — EDITH-style.
  * Tokens/keys live directly in the JSON config alongside policy fields.
  */
 const ChannelConfigSchema = z
@@ -20,7 +20,7 @@ const ChannelConfigSchema = z
     allowFrom: z.array(z.string()).default([]),
     groupPolicy: ChannelPolicySchema.default("allowlist"),
     ackReaction: z.string().default("👀"),
-    // Channel-specific tokens (OpenClaw-style: tokens IN config, not .env)
+    // Channel-specific tokens (EDITH-style: tokens IN config, not .env)
     botToken: z.string().optional(),
     chatId: z.string().optional(),
     channelId: z.string().optional(),
@@ -69,11 +69,11 @@ const SkillConfigSchema = z
   .partial()
 
 /**
- * OpenClaw-style env section: API keys and arbitrary env vars live in the JSON
+ * EDITH-style env section: API keys and arbitrary env vars live in the JSON
  * config, not in .env.  On load the values are injected into process.env so all
  * existing config.ts code picks them up transparently.
  *
- * Example in nova.json:
+ * Example in edith.json:
  * ```json
  * {
  *   "env": {
@@ -85,7 +85,7 @@ const SkillConfigSchema = z
  */
 const EnvSectionSchema = z.record(z.string(), z.string()).default({})
 
-const NovaConfigSchema = z.object({
+const EdithConfigSchema = z.object({
   /** Env-var overrides — injected into process.env before dotenv runs */
   env: EnvSectionSchema,
 
@@ -189,45 +189,45 @@ const NovaConfigSchema = z.object({
     .default({ servers: [] }),
 })
 
-export type NovaConfig = z.infer<typeof NovaConfigSchema>
+export type EdithConfig = z.infer<typeof EdithConfigSchema>
 
-let cachedConfig: NovaConfig | null = null
+let cachedConfig: EdithConfig | null = null
 
 /**
  * Resolve the path to the active config file.
- * Priority: EDITH_CONFIG_PATH -> NOVA_CONFIG_PATH -> edith.json -> nova.json
+ * Priority: EDITH_CONFIG_PATH -> EDITH_CONFIG_PATH -> edith.json -> edith.json
  */
 function resolveConfigPath(): string {
   if (process.env.EDITH_CONFIG_PATH?.trim()) {
     return path.resolve(process.env.EDITH_CONFIG_PATH.trim())
   }
-  if (process.env.NOVA_CONFIG_PATH?.trim()) {
-    return path.resolve(process.env.NOVA_CONFIG_PATH.trim())
+  if (process.env.EDITH_CONFIG_PATH?.trim()) {
+    return path.resolve(process.env.EDITH_CONFIG_PATH.trim())
   }
   const edithConfigPath = path.resolve(process.cwd(), "edith.json")
   try {
     readFileSync(edithConfigPath, "utf-8")
     return edithConfigPath
   } catch {
-    // Fall through to legacy nova.json path.
+    // Fall through to legacy edith.json path.
   }
-  return path.resolve(process.cwd(), "nova.json")
+  return path.resolve(process.cwd(), "edith.json")
 }
 
 /**
- * Synchronous early-load: inject nova.json `env` + channel tokens into
- * process.env BEFORE dotenv + config.ts parse.  This is the key OpenClaw-style
+ * Synchronous early-load: inject edith.json `env` + channel tokens into
+ * process.env BEFORE dotenv + config.ts parse.  This is the key EDITH-style
  * trick — the JSON config is the single source of truth for secrets.
  *
  * Call this ONCE at the very top of your entry point before importing config.ts.
  */
-export function injectNovaJsonEnv(): void {
+export function injectEdithJsonEnv(): void {
   const configPath = resolveConfigPath()
   let raw: string
   try {
     raw = readFileSync(configPath, "utf-8")
   } catch {
-    return // No nova.json yet — dotenv / defaults used
+    return // No edith.json yet — dotenv / defaults used
   }
 
   let parsed: Record<string, unknown>
@@ -286,7 +286,7 @@ export function injectNovaJsonEnv(): void {
   }
 }
 
-export async function loadNovaConfig(): Promise<NovaConfig> {
+export async function loadEdithConfig(): Promise<EdithConfig> {
   if (cachedConfig) {
     return cachedConfig
   }
@@ -296,33 +296,33 @@ export async function loadNovaConfig(): Promise<NovaConfig> {
   try {
     const raw = await fs.readFile(configPath, "utf-8")
     const parsed = JSON.parse(raw)
-    cachedConfig = NovaConfigSchema.parse(parsed)
-    log.info("nova.json loaded", { workspace: cachedConfig.agents.defaults.workspace })
+    cachedConfig = EdithConfigSchema.parse(parsed)
+    log.info("edith.json loaded", { workspace: cachedConfig.agents.defaults.workspace })
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      log.info("nova.json not found, using defaults")
+      log.info("edith.json not found, using defaults")
     } else {
-      log.warn("nova.json parse error, using defaults", error)
+      log.warn("edith.json parse error, using defaults", error)
     }
-    cachedConfig = NovaConfigSchema.parse({})
+    cachedConfig = EdithConfigSchema.parse({})
   }
 
   return cachedConfig
 }
 
-export function getNovaConfig(): NovaConfig {
+export function getEdithConfig(): EdithConfig {
   if (!cachedConfig) {
-    throw new Error("Config not loaded - call loadNovaConfig() first")
+    throw new Error("Config not loaded - call loadEdithConfig() first")
   }
 
   return cachedConfig
 }
 
 /**
- * Write the full NovaConfig back to nova.json.
+ * Write the full EdithConfig back to edith.json.
  * Used by the onboard wizard to persist config changes.
  */
-export async function writeNovaConfig(cfg: Record<string, unknown>, configPath?: string): Promise<string> {
+export async function writeEdithConfig(cfg: Record<string, unknown>, configPath?: string): Promise<string> {
   const target = configPath ?? resolveConfigPath()
   const dir = path.dirname(target)
   await fs.mkdir(dir, { recursive: true })

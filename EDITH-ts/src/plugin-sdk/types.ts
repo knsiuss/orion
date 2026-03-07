@@ -1,6 +1,6 @@
 import type { Hook } from "../hooks/registry.js"
 
-export interface NovaPlugin {
+export interface EdithPlugin {
   name: string
   version: string
   description: string

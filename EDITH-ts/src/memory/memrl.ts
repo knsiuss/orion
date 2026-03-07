@@ -198,7 +198,7 @@ export class MemRLUpdater {
     }
 
     try {
-      const dbPath = path.resolve(process.cwd(), ".nova", "lancedb")
+      const dbPath = path.resolve(process.cwd(), ".edith", "lancedb")
       await fs.mkdir(path.dirname(dbPath), { recursive: true })
       this.db = await lancedb.connect(dbPath)
 

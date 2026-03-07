@@ -44,7 +44,7 @@ function computeTargetUserIds(defaultUserId: string, users: Array<{ userId: stri
   return Array.from(userIds)
 }
 
-export class NovaDaemon {
+export class EdithDaemon {
   private running = false
   private lastActivityTime = Date.now()
   private cycleInProgress = false
@@ -302,7 +302,7 @@ export class NovaDaemon {
   }
 }
 
-export const daemon = new NovaDaemon()
+export const daemon = new EdithDaemon()
 
 export const __daemonTestUtils = {
   buildTriggerDedupKey,

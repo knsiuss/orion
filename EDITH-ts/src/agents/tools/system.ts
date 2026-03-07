@@ -1,5 +1,5 @@
 /**
- * systemTool — OS-level operations for Jarvis-style awareness.
+ * systemTool — OS-level operations for EDITH-style awareness.
  *
  * Actions:
  *   clipboard_read   — Read current clipboard content

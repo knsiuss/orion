@@ -1,5 +1,5 @@
 /**
- * dsp.ts — Lightweight audio DSP for TARS voice character.
+ * dsp.ts — Lightweight audio DSP for EDITH voice character.
  *
  * Pure TypeScript audio processing on raw PCM Float32 samples.
  * No external dependencies — just math on arrays.
@@ -7,17 +7,17 @@
  * Effects: parametric EQ, compression, micro-reverb.
  * Designed to add subtle AI character without sounding robotic.
  *
- * Part of Nova — Persistent AI Companion System.
+ * Part of EDITH — Persistent AI Companion System.
  */
 
-import type { DSPPreset } from "./tars-preset.js"
+import type { DSPPreset } from "./edith-preset.js"
 
 /**
  * AudioDSP — Applies post-processing effects to audio buffers.
  *
  * Usage:
  *   const dsp = new AudioDSP(24000)
- *   const processed = dsp.apply(rawPcm, TARS_DSP)
+ *   const processed = dsp.apply(rawPcm, EDITH_DSP)
  */
 export class AudioDSP {
     private sampleRate: number

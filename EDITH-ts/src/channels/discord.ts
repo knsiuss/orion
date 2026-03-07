@@ -82,7 +82,7 @@ function normalizeDiscordCommand(text: string): string | null {
   return command || null
 }
 
-function toDiscordNovaUserId(authorId: string): string {
+function toDiscordEdithUserId(authorId: string): string {
   return `discord:${authorId}`
 }
 
@@ -319,11 +319,11 @@ export class DiscordChannel implements BaseChannel {
       .then(async () => {
         await this.sendTypingIndicator(message)
 
-        const novaUserId = toDiscordNovaUserId(inbound.authorId)
-        await multiUser.getOrCreate(novaUserId, "discord")
+        const edithUserId = toDiscordEdithUserId(inbound.authorId)
+        await multiUser.getOrCreate(edithUserId, "discord")
 
         try {
-          const response = await handleIncomingUserMessage(novaUserId, inbound.text, "discord")
+          const response = await handleIncomingUserMessage(edithUserId, inbound.text, "discord")
           await this.send(toDiscordChannelTargetId(inbound.channelId), response)
         } catch (error) {
           log.error("Discord inbound processing failed", { channelId: inbound.channelId, error })
@@ -447,7 +447,7 @@ export const discordChannel = new DiscordChannel()
 export const __discordTestUtils = {
   parseAllowedDiscordChannelIds,
   normalizeDiscordCommand,
-  toDiscordNovaUserId,
+  toDiscordEdithUserId,
   toDiscordChannelTargetId,
   parseDiscordChannelTargetId,
   extractDiscordInboundMessage,

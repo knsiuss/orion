@@ -1,7 +1,7 @@
 # Phase 4 — IoT & Smart Home Completion (MQTT + Extended NL + Scenes)
 
 **Durasi Estimasi:** 1–2 minggu  
-**Prioritas:** 🟡 MEDIUM — Fitur JARVIS smart home  
+**Prioritas:** 🟡 MEDIUM — Fitur EDITH smart home  
 **Status Saat Ini:** HA REST API ✅ | HA Rate Limiting ✅ | NL Parser (basic) ✅ | MQTT ❌ | Scenes ❌ | Mobile Control ❌  
 
 ---
@@ -23,7 +23,7 @@ Upgrade IoTBridge dari "bisa nyalakan lampu via HA" menjadi full smart home cont
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                       IoT Bridge (Orion)                         │
+│                       IoT Bridge (EDITH)                         │
 │                                                                   │
 │  ┌────────────────────────────────────────────────────────────┐  │
 │  │                  Natural Language Parser                    │  │
@@ -100,7 +100,7 @@ Upgrade IoTBridge dari "bisa nyalakan lampu via HA" menjadi full smart home cont
 │  ├── tasmota/+/cmnd/#        (command)          │
 │  ├── tasmota/+/stat/#        (state update)     │
 │  ├── homeassistant/+/+/state (HA discovery)     │
-│  └── nova/iot/#              (Nova custom)      │
+│  └── edith/iot/#              (EDITH custom)      │
 └───────────────┬───────────────────────────────┘
                 │
                 │ MQTT.js client
@@ -151,7 +151,7 @@ Upgrade IoTBridge dari "bisa nyalakan lampu via HA" menjadi full smart home cont
 │  │  └─────────────────────────────────────┘ │  │
 │  │                                           │  │
 │  │  ┌─────────────────────────────────────┐ │  │
-│  │  │ Voice: "Hey Nova, matikan lampu"     │ │  │
+│  │  │ Voice: "Hey EDITH, matikan lampu"     │ │  │
 │  │  │ [🎤 Push to Talk]                   │ │  │
 │  │  └─────────────────────────────────────┘ │  │
 │  └──────────────────────────────────────────┘  │
@@ -169,7 +169,7 @@ Upgrade IoTBridge dari "bisa nyalakan lampu via HA" menjadi full smart home cont
 
 ### 3.1 MQTT Client Implementation
 
-**File:** `orion-ts/src/os-agent/iot-bridge.ts` → `initMQTT()` + `executeMQTT()`
+**File:** `EDITH-ts/src/os-agent/iot-bridge.ts` → `initMQTT()` + `executeMQTT()`
 
 **Status:** ❌ Placeholder (hanya log)
 
@@ -188,7 +188,7 @@ private async initMQTT(): Promise<void> {
     reconnectPeriod: 5000,
     keepalive: 60,
     clean: true,
-    clientId: `nova-iot-${Date.now()}`,
+    clientId: `edith-iot-${Date.now()}`,
   })
 
   this.mqttClient.on("connect", () => {
@@ -239,7 +239,7 @@ private async executeMQTT(payload: IoTActionPayload): Promise<OSActionResult> {
 
 ### 3.2 Extended Natural Language Parser
 
-**File:** `orion-ts/src/os-agent/iot-bridge.ts` → `parseNaturalLanguage()`
+**File:** `EDITH-ts/src/os-agent/iot-bridge.ts` → `parseNaturalLanguage()`
 
 **Status:** ⚠️ Basic (hanya light on/off, climate temp, lock)
 
@@ -291,7 +291,7 @@ Return JSON array: [{ domain, service, entityId, data? }]`,
 
 ### 3.3 Scene Manager
 
-**File:** NEW `orion-ts/src/os-agent/scene-manager.ts`
+**File:** NEW `EDITH-ts/src/os-agent/scene-manager.ts`
 
 ```typescript
 interface Scene {
@@ -349,7 +349,7 @@ const DEFAULT_SCENES: Scene[] = [
 
 ### 3.4 IoT Config Extension
 
-**File:** `orion-ts/src/os-agent/types.ts`
+**File:** `EDITH-ts/src/os-agent/types.ts`
 
 **Tambahkan ke IoTConfig:**
 ```typescript
@@ -363,7 +363,7 @@ export interface IoTConfig {
   mqttBrokerUrl?: string
   mqttUsername?: string
   mqttPassword?: string
-  mqttTopicPrefix?: string  // default: "nova/iot"
+  mqttTopicPrefix?: string  // default: "edith/iot"
   // Scenes (new)
   scenesEnabled?: boolean
   customScenes?: Scene[]
@@ -374,7 +374,7 @@ export interface IoTConfig {
 
 ### 3.5 Gateway IoT Endpoints
 
-**File:** `orion-ts/src/gateway/server.ts`
+**File:** `EDITH-ts/src/gateway/server.ts`
 
 **WebSocket messages baru:**
 
@@ -524,5 +524,5 @@ Integration Tests (4 tests):
 | `apps/mobile/components/SceneButton.tsx` | NEW: Scene activation button | +60 |
 | `apps/mobile/App.tsx` | Add IoT navigation | +20 |
 | `src/os-agent/__tests__/iot-bridge.test.ts` | Extended tests | +150 |
-| `orion-ts/package.json` | Add mqtt dependency | +1 |
+| `EDITH-ts/package.json` | Add mqtt dependency | +1 |
 | **Total** | | **~1151 lines** |

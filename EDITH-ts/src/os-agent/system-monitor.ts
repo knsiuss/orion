@@ -1,7 +1,7 @@
 /**
  * @file os-agent/system-monitor.ts — System Monitoring & Activity Tracking
  * @description Monitors system resources, active windows, clipboard, and user activity.
- * Provides environmental awareness for JARVIS-style proactive behavior.
+ * Provides environmental awareness for EDITH-style proactive behavior.
  *
  * @module os-agent/system-monitor
  */

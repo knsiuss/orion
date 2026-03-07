@@ -4,7 +4,7 @@ selalu lakukan commit dan push setiap step
 
 ## Tujuan
 Ganti semua paid API ke free tier supaya development bisa jalan tanpa keluar biaya tapi tetap siapkan untuk next nya jika ingin menggunakan api berbayar .
-Target: semua fitur Nova berfungsi dengan $0/bulan.
+Target: semua fitur EDITH berfungsi dengan $0/bulan.
 
 ## Problem Saat Ini
 - `memory/store.ts` pakai `openAIEmbed()` → berbayar
@@ -24,8 +24,8 @@ Target: semua fitur Nova berfungsi dengan $0/bulan.
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Nova-TS, AI companion system berbasis TypeScript/Node 22.
-Repo: nova-ts/src/
+Kamu sedang memodifikasi EDITH-TS, AI companion system berbasis TypeScript/Node 22.
+Repo: EDITH-ts/src/
 
 ### TASK: Phase A — Free Stack Migration
 
@@ -107,6 +107,6 @@ Tulis guide singkat (maksimal 60 baris) tentang cara setup zero-cost:
 ```bash
 ollama pull nomic-embed-text
 pnpm dev --mode text
-# Ketik: "halo nova"
+# Ketik: "halo edith"
 # Harusnya response tanpa error embedding
 ```

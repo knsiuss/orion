@@ -7,14 +7,14 @@ arXiv: 2508.06124 | Aug 2025 | Verified
 
 ## Core Idea dari Paper
 Problem: LLM tidak detect *implicit* harm.
-Pattern filter (yang sudah ada di Nova) hanya cek surface-level keywords.
+Pattern filter (yang sudah ada di EDITH) hanya cek surface-level keywords.
 AURA cek reasoning chain: "kalau output ini dieksekusi, apa yang bisa terjadi 3 langkah ke depan?"
 
 AffordRanker = Process Reward Model yang evaluate setiap reasoning step:
 - Logical coherence score (Elc)
 - Affordance validation score (Eav) — apakah step ini bisa dieksekusi untuk harm
 
-Untuk Nova (tanpa fine-tuned PRM):
+Untuk EDITH (tanpa fine-tuned PRM):
 Implementasi versi pragmatis dengan LLM-as-affordance-checker:
 Sebelum execute tool atau kirim response berisi instruksi,
 tanya LLM: "Bisa tidak output ini dipakai untuk harm? Score 0-1."
@@ -27,7 +27,7 @@ Lapisan keamanan yang perlu ada:
 5. Rate limiting (sudah ada di pairing)
 6. Audit trail (sudah ada: input-provenance.ts)
 
-## Gap di Nova Sekarang
+## Gap di EDITH Sekarang
 `security/prompt-filter.ts` — pattern matching saja, tidak reason about implications.
 Tidak ada output scanning sebelum response dikirim ke user.
 Tool guard ada tapi tidak check affordance dari hasil tool.
@@ -35,7 +35,7 @@ Tool guard ada tapi tidak check affordance dari hasil tool.
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Nova-TS. Implementasi AURA-inspired affordance checking.
+Kamu sedang memodifikasi EDITH-TS. Implementasi AURA-inspired affordance checking.
 Paper referensi: arXiv 2508.06124
 
 ### TASK: Phase E — Security Hardening

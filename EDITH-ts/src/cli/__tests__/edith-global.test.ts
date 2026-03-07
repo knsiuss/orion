@@ -18,12 +18,12 @@ import {
   normalizeWhatsAppLoginMode,
   parseChannelsArgs,
   parseSelfTestArgs,
-  parseNovaCliArgs,
+  parseEdithCliArgs,
   parseEnvContentLoose,
-  findNovaRepoUpwards,
+  findEdithRepoUpwards,
   getProfilePaths,
   getChannelLogHints,
-  isNovaRepoDir,
+  isEdithRepoDir,
   lineMatchesChannelLogFilter,
   probeLocalTcpPort,
   resolveProfileSelector,
@@ -32,22 +32,22 @@ import {
   summarizeWhatsAppBaileysCreds,
   shouldUseShellForCommand,
   shouldInvokeCli,
-} from "../../../bin/nova.js"
+} from "../../../bin/edith.js"
 
-describe("global nova CLI helpers", () => {
+describe("global edith CLI helpers", () => {
   it("parses repo override and positionals", () => {
-    const parsed = parseNovaCliArgs([
+    const parsed = parseEdithCliArgs([
       "--repo",
-      "C:\\repo\\nova-ts",
+      "C:\\repo\\EDITH-ts",
       "--profile",
-      "C:\\Users\\me\\.nova\\profiles\\test",
+      "C:\\Users\\me\\.edith\\profiles\\test",
       "wa",
       "scan",
     ])
 
     expect(parsed).toEqual({
-      repoOverride: "C:\\repo\\nova-ts",
-      profileOverride: "C:\\Users\\me\\.nova\\profiles\\test",
+      repoOverride: "C:\\repo\\EDITH-ts",
+      profileOverride: "C:\\Users\\me\\.edith\\profiles\\test",
       dev: false,
       positionals: ["wa", "scan"],
       help: false,
@@ -55,7 +55,7 @@ describe("global nova CLI helpers", () => {
   })
 
   it("parses --dev global flag", () => {
-    const parsed = parseNovaCliArgs(["--dev", "dashboard"])
+    const parsed = parseEdithCliArgs(["--dev", "dashboard"])
     expect(parsed).toMatchObject({
       dev: true,
       positionals: ["dashboard"],
@@ -63,7 +63,7 @@ describe("global nova CLI helpers", () => {
   })
 
   it("detects help flag early", () => {
-    expect(parseNovaCliArgs(["--help"])).toEqual({
+    expect(parseEdithCliArgs(["--help"])).toEqual({
       repoOverride: null,
       profileOverride: null,
       dev: false,
@@ -73,7 +73,7 @@ describe("global nova CLI helpers", () => {
   })
 
   it("passes --help through to subcommands when command is already present", () => {
-    expect(parseNovaCliArgs(["dashboard", "--help"])).toEqual({
+    expect(parseEdithCliArgs(["dashboard", "--help"])).toEqual({
       repoOverride: null,
       profileOverride: null,
       dev: false,
@@ -82,8 +82,8 @@ describe("global nova CLI helpers", () => {
     })
   })
 
-  it("accepts global repo/profile flags after subcommands (OpenClaw-style muscle memory)", () => {
-    const parsed = parseNovaCliArgs([
+  it("accepts global repo/profile flags after subcommands (EDITH-style muscle memory)", () => {
+    const parsed = parseEdithCliArgs([
       "channels",
       "status",
       "--channel",
@@ -105,8 +105,8 @@ describe("global nova CLI helpers", () => {
 
   it("matches direct execution paths case-insensitively on Windows", () => {
     const ok = shouldInvokeCli(
-      "file:///C:/Users/test/AppData/Roaming/npm/node_modules/nova/bin/nova.js",
-      "c:\\Users\\test\\AppData\\Roaming\\npm\\node_modules\\nova\\bin\\nova.js",
+      "file:///C:/Users/test/AppData/Roaming/npm/node_modules/edith/bin/edith.js",
+      "c:\\Users\\test\\AppData\\Roaming\\npm\\node_modules\\edith\\bin\\edith.js",
       "win32",
     )
 
@@ -126,20 +126,20 @@ describe("global nova CLI helpers", () => {
   })
 
   it("builds profile-relative env/workspace/state paths", () => {
-    const paths = getProfilePaths("C:\\Users\\me\\.nova\\profiles\\default")
+    const paths = getProfilePaths("C:\\Users\\me\\.edith\\profiles\\default")
     expect(paths.envPath).toContain(`${path.sep}.env`)
     expect(paths.workspaceDir).toContain(`${path.sep}workspace`)
-    expect(paths.stateDir).toContain(`${path.sep}.nova`)
+    expect(paths.stateDir).toContain(`${path.sep}.edith`)
   })
 
-  it("maps profile names to ~/.nova/profiles/<name>", () => {
+  it("maps profile names to ~/.edith/profiles/<name>", () => {
     expect(isLikelyProfileName("work")).toBe(true)
-    expect(isLikelyProfileName("C:\\Users\\me\\.nova\\profiles\\work")).toBe(false)
+    expect(isLikelyProfileName("C:\\Users\\me\\.edith\\profiles\\work")).toBe(false)
     expect(isLikelyProfileName("./local-profile")).toBe(false)
 
     const resolved = resolveProfileSelector("work", "C:\\repo", "C:\\Users\\me")
-    expect(resolved).toBe(path.join("C:\\Users\\me", ".nova", "profiles", "work"))
-    expect(getNamedProfileDir("work")).toContain(`${path.sep}.nova${path.sep}profiles${path.sep}work`)
+    expect(resolved).toBe(path.join("C:\\Users\\me", ".edith", "profiles", "work"))
+    expect(getNamedProfileDir("work")).toContain(`${path.sep}.edith${path.sep}profiles${path.sep}work`)
   })
 
   it("supports explicit profile paths and tilde expansion", () => {
@@ -227,14 +227,14 @@ describe("global nova CLI helpers", () => {
       "# comment",
       "WHATSAPP_ENABLED=true",
       "WHATSAPP_MODE=baileys",
-      "DATABASE_URL=\"file:C:/Users/test profile/nova.db\"",
+      "DATABASE_URL=\"file:C:/Users/test profile/edith.db\"",
       "",
     ].join("\n"))
 
     expect(parsed).toMatchObject({
       WHATSAPP_ENABLED: "true",
       WHATSAPP_MODE: "baileys",
-      DATABASE_URL: "file:C:/Users/test profile/nova.db",
+      DATABASE_URL: "file:C:/Users/test profile/edith.db",
     })
   })
 
@@ -253,7 +253,7 @@ describe("global nova CLI helpers", () => {
         WHATSAPP_MODE: "cloud",
         WHATSAPP_CLOUD_PHONE_NUMBER_ID: "123",
       },
-      getProfilePaths("C:\\Users\\me\\.nova\\profiles\\default"),
+      getProfilePaths("C:\\Users\\me\\.edith\\profiles\\default"),
     )
 
     expect(checks.some((check) => check.level === "error" && /WHATSAPP_CLOUD_ACCESS_TOKEN/.test(check.detail))).toBe(true)
@@ -265,7 +265,7 @@ describe("global nova CLI helpers", () => {
         WHATSAPP_ENABLED: "true",
         WHATSAPP_MODE: "baileys",
       },
-      getProfilePaths("C:\\Users\\me\\.nova\\profiles\\default"),
+      getProfilePaths("C:\\Users\\me\\.edith\\profiles\\default"),
     )
 
     expect(checks.find((check) => check.label === "WhatsApp Mode")?.detail).toContain("QR Scan")
@@ -292,7 +292,7 @@ describe("global nova CLI helpers", () => {
 
   it("inspects WhatsApp auth dir runtime state from creds.json", async () => {
     const authState = await inspectWhatsAppBaileysAuthState(
-      "C:\\Users\\me\\.nova\\profiles\\default\\.nova\\whatsapp-auth",
+      "C:\\Users\\me\\.edith\\profiles\\default\\.edith\\whatsapp-auth",
       {
         readdir: vi.fn(async () => ["creds.json", "session-foo.json"]),
         readFile: vi.fn(async () => JSON.stringify({
@@ -316,7 +316,7 @@ describe("global nova CLI helpers", () => {
 
   it("handles missing or malformed WhatsApp auth state without throwing", async () => {
     const missing = await inspectWhatsAppBaileysAuthState(
-      "C:\\Users\\me\\.nova\\profiles\\default\\.nova\\whatsapp-auth",
+      "C:\\Users\\me\\.edith\\profiles\\default\\.edith\\whatsapp-auth",
       {
         readdir: vi.fn(async () => {
           throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
@@ -329,7 +329,7 @@ describe("global nova CLI helpers", () => {
     expect(missing.readError).toBeNull()
 
     const malformed = await inspectWhatsAppBaileysAuthState(
-      "C:\\Users\\me\\.nova\\profiles\\default\\.nova\\whatsapp-auth",
+      "C:\\Users\\me\\.edith\\profiles\\default\\.edith\\whatsapp-auth",
       {
         readdir: vi.fn(async () => ["creds.json"]),
         readFile: vi.fn(async () => "{bad json"),
@@ -438,35 +438,35 @@ describe("global nova CLI helpers", () => {
     expect(isProfileEnvLikelyConfigured({ DISCORD_BOT_TOKEN: "discord-token" })).toBe(true)
   })
 
-  it("validates Nova repo by package name", async () => {
+  it("validates EDITH repo by package name", async () => {
     const fsMock = {
       readFile: vi.fn(async (filePath: string) => {
         if (filePath.endsWith(`${path.sep}package.json`)) {
-          return JSON.stringify({ name: "nova" })
+          return JSON.stringify({ name: "edith" })
         }
         throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
       }),
     }
 
-    await expect(isNovaRepoDir("C:\\repo\\nova-ts", fsMock as any)).resolves.toBe(true)
+    await expect(isEdithRepoDir("C:\\repo\\EDITH-ts", fsMock as any)).resolves.toBe(true)
   })
 
-  it("finds nested nova-ts repo while walking upward", async () => {
+  it("finds nested EDITH-ts repo while walking upward", async () => {
     const validDirs = new Set([
-      path.resolve("C:\\work\\mono\\nova-ts"),
+      path.resolve("C:\\work\\mono\\EDITH-ts"),
     ])
 
     const fsMock = {
       readFile: vi.fn(async (filePath: string) => {
         const dir = path.dirname(filePath)
         if (path.basename(filePath) === "package.json" && validDirs.has(dir)) {
-          return JSON.stringify({ name: "nova" })
+          return JSON.stringify({ name: "edith" })
         }
         throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
       }),
     }
 
-    const found = await findNovaRepoUpwards("C:\\work\\mono\\apps\\demo", fsMock as any)
-    expect(found).toBe(path.resolve("C:\\work\\mono\\nova-ts"))
+    const found = await findEdithRepoUpwards("C:\\work\\mono\\apps\\demo", fsMock as any)
+    expect(found).toBe(path.resolve("C:\\work\\mono\\EDITH-ts"))
   })
 })

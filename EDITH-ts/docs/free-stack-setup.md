@@ -1,6 +1,6 @@
 # Free Stack Setup (Zero Cost)
 
-Panduan ini menyiapkan Nova agar bisa jalan dengan biaya $0/bulan untuk development.
+Panduan ini menyiapkan EDITH agar bisa jalan dengan biaya $0/bulan untuk development.
 
 1. Install Ollama
 
@@ -24,7 +24,7 @@ ollama pull nomic-embed-text && ollama pull qwen2.5:7b
 - Buka `https://aistudio.google.com`
 - Generate API key untuk Gemini
 
-5. Update `.env` di folder `nova-ts`
+5. Update `.env` di folder `EDITH-ts`
 
 ```env
 GROQ_API_KEY=your_groq_key
@@ -38,4 +38,4 @@ OLLAMA_BASE_URL=http://localhost:11434
 pnpm dev --mode text
 ```
 
-Lalu coba kirim: `halo nova` dan pastikan respons keluar tanpa error embedding.
+Lalu coba kirim: `halo edith` dan pastikan respons keluar tanpa error embedding.

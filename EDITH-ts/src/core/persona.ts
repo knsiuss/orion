@@ -1,8 +1,8 @@
 /**
  * PersonaEngine — Dynamic conversation context engine.
  *
- * Design intent (OpenClaw paradigm):
- *   - Static identity (who Nova is, values, tone) lives in workspace/SOUL.md
+ * Design intent (EDITH paradigm):
+ *   - Static identity (who EDITH is, values, tone) lives in workspace/SOUL.md
  *   - Dynamic context (current user mood, expertise, topic) is computed here
  *
  * The output of buildDynamicContext() is passed as `extraContext` to
@@ -37,9 +37,9 @@ export interface ConversationContext {
 }
 
 /**
- * Adapts Nova's responses based on real-time detection of user context.
+ * Adapts EDITH's responses based on real-time detection of user context.
  * 
- * This engine does NOT define Nova's personality — that lives in SOUL.md.
+ * This engine does NOT define EDITH's personality — that lives in SOUL.md.
  * It only computes context annotations that help the LLM adapt tone and depth.
  */
 export class PersonaEngine {
@@ -165,7 +165,7 @@ export class PersonaEngine {
    * static persona traits always have higher priority.
    *
    * @param context        - Detected mood, expertise, topic, urgency
-   * @param profileSummary - What Nova knows about this user (from profiler)
+   * @param profileSummary - What EDITH knows about this user (from profiler)
    * @returns              Formatted context string, or empty string if nothing notable
    */
   buildDynamicContext(context: ConversationContext, profileSummary: string): string {

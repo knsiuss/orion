@@ -1,6 +1,6 @@
-# Phase 11: EDITH Voice (Legacy TARS Preset)
+# Phase 11: EDITH Voice (Legacy EDITH Preset)
 
-Upgrade from Python-bridge TTS to a native TypeScript voice engine branded as EDITH voice, currently powered by the legacy TARS preset.
+Upgrade from Python-bridge TTS to a native TypeScript voice engine branded as EDITH voice, currently powered by the legacy EDITH preset.
 
 ## Architecture
 
@@ -15,12 +15,12 @@ AFTER:   bridge.ts → EdgeEngine (msedge-tts) → DSP → audio
 |---|---|
 | `src/voice/edge-engine.ts` | Microsoft Edge neural TTS (free, no API key, no GPU) |
 | `src/voice/dsp.ts` | Audio post-processing (EQ, compression, reverb) |
-| `src/voice/tars-preset.ts` | TARS voice config + DSP preset |
+| `src/voice/edith-preset.ts` | EDITH voice config + DSP preset |
 | `src/voice/bridge.ts` | Orchestrator (Edge primary, Python fallback) |
 
-## TARS Voice Design
+## EDITH Voice Design
 
-TARS isn't a heavy-robotic voice — he's warm, confident, with dry wit:
+EDITH isn't a heavy-robotic voice — he's warm, confident, with dry wit:
 
 - **Voice:** `en-US-GuyNeural` (calm, professional male)
 - **Rate:** `-8%` (slightly measured pacing)
@@ -35,13 +35,13 @@ VOICE_TTS_BACKEND=edge           # "edge" (native TS) or "python" (legacy)
 VOICE_EDGE_VOICE=en-US-GuyNeural # Any Edge neural voice
 VOICE_EDGE_RATE=-8%              # SSML rate adjustment
 VOICE_EDGE_PITCH=-5Hz            # SSML pitch adjustment
-VOICE_DSP_ENABLED=true           # Apply TARS DSP effects
+VOICE_DSP_ENABLED=true           # Apply EDITH DSP effects
 VOICE_DSP_PRESET=tars            # "tars" or "clean"
 ```
 
 ## Alternative Voices
 
-Test these for best TARS match:
+Test these for best EDITH match:
 - `en-US-DavisNeural` — deeper, more serious
 - `en-US-JasonNeural` — conversational
 - `en-US-TonyNeural` — warm, friendly

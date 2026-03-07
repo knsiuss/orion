@@ -1,7 +1,7 @@
 /**
  * @file os-agent/index.ts — OS-Agent Layer Entry Point
  * @description Central orchestrator for all OS-level capabilities.
- * Bridges Nova's core pipeline with system-level I/O:
+ * Bridges EDITH's core pipeline with system-level I/O:
  * - GUI automation (screen capture, click, type)
  * - Voice I/O (STT, wake word, full-duplex TTS)
  * - Vision (screen understanding, OCR)
@@ -55,7 +55,7 @@ export class OSAgent {
 
   /**
    * Initialize all OS-agent subsystems.
-   * Call once during Nova startup.
+   * Call once during EDITH startup.
    */
   async initialize(): Promise<void> {
     log.info("Initializing OS-Agent layer...")

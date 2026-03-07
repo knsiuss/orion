@@ -1,6 +1,6 @@
-# Phase H: JARVIS OS-Agent — System-Level Integration
+# Phase H: EDITH OS-Agent — System-Level Integration
 
-> **Goal:** Transform Nova from a chat-based AI assistant into a true JARVIS-like
+> **Goal:** Transform EDITH from a chat-based AI assistant into a true EDITH-like
 > system that interfaces directly with the operating system, hardware, smart home,
 > and all digital services — bypassing traditional "app" boundaries.
 >
@@ -27,9 +27,9 @@
 
 ## 1. Vision & Philosophy
 
-### What JARVIS Really Is
+### What EDITH Really Is
 
-JARVIS dari Iron Man bukan sekadar chatbot — dia adalah **Operating System Agent** yang:
+EDITH dari Iron Man bukan sekadar chatbot — dia adalah **Operating System Agent** yang:
 
 1. **Selalu aktif** — berjalan sebagai system service, bukan app yang harus dibuka
 2. **Mendengar terus** — wake word detection + continuous STT
@@ -44,7 +44,7 @@ JARVIS dari Iron Man bukan sekadar chatbot — dia adalah **Operating System Age
 ```
 SEKARANG (App-based):                    TARGET (OS-Agent):
 ┌─────────────┐                         ┌──────────────────────────┐
-│ User membuka │                         │ Nova IS the OS layer     │
+│ User membuka │                         │ EDITH IS the OS layer     │
 │ terminal/web │──→ ketik pesan          │                          │
 │ untuk chat   │                         │ ┌────────────────────┐   │
 └─────────────┘                         │ │ Always-On Daemon    │   │
@@ -122,7 +122,7 @@ SEKARANG (App-based):                    TARGET (OS-Agent):
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                    NOVA JARVIS — OS Agent Layer                    │
+│                    NOVA EDITH — OS Agent Layer                    │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                    │
 │  ┌─────────────────────────────────────────────────────────────┐  │
@@ -144,7 +144,7 @@ SEKARANG (App-based):                    TARGET (OS-Agent):
 │  └─────────────────────────┬───────────────────────────────────┘  │
 │                            │                                       │
 │  ┌─────────────────────────▼───────────────────────────────────┐  │
-│  │              Existing Nova Core Pipeline                     │  │
+│  │              Existing EDITH Core Pipeline                     │  │
 │  │  Security → Memory → Persona → LLM → Critic → Output       │  │
 │  └─────────────────────────┬───────────────────────────────────┘  │
 │                            │                                       │
@@ -174,7 +174,7 @@ SEKARANG (App-based):                    TARGET (OS-Agent):
 ## H.1: Computer Use & GUI Agent
 
 ### Goal
-Nova bisa melihat layar, mengklik, mengetik, dan menavigasi aplikasi apapun — seperti JARVIS mengontrol holographic interface.
+EDITH bisa melihat layar, mengklik, mengetik, dan menavigasi aplikasi apapun — seperti EDITH mengontrol holographic interface.
 
 ### Key Capabilities
 - Screenshot capture + element detection
@@ -229,7 +229,7 @@ interface UIElement {
 ## H.2: Voice Pipeline (Full Duplex)
 
 ### Goal
-Percakapan suara real-time yang bisa diinterupsi, dengan wake word detection — "Hey Nova".
+Percakapan suara real-time yang bisa diinterupsi, dengan wake word detection — "Hey EDITH".
 
 ### Current State
 - TTS: ✅ Complete (Edge TTS + DSP)
@@ -255,7 +255,7 @@ Percakapan suara real-time yang bisa diinterupsi, dengan wake word detection —
                                          └──────┬──────┘
                                                 │ text
                                          ┌──────▼──────┐
-                                         │ Nova Core   │
+                                         │ EDITH Core   │
                                          │ Pipeline    │
                                          └──────┬──────┘
                                                 │ response
@@ -286,7 +286,7 @@ Percakapan suara real-time yang bisa diinterupsi, dengan wake word detection —
 ## H.3: Vision & Screen Understanding
 
 ### Goal
-Nova bisa "melihat" — memahami screenshot, webcam feed, dokumen, dan screen content.
+EDITH bisa "melihat" — memahami screenshot, webcam feed, dokumen, dan screen content.
 
 ### Capabilities
 - Screenshot analysis (text extraction, element detection)
@@ -358,7 +358,7 @@ interface IoTBridge {
   execute(command: NaturalLanguageCommand): Promise<IoTResult>
 }
 
-// Example: "Nova, matikan lampu kamar dan set AC ke 22 derajat"
+// Example: "EDITH, matikan lampu kamar dan set AC ke 22 derajat"
 // → parse → [
 //     { domain: "light", service: "turn_off", target: "light.bedroom" },
 //     { domain: "climate", service: "set_temperature", target: "climate.bedroom", data: { temperature: 22 } }
@@ -370,7 +370,7 @@ interface IoTBridge {
 ## H.5: System Daemon & Always-On
 
 ### Goal
-Nova berjalan sebagai system service yang starts on boot, always listening, minimal resource usage saat idle.
+EDITH berjalan sebagai system service yang starts on boot, always listening, minimal resource usage saat idle.
 
 ### Windows Service
 ```typescript
@@ -384,15 +384,15 @@ Nova berjalan sebagai system service yang starts on boot, always listening, mini
 
 ### Linux systemd
 ```ini
-# /etc/systemd/system/nova.service
+# /etc/systemd/system/edith.service
 [Unit]
-Description=Nova AI Companion
+Description=EDITH AI Companion
 After=network.target sound.target
 
 [Service]
 Type=simple
-User=nova
-ExecStart=/usr/bin/node /opt/nova/dist/main.js --mode daemon
+User=edith
+ExecStart=/usr/bin/node /opt/edith/dist/main.js --mode daemon
 Restart=always
 RestartSec=5
 MemoryMax=512M
@@ -413,7 +413,7 @@ WantedBy=multi-user.target
 ## H.6: Proactive Autonomy
 
 ### Goal
-Nova tidak hanya merespons — dia proaktif menginisiasi berdasarkan context.
+EDITH tidak hanya merespons — dia proaktif menginisiasi berdasarkan context.
 
 ### Trigger Categories
 | Category | Example | Implementation |
@@ -426,7 +426,7 @@ Nova tidak hanya merespons — dia proaktif menginisiasi berdasarkan context.
 | **Habit-based** | "Biasanya jam segini kamu buka Spotify" | Behavior pattern learning |
 
 ### Implementation via Existing Daemon
-Nova sudah punya `src/background/daemon.ts` dengan trigger system. Extend dengan:
+EDITH sudah punya `src/background/daemon.ts` dengan trigger system. Extend dengan:
 1. **SystemWatcher** — monitor CPU, RAM, disk, battery
 2. **ActivityWatcher** — track active window, idle time
 3. **CalendarWatcher** — poll Google Calendar / Outlook

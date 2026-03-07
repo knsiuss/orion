@@ -1,22 +1,22 @@
 /**
- * tars-preset.ts — TARS (Interstellar) voice configuration.
+ * edith-preset.ts — EDITH voice configuration.
  *
- * Defines voice parameters and DSP settings to achieve a TARS-like voice:
+ * Defines voice parameters and DSP settings to achieve a EDITH-like voice:
  * warm, natural, confident, measured cadence, with subtle AI character.
  *
- * Part of Nova — Persistent AI Companion System.
+ * Part of EDITH — Persistent AI Companion System.
  */
 
 /**
- * Edge TTS voice settings tuned for TARS personality.
+ * Edge TTS voice settings tuned for EDITH personality.
  *
- * TARS is NOT a heavy-robotic voice — he's a warm, confident AI
+ * EDITH is NOT a heavy-robotic voice — he's a warm, confident AI
  * with dry wit and measured delivery (voiced by Bill Irwin).
  */
-export const TARS_VOICE = {
+export const EDITH_VOICE = {
     /** Microsoft Edge neural voice — calm, professional male */
     voice: "en-US-GuyNeural",
-    /** Slightly slower for measured TARS cadence */
+    /** Slightly slower for measured EDITH cadence */
     rate: "-8%",
     /** Slightly lower pitch — authoritative */
     pitch: "-5Hz",
@@ -25,13 +25,13 @@ export const TARS_VOICE = {
 } as const
 
 /**
- * Alternative voices to A/B test for TARS character:
+ * Alternative voices to A/B test for EDITH character:
  * - "en-US-DavisNeural"  → deeper, more serious
  * - "en-US-JasonNeural"  → conversational, warm
  * - "en-US-TonyNeural"   → friendly, approachable
  * - "en-US-BrandonNeural" → younger, crisp
  */
-export const TARS_ALT_VOICES = [
+export const EDITH_ALT_VOICES = [
     "en-US-DavisNeural",
     "en-US-JasonNeural",
     "en-US-TonyNeural",
@@ -60,8 +60,8 @@ export interface DSPPreset {
     reverbDecayS: number
 }
 
-/** TARS DSP preset — subtle, warm, slightly metallic. */
-export const TARS_DSP: DSPPreset = {
+/** EDITH DSP preset — subtle, warm, slightly metallic. */
+export const EDITH_DSP: DSPPreset = {
     eqMidFreqHz: 3200,
     eqMidGainDb: 2,
     eqQ: 1.5,

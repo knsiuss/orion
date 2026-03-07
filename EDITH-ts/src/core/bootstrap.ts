@@ -121,7 +121,7 @@ interface ChecksumsCacheEntry {
   entries: Map<string, string>
 }
 
-interface NovaConfigCacheEntry {
+interface EdithConfigCacheEntry {
   mtimeMs: number
   resolvedPath: string
   payload: Record<string, unknown>
@@ -161,7 +161,7 @@ export class BootstrapLoader extends EventEmitter {
 
   private readonly fileCache = new Map<string, BootstrapCacheEntry>()
   private checksumsCache: ChecksumsCacheEntry | null = null
-  private configCache: NovaConfigCacheEntry | null = null
+  private configCache: EdithConfigCacheEntry | null = null
 
   constructor(
     workspaceDir: string,
@@ -283,7 +283,7 @@ export class BootstrapLoader extends EventEmitter {
   }
 
   async resolveIdentity(): Promise<ResolvedIdentity> {
-    const configPayload = await this.loadRawNovaConfig()
+    const configPayload = await this.loadRawEdithConfig()
     const uiName = readString((configPayload?.ui as { assistant?: { name?: unknown } } | undefined)?.assistant?.name)
     if (uiName) {
       return {
@@ -493,8 +493,8 @@ export class BootstrapLoader extends EventEmitter {
     }
   }
 
-  private async loadRawNovaConfig(): Promise<Record<string, unknown> | null> {
-    const configPath = path.resolve(process.cwd(), "nova.json")
+  private async loadRawEdithConfig(): Promise<Record<string, unknown> | null> {
+    const configPath = path.resolve(process.cwd(), "edith.json")
 
     try {
       const stat = await fs.stat(configPath)
@@ -522,7 +522,7 @@ export class BootstrapLoader extends EventEmitter {
       return payload
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        log.debug("nova.json load skipped", { error })
+        log.debug("edith.json load skipped", { error })
       }
       return null
     }
@@ -643,7 +643,7 @@ export function getBootstrapLoader(): BootstrapLoader {
     return singletonBootstrapLoader
   }
 
-  const workspaceDir = process.env.NOVA_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
+  const workspaceDir = process.env.EDITH_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
   singletonBootstrapLoader = new BootstrapLoader(workspaceDir)
   return singletonBootstrapLoader
 }

@@ -13,25 +13,25 @@ describe("WorkspaceResolver", () => {
   let originalSaasDir: string | undefined
 
   beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nova-saas-"))
-    originalSaasMode = process.env.NOVA_SAAS_MODE
-    originalSaasDir = process.env.NOVA_SAAS_DATA_DIR
-    process.env.NOVA_SAAS_MODE = "true"
-    process.env.NOVA_SAAS_DATA_DIR = tempDir
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "edith-saas-"))
+    originalSaasMode = process.env.EDITH_SAAS_MODE
+    originalSaasDir = process.env.EDITH_SAAS_DATA_DIR
+    process.env.EDITH_SAAS_MODE = "true"
+    process.env.EDITH_SAAS_DATA_DIR = tempDir
     resolver = new WorkspaceResolver()
   })
 
   afterEach(async () => {
     resolver.dispose()
     if (originalSaasMode === undefined) {
-      delete process.env.NOVA_SAAS_MODE
+      delete process.env.EDITH_SAAS_MODE
     } else {
-      process.env.NOVA_SAAS_MODE = originalSaasMode
+      process.env.EDITH_SAAS_MODE = originalSaasMode
     }
     if (originalSaasDir === undefined) {
-      delete process.env.NOVA_SAAS_DATA_DIR
+      delete process.env.EDITH_SAAS_DATA_DIR
     } else {
-      process.env.NOVA_SAAS_DATA_DIR = originalSaasDir
+      process.env.EDITH_SAAS_DATA_DIR = originalSaasDir
     }
     await fs.rm(tempDir, { recursive: true, force: true })
   })

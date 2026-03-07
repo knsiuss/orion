@@ -1,32 +1,32 @@
-# Nova — Getting Started Plan
+# EDITH — Getting Started Plan
 
-Setup Nova dilakukan dari **luar repo** — lewat Desktop App, Mobile App, atau Global CLI.  
-Repo `orion-ts` adalah **engine** aja, bukan tempat setup.
+Setup EDITH dilakukan dari **luar repo** — lewat Desktop App, Mobile App, atau Global CLI.  
+Repo `EDITH-ts` adalah **engine** aja, bukan tempat setup.
 
 ---
 
-## Arsitektur Setup (OpenClaw Pattern)
+## Arsitektur Setup (EDITH Pattern)
 
 ```
 ┌──────────────────┐     ┌───────────────┐     ┌──────────────┐
 │  Desktop App     │     │  Mobile App   │     │  Global CLI  │
-│  (Electron)      │     │  (React Native)│    │  (bin/nova)  │
-│  IPC → nova.json │     │  REST → /api/ │     │  fs → nova.json│
+│  (Electron)      │     │  (React Native)│    │  (bin/edith)  │
+│  IPC → edith.json │     │  REST → /api/ │     │  fs → edith.json│
 └───────┬──────────┘     └───────┬───────┘     └──────┬───────┘
         │                        │                     │
         ▼                        ▼                     ▼
    ┌─────────────────────────────────────────────────────┐
-   │              nova.json (single source of truth)     │
+   │              edith.json (single source of truth)     │
    │  env: { GROQ_API_KEY: "gsk_..." }                  │
-   │  identity: { name: "Nova" }                         │
+   │  identity: { name: "EDITH" }                         │
    │  agents: { defaults: { model: { primary: "..." } }} │
    │  channels: { telegram: { botToken: "..." } }       │
    └──────────────────────┬──────────────────────────────┘
                           │
                           ▼
                 ┌───────────────────┐
-                │   Nova Engine     │
-                │   (orion-ts/)     │
+                │   EDITH Engine     │
+                │   (EDITH-ts/)     │
                 │   Gateway :18789  │
                 └───────────────────┘
 ```
@@ -40,7 +40,7 @@ Repo `orion-ts` adalah **engine** aja, bukan tempat setup.
 3. Wizard 4 step:
    - Welcome → Choose Provider → Enter API Key → Done!
 4. Klik **Test Connection** → validasi key via IPC ke Electron main process
-5. Klik **Start Chatting** → wizard nulis `nova.json` → gateway auto-start → chat UI muncul
+5. Klik **Start Chatting** → wizard nulis `edith.json` → gateway auto-start → chat UI muncul
 
 ```bash
 # Untuk development:
@@ -51,10 +51,10 @@ pnpm dev
 
 ### Yang Terjadi di Balik Layar
 
-- `preload.js` expose: `nova.saveConfig()`, `nova.loadConfig()`, `nova.testProvider()`
+- `preload.js` expose: `edith.saveConfig()`, `edith.loadConfig()`, `edith.testProvider()`
 - `main.js` IPC handlers: `config:save`, `config:load`, `config:test-provider`
-- Config ditulis ke `orion-ts/nova.json` — engine langsung baca dari situ
-- Kalau `nova.json` sudah ada → skip wizard, langsung ke chat
+- Config ditulis ke `EDITH-ts/edith.json` — engine langsung baca dari situ
+- Kalau `edith.json` sudah ada → skip wizard, langsung ke chat
 
 ---
 
@@ -65,7 +65,7 @@ pnpm dev
 3. Setup flow sama: Provider → API Key → Test → Save
 4. Mobile kirim config via **REST API** ke gateway:
    - `POST /api/config/test-provider` — test API key
-   - `PUT /api/config` — write full nova.json
+   - `PUT /api/config` — write full edith.json
    - `PATCH /api/config` — partial merge
    - `GET /api/config` — read config (API keys redacted)
 
@@ -82,10 +82,10 @@ pnpm start
 
 ```bash
 # From anywhere on the system:
-nova setup         # Interactive wizard
-nova config set env.GROQ_API_KEY gsk_xxx
-nova config show
-nova start         # Start gateway
+edith setup         # Interactive wizard
+edith config set env.GROQ_API_KEY gsk_xxx
+edith config show
+edith start         # Start gateway
 ```
 
 ---
@@ -94,10 +94,10 @@ nova start         # Start gateway
 
 | Item | Status |
 |------|--------|
-| Rename Orion → Nova | ✅ Selesai (engine + apps) |
+| Rename EDITH → EDITH | ✅ Selesai (engine + apps) |
 | TypeScript compile | ✅ 0 error |
 | Test suite | ✅ 61 files, 453 tests passed |
-| Desktop onboarding wizard | ✅ Full IPC — saves `nova.json` |
+| Desktop onboarding wizard | ✅ Full IPC — saves `edith.json` |
 | Desktop provider test | ✅ Real API validation (Groq/Anthropic/OpenAI/Ollama) |
 | Mobile setup screen | ✅ REST-based config via gateway |
 | Gateway config REST API | ✅ GET/PUT/PATCH `/api/config` + test-provider |
@@ -123,13 +123,13 @@ nova start         # Start gateway
 ### 2. Channel (Opsional)
 
 Setup channel belum di wizard — fase berikutnya.  
-Untuk sekarang bisa manual tambah di `nova.json → channels`.
+Untuk sekarang bisa manual tambah di `edith.json → channels`.
 
 ---
 
-## Struktur Config: `nova.json`
+## Struktur Config: `edith.json`
 
-Setelah wizard selesai, file `nova.json` berisi:
+Setelah wizard selesai, file `edith.json` berisi:
 
 ```json
 {
@@ -137,7 +137,7 @@ Setelah wizard selesai, file `nova.json` berisi:
     "GROQ_API_KEY": "gsk_xxxxxxxxxxxx"
   },
   "identity": {
-    "name": "Nova",
+    "name": "EDITH",
     "emoji": "✦",
     "theme": "dark minimal"
   },
@@ -153,7 +153,7 @@ Setelah wizard selesai, file `nova.json` berisi:
 }
 ```
 
-> Semua secret ada di `nova.json` (OpenClaw-style single source of truth).  
+> Semua secret ada di `edith.json` (EDITH-style single source of truth).  
 > File `.env` hanya fallback untuk `DATABASE_URL`.
 
 ---
@@ -163,8 +163,8 @@ Setelah wizard selesai, file `nova.json` berisi:
 | Method | Endpoint | Fungsi |
 |--------|----------|--------|
 | `GET` | `/api/config` | Baca config (keys di-redact) |
-| `PUT` | `/api/config` | Full replace nova.json |
-| `PATCH` | `/api/config` | Partial merge ke nova.json |
+| `PUT` | `/api/config` | Full replace edith.json |
+| `PATCH` | `/api/config` | Partial merge ke edith.json |
 | `POST` | `/api/config/test-provider` | Test provider API key |
 
 ### Test Provider Example:

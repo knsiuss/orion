@@ -6,31 +6,31 @@ const WebSocket = require("ws")
 
 let mainWindow = null
 let tray = null
-let novaProcess = null
+let edithProcess = null
 let ws = null
 let gatewayReady = false
 
-// ── Nova Config Path ───────────────────────────────────────────────
-// nova.json lives next to the engine (orion-ts/) so both desktop app
-// and engine read the same file — OpenClaw pattern.
-const NOVA_ENGINE_DIR = path.join(__dirname, "../../orion-ts")
-const NOVA_CONFIG_PATH = path.join(NOVA_ENGINE_DIR, "nova.json")
+// ── EDITH Config Path ───────────────────────────────────────────────
+// edith.json lives next to the engine (EDITH-ts/) so both desktop app
+// and engine read the same file — EDITH pattern.
+const NOVA_ENGINE_DIR = path.join(__dirname, "../../EDITH-ts")
+const EDITH_CONFIG_PATH = path.join(NOVA_ENGINE_DIR, "edith.json")
 
-function readNovaConfig() {
+function readEdithConfig() {
   try {
-    return JSON.parse(fs.readFileSync(NOVA_CONFIG_PATH, "utf-8"))
+    return JSON.parse(fs.readFileSync(EDITH_CONFIG_PATH, "utf-8"))
   } catch {
     return null
   }
 }
 
-function writeNovaConfig(config) {
-  fs.mkdirSync(path.dirname(NOVA_CONFIG_PATH), { recursive: true })
-  fs.writeFileSync(NOVA_CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", "utf-8")
+function writeEdithConfig(config) {
+  fs.mkdirSync(path.dirname(EDITH_CONFIG_PATH), { recursive: true })
+  fs.writeFileSync(EDITH_CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", "utf-8")
 }
 
 function isConfigured() {
-  const cfg = readNovaConfig()
+  const cfg = readEdithConfig()
   if (!cfg || !cfg.env) return false
   // At least one API key must be set, or Ollama mode
   const env = cfg.env
@@ -38,25 +38,25 @@ function isConfigured() {
 }
 
 function startGateway() {
-  novaProcess = spawn("node", [
-    path.join(__dirname, "../../orion-ts/dist/main.js"),
+  edithProcess = spawn("node", [
+    path.join(__dirname, "../../EDITH-ts/dist/main.js"),
     "--mode", "gateway"
   ])
 
-  novaProcess.stdout.on("data", (data) => {
+  edithProcess.stdout.on("data", (data) => {
     const text = data.toString()
-    console.log("[nova]", text)
+    console.log("[edith]", text)
     if (text.includes("gateway running")) {
       gatewayReady = true
       connectToGateway()
     }
   })
 
-  novaProcess.stderr.on("data", (data) => {
-    console.error("[nova stderr]", data.toString())
+  edithProcess.stderr.on("data", (data) => {
+    console.error("[edith stderr]", data.toString())
   })
 
-  novaProcess.on("exit", () => {
+  edithProcess.on("exit", () => {
     gatewayReady = false
     console.log("Gateway process exited")
   })
@@ -96,9 +96,9 @@ function connectToGateway() {
 function createTray() {
   const icon = nativeImage.createEmpty()
   tray = new Tray(icon)
-  tray.setToolTip("Nova")
+  tray.setToolTip("EDITH")
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "Open Nova", click: () => mainWindow?.show() },
+    { label: "Open EDITH", click: () => mainWindow?.show() },
     { label: "Status", click: () => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "status" }))
@@ -146,7 +146,7 @@ function createWindow() {
   // When navigating from onboarding → chat, start gateway if needed
   mainWindow.webContents.on("did-finish-load", () => {
     const url = mainWindow.webContents.getURL()
-    if (url.includes("index.html") && !novaProcess && isConfigured()) {
+    if (url.includes("index.html") && !edithProcess && isConfigured()) {
       startGateway()
     }
   })
@@ -164,7 +164,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   app.isQuitting = true
-  novaProcess?.kill()
+  edithProcess?.kill()
   ws?.close()
 })
 
@@ -191,14 +191,14 @@ ipcMain.handle("get:status", async () => {
   return { ok: true }
 })
 
-// ── Config IPC (OpenClaw-style — writes nova.json) ─────────────────
+// ── Config IPC (EDITH-style — writes edith.json) ─────────────────
 ipcMain.handle("config:save", async (_, config) => {
   try {
-    // Build the nova.json structure from onboarding credentials
-    const existing = readNovaConfig() || {}
+    // Build the edith.json structure from onboarding credentials
+    const existing = readEdithConfig() || {}
     const merged = { ...existing, ...config }
-    writeNovaConfig(merged)
-    return { ok: true, path: NOVA_CONFIG_PATH }
+    writeEdithConfig(merged)
+    return { ok: true, path: EDITH_CONFIG_PATH }
   } catch (err) {
     return { error: err.message }
   }
@@ -206,7 +206,7 @@ ipcMain.handle("config:save", async (_, config) => {
 
 ipcMain.handle("config:load", async () => {
   try {
-    const config = readNovaConfig()
+    const config = readEdithConfig()
     return { ok: true, config: config || {} }
   } catch (err) {
     return { error: err.message }

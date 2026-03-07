@@ -288,7 +288,7 @@ describe("OSAgentTool", () => {
   it("returns error for malformed payload")
   
   // ── Tool Registration ──
-  it("registers all 19 action tools in novaTools registry")
+  it("registers all 19 action tools in edithTools registry")
 })
 ```
 
@@ -322,7 +322,7 @@ describe("OSAgent (index)", () => {
 
 ### 4.1 Shared Test Helpers
 
-**File:** `orion-ts/src/os-agent/__tests__/test-helpers.ts`
+**File:** `EDITH-ts/src/os-agent/__tests__/test-helpers.ts`
 
 ```typescript
 // Factory functions for configs with safe defaults
@@ -353,7 +353,7 @@ export const FAKE_MP3 = Buffer.from([0xFF, 0xFB, 0x90, 0x00, /* ... */])
 ### 4.2 Fixtures
 
 ```
-orion-ts/src/os-agent/__tests__/fixtures/
+EDITH-ts/src/os-agent/__tests__/fixtures/
 ├── fake-screenshot.png     # 100x100 test image
 ├── fake-audio.mp3          # 1s silence MP3
 ├── sample-ocr-output.txt   # Expected OCR output

@@ -1,10 +1,10 @@
-# Nova Onboarding (OpenClaw-inspired)
+# EDITH Onboarding (EDITH-inspired)
 
 Date: 2026-02-26
 
 ## Goal
 
-Provide a fast local onboarding flow similar to OpenClaw's "setup + onboard" experience:
+Provide a fast local onboarding flow similar to EDITH's "setup + onboard" experience:
 
 - guided quickstart command
 - channel-first setup (Telegram / Discord / WhatsApp Cloud API / WebChat)
@@ -46,19 +46,19 @@ pnpm wa:scan
 pnpm wa:cloud
 ```
 
-OpenClaw-style global wrapper (Phase 2):
+EDITH-style global wrapper (Phase 2):
 
 ```bash
-nova link <path-to-nova-ts>
-nova profile init
-nova self-test
-nova wa scan
+edith link <path-to-EDITH-ts>
+edith profile init
+edith self-test
+edith wa scan
 ```
 
-OpenClaw-style scriptable variant (no prompts):
+EDITH-style scriptable variant (no prompts):
 
 ```bash
-nova setup --non-interactive --channel whatsapp --whatsapp-mode scan --provider groq
+edith setup --non-interactive --channel whatsapp --whatsapp-mode scan --provider groq
 ```
 
 See:
@@ -84,8 +84,8 @@ pnpm gateway:watch
 
 ## Notes
 
-- The wizard writes `.env` in the repo root (`nova-ts/.env`).
-- When launched via global `nova` wrapper, the wizard writes the active profile env file (`~/.nova/profiles/<name>/.env` or your explicit `--profile` path).
+- The wizard writes `.env` in the repo root (`EDITH-ts/.env`).
+- When launched via global `edith` wrapper, the wizard writes the active profile env file (`~/.edith/profiles/<name>/.env` or your explicit `--profile` path).
 - Channel adapters are safe-by-default:
   - Telegram: private chat only if `TELEGRAM_CHAT_ID` is unset
   - Discord: DM only if `DISCORD_CHANNEL_ID` is unset

@@ -22,7 +22,7 @@
 
 ### 2.1 Bug #1 — MemRL nextMaxQ Wrong Bellman Scope
 
-**File:** [orion-ts/src/memory/memrl.ts](../orion-ts/src/memory/memrl.ts) ~lines 375-395
+**File:** [EDITH-ts/src/memory/memrl.ts](../EDITH-ts/src/memory/memrl.ts) ~lines 375-395
 
 **Problem:**
 The Bellman Q-update computes `max Q(s', a')` using **only memories from the current feedback batch** (`uniqueIds`), not from the full memory table. This makes the Bellman target a **biased underestimate**.
@@ -96,7 +96,7 @@ it("uses global max Q for Bellman target, not batch siblings", async () => {
 
 ### 2.2 Bug #2 — RRF Threshold Too Permissive
 
-**File:** [orion-ts/src/memory/hybrid-retriever.ts](../orion-ts/src/memory/hybrid-retriever.ts) ~line 66
+**File:** [EDITH-ts/src/memory/hybrid-retriever.ts](../EDITH-ts/src/memory/hybrid-retriever.ts) ~line 66
 
 **Problem:**
 `scoreThreshold: 0.005` is effectively a no-op. With `rrfK=60`:
@@ -150,7 +150,7 @@ it("filters results below RRF score threshold", () => {
 
 ### 2.3 Bug #3 — Hash Fallback Embedding Corruption
 
-**File:** [orion-ts/src/memory/store.ts](../orion-ts/src/memory/store.ts) ~lines 350-390
+**File:** [EDITH-ts/src/memory/store.ts](../EDITH-ts/src/memory/store.ts) ~lines 350-390
 
 **Problem:**
 When both Ollama and OpenAI embedding providers are down, `embed()` falls back to `hashToVector()` — a **deterministic lexical hash** that produces fake embeddings. These get stored in the same LanceDB table alongside real semantic embeddings.
@@ -247,7 +247,7 @@ it("stores memory without embedding when provider unavailable", async () => {
 
 ### 2.4 Bug #4 — Admin Token Timing Side-Channel
 
-**File:** [orion-ts/src/gateway/server.ts](../orion-ts/src/gateway/server.ts) ~lines 173-190
+**File:** [EDITH-ts/src/gateway/server.ts](../EDITH-ts/src/gateway/server.ts) ~lines 173-190
 
 **Problem:**
 `timingSafeTokenEquals` takes a measurably different code path when token lengths differ (alloc+copy) vs. when they match (direct compare). An attacker sending tokens of varying lengths can **determine the configured ADMIN_TOKEN length**.
@@ -304,7 +304,7 @@ it("returns false for different length tokens without timing leak", () => {
 
 ### 2.5 Bug #5 — Unauthenticated Config Write Endpoints
 
-**File:** [orion-ts/src/gateway/server.ts](../orion-ts/src/gateway/server.ts) ~lines 882-930
+**File:** [EDITH-ts/src/gateway/server.ts](../EDITH-ts/src/gateway/server.ts) ~lines 882-930
 
 **Problem:**
 `PUT /api/config`, `PATCH /api/config`, dan `POST /api/config/test-provider` have **ZERO authentication**. Any client on the network can:
@@ -333,7 +333,7 @@ it("returns false for different length tokens without timing leak", () => {
 │  │    → If NO: check if first-time setup   │ │
 │  │                                          │ │
 │  │ 2. First-time setup detection:          │ │
-│  │    → If nova.json doesn't exist OR      │ │
+│  │    → If edith.json doesn't exist OR      │ │
 │  │      has no provider keys configured    │ │
 │  │    → Allow unauthenticated (setup mode) │ │
 │  │    → After first config write, require  │ │
@@ -353,8 +353,8 @@ async function requireConfigAuth(
   
   // If no admin token configured, check if this is first-time setup
   if (!adminToken) {
-    const { readNovaConfig } = await import("../config/nova-config.js")
-    const config = await readNovaConfig().catch(() => null)
+    const { readEdithConfig } = await import("../config/edith-config.js")
+    const config = await readEdithConfig().catch(() => null)
     if (!config || !hasAnyProviderKey(config)) {
       // First-time setup — allow unauthenticated  
       return true

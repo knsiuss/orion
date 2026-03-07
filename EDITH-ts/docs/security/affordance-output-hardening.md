@@ -9,12 +9,12 @@ Files:
 - `src/main.ts`
 
 ## Goal
-Add AURA-inspired semantic risk screening so Nova evaluates implied harm, not only keyword jailbreak patterns.
+Add AURA-inspired semantic risk screening so EDITH evaluates implied harm, not only keyword jailbreak patterns.
 
 ## Runtime Pipeline
 1. Pattern filter runs first with `filterPrompt()`.
 2. Affordance layer runs with `filterPromptWithAffordance()` and `affordanceChecker.deepCheck()`.
-3. If `shouldBlock=true`, Nova returns a refusal before model generation.
+3. If `shouldBlock=true`, EDITH returns a refusal before model generation.
 4. Model output is passed through `outputScanner.scan()`.
 5. Sanitized output is sent and persisted.
 

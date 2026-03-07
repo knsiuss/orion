@@ -89,7 +89,7 @@ export default function App() {
       ) : (
       <>
       <View style={s.header}>
-        <Text style={s.headerTitle}>Nova</Text>
+        <Text style={s.headerTitle}>EDITH</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <TouchableOpacity onPress={() => setScreen("setup")}>
             <Text style={{ color: "#888", fontSize: 13 }}>Setup</Text>
@@ -118,7 +118,7 @@ export default function App() {
           </View>
         )}
         ListFooterComponent={thinking ? (
-          <Text style={s.thinking}>Nova is thinking...</Text>
+          <Text style={s.thinking}>EDITH is thinking...</Text>
         ) : null}
       />
 
@@ -130,7 +130,7 @@ export default function App() {
             style={s.input}
             value={input}
             onChangeText={setInput}
-            placeholder="Message Nova..."
+            placeholder="Message EDITH..."
             placeholderTextColor="#555"
             multiline
             onSubmitEditing={send}

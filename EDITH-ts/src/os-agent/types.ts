@@ -41,7 +41,7 @@ export interface VisionConfig {
 
 export interface VoiceIOConfig {
   enabled: boolean
-  /** Wake word: "hey-nova" | "nova" | custom */
+  /** Wake word: "hey-edith" | "edith" | custom */
   wakeWord: string
   /** Wake word engine: "porcupine" | "openwakeword" */
   wakeWordEngine: "porcupine" | "openwakeword"

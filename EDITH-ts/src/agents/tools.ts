@@ -92,7 +92,7 @@ export const searchTool = tool({
 })
 
 export const memoryQueryTool = tool({
-  description: "Search Nova memory for past conversations",
+  description: "Search EDITH memory for past conversations",
   inputSchema: z.object({
     query: z.string(),
     userId: z.string().default("owner"),
@@ -220,7 +220,7 @@ export const calendarTool = tool({
     time: z.string().optional(),
   }),
   execute: async ({ action, title, date, time }) => {
-    const icsPath = ".nova/calendar.ics"
+    const icsPath = ".edith/calendar.ics"
 
     if (action === "get") {
       try {
@@ -248,7 +248,7 @@ export const calendarTool = tool({
   },
 })
 
-export const novaTools: Record<string, any> = {
+export const edithTools: Record<string, any> = {
   // Existing tools
   searchTool,
   memoryQueryTool,
@@ -277,11 +277,11 @@ export const novaTools: Record<string, any> = {
 /**
  * Register the OS-Agent tool at runtime.
  * Called by startup.ts AFTER the OSAgent singleton is initialized,
- * solving the import-time evaluation problem (novaTools was previously
+ * solving the import-time evaluation problem (edithTools was previously
  * a frozen constant that tried to spread getOSAgentTools() before
- * globalThis.__novaOSAgent existed).
+ * globalThis.__edithOSAgent existed).
  */
 export function registerOSAgentTool(osAgent: OSAgent): void {
-  novaTools.osAgentTool = createOSAgentTool(osAgent)
-  logger.info("OS-Agent tool registered into novaTools")
+  edithTools.osAgentTool = createOSAgentTool(osAgent)
+  logger.info("OS-Agent tool registered into edithTools")
 }

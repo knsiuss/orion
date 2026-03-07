@@ -1,10 +1,10 @@
 /**
- * edge-engine.ts — Microsoft Edge TTS engine for Nova.
+ * edge-engine.ts — Microsoft Edge TTS engine for EDITH.
  *
  * Uses msedge-tts to access Microsoft Edge's free neural voice service.
  * No API key required. No model download. No GPU. TypeScript native.
  *
- * Part of Nova — Persistent AI Companion System.
+ * Part of EDITH — Persistent AI Companion System.
  */
 
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts"

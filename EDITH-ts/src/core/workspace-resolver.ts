@@ -13,7 +13,7 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 
-import { getNovaConfig } from "../config/nova-config.js"
+import { getEdithConfig } from "../config/edith-config.js"
 import { createLogger } from "../logger.js"
 
 const log = createLogger("core.workspace-resolver")
@@ -85,9 +85,9 @@ export class WorkspaceResolver {
   private readonly cacheCleanupTimer: NodeJS.Timeout
 
   constructor() {
-    this.saasMode = process.env.NOVA_SAAS_MODE === "true"
+    this.saasMode = process.env.EDITH_SAAS_MODE === "true"
     this.saasDataDir =
-      process.env.NOVA_SAAS_DATA_DIR ?? path.resolve(process.cwd(), "data/users")
+      process.env.EDITH_SAAS_DATA_DIR ?? path.resolve(process.cwd(), "data/users")
 
     this.cacheCleanupTimer = setInterval(() => this.cleanupCache(), this.cacheMaxAgeMs)
     this.cacheCleanupTimer.unref?.()
@@ -161,7 +161,7 @@ export class WorkspaceResolver {
   }
 
   private async resolveSharedWorkspace(): Promise<string> {
-    const config = getNovaConfig()
+    const config = getEdithConfig()
     const workspace = path.resolve(process.cwd(), config.agents.defaults.workspace)
     await fs.mkdir(workspace, { recursive: true })
     return workspace

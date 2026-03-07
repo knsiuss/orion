@@ -30,7 +30,7 @@ export function getDefaultOSAgentConfig(): OSAgentConfig {
     },
     voice: {
       enabled: false,
-      wakeWord: "hey-nova",
+      wakeWord: "hey-edith",
       wakeWordEngine: "openwakeword",
       sttEngine: "whisper-local",
       vadEngine: "silero",
@@ -57,16 +57,16 @@ export function getDefaultOSAgentConfig(): OSAgentConfig {
 }
 
 /**
- * JARVIS mode: all features enabled for maximum system integration.
+ * EDITH mode: all features enabled for maximum system integration.
  * Use when running as a dedicated system service.
  */
-export function getJarvisConfig(): OSAgentConfig {
+export function getEdithOSConfig(): OSAgentConfig {
   return {
     gui: {
       enabled: true,
       backend: "native",
       screenshotMethod: "native",
-      requireConfirmation: false, // JARVIS doesn't ask — but use with caution
+      requireConfirmation: false, // EDITH doesn't ask — but use with caution
       maxActionsPerMinute: 120,
     },
     vision: {
@@ -78,7 +78,7 @@ export function getJarvisConfig(): OSAgentConfig {
     },
     voice: {
       enabled: true,
-      wakeWord: "hey-nova",
+      wakeWord: "hey-edith",
       wakeWordEngine: "openwakeword",
       sttEngine: "whisper-local",
       vadEngine: "silero",

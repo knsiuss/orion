@@ -16,9 +16,9 @@
  * @version 0.1.0
  */
 
-// ── OpenClaw-style: inject nova.json env BEFORE anything reads process.env ──
-import { injectNovaJsonEnv } from "./config/nova-config.js"
-injectNovaJsonEnv()
+// ── EDITH-style: inject edith.json env BEFORE anything reads process.env ──
+import { injectEdithJsonEnv } from "./config/edith-config.js"
+injectEdithJsonEnv()
 // ─────────────────────────────────────────────────────────────────────────────
 
 import path from "node:path"
@@ -58,7 +58,7 @@ function readVersion(): string {
 const VERSION = readVersion()
 
 /** Valid operation modes */
-const VALID_MODES = ["text", "gateway", "all", "jarvis"] as const
+const VALID_MODES = ["text", "gateway", "all", "edith"] as const
 type OperationMode = (typeof VALID_MODES)[number]
 
 /** Default operation mode when not specified */
@@ -110,7 +110,7 @@ function parseMode(): OperationMode {
  * @returns Absolute path to workspace directory
  */
 function resolveWorkspaceDir(): string {
-  const envWorkspace = process.env.EDITH_WORKSPACE ?? process.env.NOVA_WORKSPACE
+  const envWorkspace = process.env.EDITH_WORKSPACE ?? process.env.EDITH_WORKSPACE
   if (envWorkspace) {
     return path.isAbsolute(envWorkspace)
       ? envWorkspace
@@ -410,8 +410,8 @@ function registerSignalHandlers(
  */
 function displayBanner(): void {
   const engines = orchestrator.getAvailableEngines()
-  const bannerLabel = mode === "jarvis"
-    ? `EDITH OS Mode (legacy alias: jarvis) v${VERSION}`
+  const bannerLabel = mode === "edith"
+    ? `EDITH OS Mode (legacy alias: edith) v${VERSION}`
     : `EDITH v${VERSION}`
 
   output.write("\n")
@@ -455,10 +455,10 @@ function displayHelpInfo(): void {
 async function start(): Promise<void> {
   log.info("edith starting", { mode, workspaceDir, version: VERSION })
 
-  // JARVIS mode: force OS_AGENT_ENABLED
-  if (mode === "jarvis" && !config.OS_AGENT_ENABLED) {
-    process.env.JARVIS_MODE = "true"
-    ;(config as any).JARVIS_MODE = true
+  // EDITH mode: force OS_AGENT_ENABLED
+  if (mode === "edith" && !config.OS_AGENT_ENABLED) {
+    process.env.EDITH_MODE = "true"
+    ;(config as any).EDITH_MODE = true
     ;(config as any).OS_AGENT_ENABLED = true
   }
 
@@ -468,8 +468,8 @@ async function start(): Promise<void> {
   // Display startup banner
   displayBanner()
 
-  // JARVIS mode: start perception loop and show OS-Agent status
-  if (mode === "jarvis" && osAgent) {
+  // EDITH mode: start perception loop and show OS-Agent status
+  if (mode === "edith" && osAgent) {
     try {
       await osAgent.startPerceptionLoop()
       output.write("  OS-Agent  : active ✓\n")
@@ -477,13 +477,13 @@ async function start(): Promise<void> {
       output.write(`  Voice     : ${osAgent.voice ? "ready" : "off"}\n`)
       output.write(`  Perception: running (${osAgent.perception ? "live" : "off"})\n`)
     } catch (err) {
-      log.warn("JARVIS perception loop failed to start", { error: String(err) })
+      log.warn("EDITH perception loop failed to start", { error: String(err) })
       output.write("  OS-Agent  : partial ⚠️\n")
     }
   }
 
   // Start gateway services if required
-  if (mode === "gateway" || mode === "all" || mode === "jarvis") {
+  if (mode === "gateway" || mode === "all" || mode === "edith") {
     await channelManager.init()
     await daemon.start()
     await gateway.start()
@@ -506,8 +506,8 @@ async function start(): Promise<void> {
     })
   }
 
-  if (mode === "jarvis") {
-    // JARVIS mode: gateway + CLI + perception (always-on)
+  if (mode === "edith") {
+    // EDITH mode: gateway + CLI + perception (always-on)
     await startCLI(processMessage)
     await gracefulShutdown("cli-exit")
   }

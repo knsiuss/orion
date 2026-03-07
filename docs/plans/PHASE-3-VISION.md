@@ -188,7 +188,7 @@ Upgrade VisionCortex dari "bisa screenshot + OCR" menjadi "bisa memahami layar":
          │ WebSocket
          ▼
 ┌────────────────────────────────────────────┐
-│          SERVER (Orion Gateway)              │
+│          SERVER (EDITH Gateway)              │
 │                                             │
 │  vision_analyze → VisionCortex              │
 │    → describeImage (multimodal LLM)         │
@@ -205,7 +205,7 @@ Upgrade VisionCortex dari "bisa screenshot + OCR" menjadi "bisa memahami layar":
 
 ### 3.1 describeImage — Real Implementation
 
-**File:** `orion-ts/src/os-agent/vision-cortex.ts` → `describeImage()`
+**File:** `EDITH-ts/src/os-agent/vision-cortex.ts` → `describeImage()`
 
 **Status:** ❌ Returns placeholder string
 
@@ -240,9 +240,9 @@ async describeImage(imageBuffer: Buffer, question?: string): Promise<string> {
 
 ### 3.2 UI Grounding — Find Element by Description
 
-**File:** `orion-ts/src/os-agent/vision-cortex.ts` → NEW `findElement()`
+**File:** `EDITH-ts/src/os-agent/vision-cortex.ts` → NEW `findElement()`
 
-**Purpose:** User bilang "click the blue submit button" → Nova perlu tahu koordinat button tersebut.
+**Purpose:** User bilang "click the blue submit button" → EDITH perlu tahu koordinat button tersebut.
 
 **Approach:**
 ```
@@ -266,9 +266,9 @@ Combined Strategy (Recommended):
 
 ### 3.3 Visual Memory Integration
 
-**File:** `orion-ts/src/os-agent/vision-cortex.ts` → NEW `storeVisualContext()`
+**File:** `EDITH-ts/src/os-agent/vision-cortex.ts` → NEW `storeVisualContext()`
 
-**Purpose:** Simpan apa yang dilihat Nova di layar ke memory system agar bisa recall nanti.
+**Purpose:** Simpan apa yang dilihat EDITH di layar ke memory system agar bisa recall nanti.
 
 ```typescript
 async storeVisualContext(snapshot: {
@@ -296,7 +296,7 @@ async storeVisualContext(snapshot: {
 
 ### 3.4 Orchestrator Multimodal Extension
 
-**File:** `orion-ts/src/engines/orchestrator.ts`
+**File:** `EDITH-ts/src/engines/orchestrator.ts`
 
 **Status:** Routes `multimodal` task, tapi payload format untuk image tidak dihandle per-provider.
 
@@ -337,7 +337,7 @@ function formatMultimodalPayload(prompt: string, images: ImageContent[]): OpenAI
 
 ### 3.5 Gateway vision_analyze Handler
 
-**File:** `orion-ts/src/gateway/server.ts`
+**File:** `EDITH-ts/src/gateway/server.ts`
 
 **Status:** ❌ Belum ada handler
 
@@ -405,7 +405,7 @@ Dev Dependencies:
 | Gateway vision_analyze handler | server.ts | WebSocket message handler |
 | Mobile: add expo-camera | apps/mobile/ | `pnpm add expo-camera` |
 | Mobile: VisionButton component | apps/mobile/ | Take photo → send → display result |
-| Mobile: screenshot share | apps/mobile/ | Share screenshot from other apps to Nova |
+| Mobile: screenshot share | apps/mobile/ | Share screenshot from other apps to EDITH |
 | Unit tests for describeImage | __tests__/ | Mock orchestrator, verify payload format |
 | Unit tests for findElement | __tests__/ | Mock accessibility API + LLM |
 | Integration test: mobile → server | __tests__/ | WS vision_analyze flow |
@@ -421,10 +421,10 @@ Dev Dependencies:
   "expo": {
     "plugins": [
       ["expo-camera", {
-        "cameraPermission": "Nova needs camera to analyze what you're looking at"
+        "cameraPermission": "EDITH needs camera to analyze what you're looking at"
       }],
       ["expo-image-picker", {
-        "photosPermission": "Nova needs gallery access to analyze images"  
+        "photosPermission": "EDITH needs gallery access to analyze images"  
       }]
     ]
   }
@@ -447,7 +447,7 @@ AndroidManifest.xml:
   <data android:mimeType="image/*" />
 </intent-filter>
 ```
-*Allows user to share images from any app (Gallery, Chrome, etc.) to Nova for analysis.*
+*Allows user to share images from any app (Gallery, Chrome, etc.) to EDITH for analysis.*
 
 ### Battery/Performance
 - Image processing (resize, encode) di background thread

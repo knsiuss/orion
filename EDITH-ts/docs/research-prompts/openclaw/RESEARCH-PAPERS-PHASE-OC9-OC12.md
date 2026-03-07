@@ -1,4 +1,4 @@
-# Nova — Research Papers: Phase OC-9 to OC-12
+# EDITH — Research Papers: Phase OC-9 to OC-12
 # Focus: MemRL Fix, Hybrid Memory Search, Observability/Telemetry, Multi-Tenant Foundation
 # Date: Feb 22, 2026
 
@@ -7,10 +7,10 @@
 ## KONTEKS
 
 Setelah OC-5 (Loop Detection), OC-6 (HITL Approvals), OC-7 (Context Compaction), OC-8 (Adaptive Routing) selesai,
-Nova sudah feature parity dengan OpenClaw production.
+EDITH sudah feature parity dengan EDITH production.
 
 Phase ini = **beyond parity** — fitur yang belum ada di mana-mana, atau yang secara fundamental
-upgrade capability Nova sebagai platform AI companion.
+upgrade capability EDITH sebagai platform AI companion.
 
 ---
 
@@ -27,7 +27,7 @@ upgrade capability Nova sebagai platform AI companion.
   - Q-values di-update via Bellman equation setelah setiap task outcome (success/failure)
   - **56% improvement** atas MemP di ALFWorld benchmark; outperforms RAG di semua metrics
   - Overhead minimal — RL update hanya pada Q-values, bukan model weights
-- **Critical bug di Nova saat ini**:
+- **Critical bug di EDITH saat ini**:
   - `memrl.ts` punya `updateFromFeedback()` tapi **tidak pernah dipanggil** setelah response
   - Q-values tidak pernah update → memory stuck di initial state → RL tidak berfungsi
   - Ini bukan fitur baru, ini **bug fix** yang unlock semua capability MemRL
@@ -44,13 +44,13 @@ upgrade capability Nova sebagai platform AI companion.
   - 3-component architecture: **Core Memory** (512-token persistent summary) + **Semantic Memory** (factual statements) + **Episodic Memory** (timestamped events)
   - Generalizes ke 400k+ tokens meski training hanya di 30k tokens
   - Tiap komponen punya specialized operations: insert, update, delete
-- **Untuk Nova**: Blueprint untuk upgrade `himes.ts` → proper 3-component architecture.
-  Saat ini Nova mixing semua memory types. Pemisahan ini dramatis improve retrieval precision.
+- **Untuk EDITH**: Blueprint untuk upgrade `himes.ts` → proper 3-component architecture.
+  Saat ini EDITH mixing semua memory types. Pemisahan ini dramatis improve retrieval precision.
 
 ### [F3] EverMemOS: Self-Organizing Memory OS for Structured Long-Horizon Reasoning
 - **arXiv**: 2601.XXXX | Jan 2026 | Verified ✅ (dari Agent Memory Survey paper list)
 - **Key findings**: Memory sebagai first-class OS primitive — auto-organize, auto-tag, auto-connect
-- **Untuk Nova (future)**: Foundation untuk phase berikutnya setelah OC-9
+- **Untuk EDITH (future)**: Foundation untuk phase berikutnya setelah OC-9
 
 ---
 
@@ -63,12 +63,12 @@ upgrade capability Nova sebagai platform AI companion.
 - **Key findings**:
   - Hybrid search = FTS (BM25/keyword) + Vector (semantic) → merged via Reciprocal Rank Fusion (RRF)
   - **Use case yang ga bisa pure vector**: proper names, product codes, exact phrases, newly-coined terms yang belum ada di embedding training
-  - Nova pakai pure vector search via LanceDB → fails untuk: nama user yang spesifik, tanggal exact, kode/ID, terminologi baru
-  - OpenClaw sudah implement FTS fallback + query expansion; Nova belum
+  - EDITH pakai pure vector search via LanceDB → fails untuk: nama user yang spesifik, tanggal exact, kode/ID, terminologi baru
+  - EDITH sudah implement FTS fallback + query expansion; EDITH belum
 - **RRF formula**: `score(d) = Σ 1/(k + rank_i(d))` dimana k=60, rank dari masing-masing retriever
 - **Implementasi di LanceDB**: LanceDB mendukung full-text search natively — tinggal enable + combine
 - **Query expansion**: Sebelum search, expand query dengan synonyms/rephrases via LLM call singkat
-- **Untuk Nova**:
+- **Untuk EDITH**:
   - `src/memory/hybrid-retriever.ts` (new): combine FTS + vector, apply RRF
   - `src/memory/himes.ts`: replace direct vector search dengan hybrid-retriever
   - Improve recall untuk exact-match queries yang sekarang sering miss
@@ -80,7 +80,7 @@ upgrade capability Nova sebagai platform AI companion.
   - **RAG-Fusion**: Combine results dari multiple reformulated queries via RRF
   - **FILCO**: Filter irrelevant spans dari retrieved passages sebelum generate
   - **AU-RAG**: Agent-based Universal RAG — agent decide kapan pakai retrieved vs parametric knowledge
-- **Untuk Nova**: Implement RQ-RAG-style query decomposition untuk complex user queries
+- **Untuk EDITH**: Implement RQ-RAG-style query decomposition untuk complex user queries
   (user tanya sesuatu yang complex → break down → retrieve per sub-query → merge results)
 
 ---
@@ -98,7 +98,7 @@ upgrade capability Nova sebagai platform AI companion.
   - Per-request breakdown: user_id, model, input_tokens, output_tokens, cached_tokens, latency, tool_calls
   - Token cost attribution: tag by user/feature/workspace untuk granular budgeting
   - **89% organizations** sudah implement observability — ini bukan optional lagi di production
-- **Untuk Nova**: Nova tidak punya cost tracking sama sekali. Tidak tahu:
+- **Untuk EDITH**: EDITH tidak punya cost tracking sama sekali. Tidak tahu:
   - Berapa token dipakai per session / per user / per engine
   - Engine mana yang paling mahal
   - Task apa yang cost-inefficient
@@ -113,7 +113,7 @@ upgrade capability Nova sebagai platform AI companion.
   - `request_id` = correlation key untuk link semua spans dalam satu trace
   - Tool call = sub-span: tool name, latency, success/fail flag
   - Token cost = captured di gateway layer: input_tokens, output_tokens, cache_read_tokens
-- **Implementasi untuk Nova** (lightweight, tanpa external OTel collector):
+- **Implementasi untuk EDITH** (lightweight, tanpa external OTel collector):
   - `src/telemetry/usage-tracker.ts` — in-memory ring buffer + SQLite persistence
   - Track per-request: model, tokens, cost estimate (berdasarkan pricing table), latency, tools used
   - Expose via `/api/usage/summary` endpoint di gateway
@@ -126,13 +126,13 @@ upgrade capability Nova sebagai platform AI companion.
   - **Quality tracking**: groundedness, context relevance, answer relevance — bisa di-score post-hoc
   - **Tool monitoring**: track invocation patterns, success rates, error conditions per tool
   - **Cost management**: comprehensive token tracking untuk understand cost drivers + caching opportunities
-- **Untuk Nova**: Phase pertama (OC-11) = token + cost tracking. Phase kedua (future) = quality eval.
+- **Untuk EDITH**: Phase pertama (OC-11) = token + cost tracking. Phase kedua (future) = quality eval.
 
 ---
 
 ## OC-12: MULTI-TENANT WORKSPACE FOUNDATION
 
-**Target file**: `src/core/workspace-resolver.ts` (implement) + `src/config/nova-config.ts` (new)
+**Target file**: `src/core/workspace-resolver.ts` (implement) + `src/config/edith-config.ts` (new)
 + `prisma/schema.prisma` (patch)
 
 ### [I1] Building Multi-Tenant Architectures for Agentic AI (AWS Whitepaper 2026)
@@ -143,7 +143,7 @@ upgrade capability Nova sebagai platform AI companion.
   - **Hybrid = standard untuk production**: shared LLM + compute, tapi per-tenant: memory, vector index, workspace files, billing
   - Tenant context harus di-pass explicitly — JANGAN rely on LLM untuk handle sensitive tenant routing
   - Isolation layers: API gateway (auth + routing) → app logic (tenant ID propagation) → data layer (namespace per tenant)
-- **Pattern untuk Nova**: Workspace-per-Tenant model
+- **Pattern untuk EDITH**: Workspace-per-Tenant model
   - Setiap user/tenant punya: `workspace/{tenantId}/` directory, LanceDB namespace `tenant_{id}`, Prisma rows filtered by `tenantId`
   - `workspaceResolver.ts` = resolve tenant context dari incoming request → inject ke semua downstream calls
 
@@ -155,7 +155,7 @@ upgrade capability Nova sebagai platform AI companion.
   - **Workspace model**: every file op linked to Workspace ID — tag on ingest, filter on retrieval
   - **Inference gateway**: never allow app code call models directly. Gateway enforce per-tenant rate limits + spending caps
   - Compliance tiers: Tier 1 (shared, minimal), Tier 2 (dedicated vector + strict retention), Tier 3 (full isolation)
-- **Untuk Nova**: Implement Tier 1 dulu (namespace isolation), siapkan upgrade path ke Tier 2
+- **Untuk EDITH**: Implement Tier 1 dulu (namespace isolation), siapkan upgrade path ke Tier 2
 
 ### [I3] Scalable Multi-Tenant SaaS dengan AI Orchestration (WJAETS 2025)
 - **Source**: World Journal of Advanced Engineering, Thota 2025 | Verified ✅
@@ -163,7 +163,7 @@ upgrade capability Nova sebagai platform AI companion.
   - AI-driven workload isolation: predictive scaling + dynamic resource reallocation antar tenants
   - Prevent "noisy neighbor" — satu tenant heavy usage tidak degradasi tenant lain
   - **Kubernetes-based** isolation layer paling production-grade
-- **Untuk Nova** (v1): Simpler version — per-tenant rate limiting di gateway level, tidak perlu full K8s dulu
+- **Untuk EDITH** (v1): Simpler version — per-tenant rate limiting di gateway level, tidak perlu full K8s dulu
 
 ---
 
@@ -180,7 +180,7 @@ upgrade capability Nova sebagai platform AI companion.
 | OTel for MCP Agents | Glama.ai | OC-11 | `src/gateway/index.ts` (patch) |
 | Agent Observability Standards | Maxim AI | OC-11 | `src/telemetry/usage-tracker.ts` (new) |
 | AWS AaaS Whitepaper 2026 | AWS | OC-12 | `src/core/workspace-resolver.ts` (implement) |
-| Fast.io Multi-Tenant Guide | Fast.io | OC-12 | `src/config/nova-config.ts` (new) |
+| Fast.io Multi-Tenant Guide | Fast.io | OC-12 | `src/config/edith-config.ts` (new) |
 | AI-Orchestrated SaaS | WJAETS 2025 | OC-12 | `src/gateway/index.ts` (rate-limit patch) |
 
 ---
@@ -194,5 +194,5 @@ OC-11: Token Telemetry + Cost Tracking                     ← 2-3 hari, HIGH (v
 OC-12: Multi-Tenant Workspace Foundation                   ← 3-5 hari, MEDIUM (prerequisite untuk SaaS)
 ```
 
-Setelah OC-12 → Nova = production-ready AI companion platform, bukan hanya personal agent.
+Setelah OC-12 → EDITH = production-ready AI companion platform, bukan hanya personal agent.
 Next frontier setelah ini: EverMemOS, Conductor-style topology, voice two-way, native mobile.

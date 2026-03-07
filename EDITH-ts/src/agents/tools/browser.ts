@@ -27,7 +27,7 @@ import { createLogger } from "../../logger.js"
 
 const log = createLogger("tools.browser")
 
-// One browser instance per Nova session — reused across tool calls
+// One browser instance per EDITH session — reused across tool calls
 let browserInstance: any = null
 let currentPage: any = null
 const MAX_CONTENT_CHARS = 8_000
@@ -63,7 +63,7 @@ async function getPage() {
   if (!currentPage || currentPage.isClosed()) {
     currentPage = await browser.newPage()
     await currentPage.setExtraHTTPHeaders({
-      "User-Agent": "Mozilla/5.0 (compatible; Nova/1.0)",
+      "User-Agent": "Mozilla/5.0 (compatible; EDITH/1.0)",
     })
     log.info("new browser page created")
   }
@@ -175,7 +175,7 @@ Use for: reading live websites, filling forms, extracting data, web research.`,
 
 /**
  * Clean up browser resources.
- * Call this on Nova shutdown.
+ * Call this on EDITH shutdown.
  */
 export async function shutdownBrowser(): Promise<void> {
   if (browserInstance) {

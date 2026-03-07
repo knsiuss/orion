@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nova Setup</title>
+  <title>EDITH Setup</title>
   <style>
     * {
       margin: 0;
@@ -265,7 +265,7 @@
 </head>
 <body>
   <div class="container">
-    <div class="logo">Nova</div>
+    <div class="logo">EDITH</div>
     <div class="subtitle">Your persistent AI companion</div>
 
     <div class="progress-dots">
@@ -276,9 +276,9 @@
     </div>
 
     <div class="step active" id="step-1">
-      <div class="step-title">Welcome to Nova</div>
+      <div class="step-title">Welcome to EDITH</div>
       <div class="step-desc">
-        Nova is a persistent AI companion that learns from your conversations,
+        EDITH is a persistent AI companion that learns from your conversations,
         proactively reaches out, and helps you stay on top of your tasks.
         Let's get you set up.
       </div>
@@ -330,7 +330,7 @@
     <div class="step" id="step-4">
       <div class="step-title">All Set!</div>
       <div class="step-desc">
-        Nova is ready to go. You can start chatting now.
+        EDITH is ready to go. You can start chatting now.
         The app will run in the system tray.
       </div>
       <button class="btn btn-primary" id="step4-done">Start Chatting</button>
@@ -397,7 +397,7 @@
 
     document.getElementById("step4-done").addEventListener("click", async () => {
       await saveCredentials()
-      // Reload — main.js will detect nova.json exists and start gateway + load chat
+      // Reload — main.js will detect edith.json exists and start gateway + load chat
       window.location.href = "index.html"
     })
 
@@ -483,7 +483,7 @@
       credentials = collectCredentials()
 
       try {
-        const result = await window.nova.testProvider(selectedProvider, credentials)
+        const result = await window.edith.testProvider(selectedProvider, credentials)
         status.style.display = "block"
         if (result.ok) {
           status.className = "test-status success"
@@ -505,10 +505,10 @@
     }
 
     async function saveCredentials() {
-      // Build nova.json config from wizard selections
-      const novaConfig = {
+      // Build edith.json config from wizard selections
+      const edithConfig = {
         env: {},
-        identity: { name: "Nova", emoji: "✦", theme: "dark minimal" },
+        identity: { name: "EDITH", emoji: "✦", theme: "dark minimal" },
         agents: {
           defaults: {
             model: { primary: "", fallbacks: [] },
@@ -519,24 +519,24 @@
 
       switch (selectedProvider) {
         case "groq":
-          novaConfig.env.GROQ_API_KEY = credentials.GROQ_API_KEY || ""
-          novaConfig.agents.defaults.model.primary = "groq/llama-3.3-70b-versatile"
+          edithConfig.env.GROQ_API_KEY = credentials.GROQ_API_KEY || ""
+          edithConfig.agents.defaults.model.primary = "groq/llama-3.3-70b-versatile"
           break
         case "ollama":
-          novaConfig.env.OLLAMA_HOST = "http://127.0.0.1:11434"
-          novaConfig.agents.defaults.model.primary = "ollama/llama3.2"
+          edithConfig.env.OLLAMA_HOST = "http://127.0.0.1:11434"
+          edithConfig.agents.defaults.model.primary = "ollama/llama3.2"
           break
         case "anthropic":
-          novaConfig.env.ANTHROPIC_API_KEY = credentials.ANTHROPIC_API_KEY || ""
-          novaConfig.agents.defaults.model.primary = "anthropic/claude-sonnet-4-20250514"
+          edithConfig.env.ANTHROPIC_API_KEY = credentials.ANTHROPIC_API_KEY || ""
+          edithConfig.agents.defaults.model.primary = "anthropic/claude-sonnet-4-20250514"
           break
         case "openai":
-          novaConfig.env.OPENAI_API_KEY = credentials.OPENAI_API_KEY || ""
-          novaConfig.agents.defaults.model.primary = "openai/gpt-4o"
+          edithConfig.env.OPENAI_API_KEY = credentials.OPENAI_API_KEY || ""
+          edithConfig.agents.defaults.model.primary = "openai/gpt-4o"
           break
       }
 
-      const result = await window.nova.saveConfig(novaConfig)
+      const result = await window.edith.saveConfig(edithConfig)
       if (result.error) {
         console.error("Failed to save config:", result.error)
         alert("Failed to save configuration: " + result.error)

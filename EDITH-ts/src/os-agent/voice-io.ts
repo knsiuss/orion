@@ -1,10 +1,10 @@
 /**
  * @file os-agent/voice-io.ts — Full-Duplex Voice I/O Pipeline
  * @description Handles voice input (STT + wake word + VAD) and voice output (TTS).
- * Enables JARVIS-style always-on voice interaction with interruption support.
+ * Enables EDITH-style always-on voice interaction with interruption support.
  *
  * Architecture:
- *   Microphone → VAD → Wake Word → STT → Nova Pipeline → TTS → Speaker
+ *   Microphone → VAD → Wake Word → STT → EDITH Pipeline → TTS → Speaker
  *
  * Based on:
  * - Low-Latency Voice Agents (arXiv:2508.04721)
@@ -125,7 +125,7 @@ export class VoiceIO extends EventEmitter {
       })
 
       // Play audio through system speaker
-      const tmpPath = path.join(os.tmpdir(), `nova-tts-${Date.now()}.mp3`)
+      const tmpPath = path.join(os.tmpdir(), `edith-tts-${Date.now()}.mp3`)
       await fs.writeFile(tmpPath, audioBuffer)
 
       try {

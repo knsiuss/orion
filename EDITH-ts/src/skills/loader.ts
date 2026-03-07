@@ -9,7 +9,7 @@ const log = createLogger("skills.loader")
 const HOME_DIR = process.env.HOME ?? process.env.USERPROFILE ?? process.cwd()
 
 const SKILL_DIR_WORKSPACE = path.resolve(process.cwd(), "workspace", "skills")
-const SKILL_DIR_MANAGED = path.resolve(HOME_DIR, ".nova", "skills")
+const SKILL_DIR_MANAGED = path.resolve(HOME_DIR, ".edith", "skills")
 const SKILL_DIR_BUNDLED = path.resolve(process.cwd(), "src", "skills", "bundled")
 
 const SKILL_DIRS_BY_PRECEDENCE: readonly string[] = [

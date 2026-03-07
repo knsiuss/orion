@@ -4,19 +4,19 @@ import { pathToFileURL } from "node:url"
 
 import { createLogger } from "../logger.js"
 import { hookRegistry } from "../hooks/registry.js"
-import type { NovaPlugin } from "./types.js"
+import type { EdithPlugin } from "./types.js"
 
 const log = createLogger("plugin.loader")
 
 export class PluginLoader {
-  private readonly plugins = new Map<string, NovaPlugin>()
-  private readonly pluginDir = ".nova/plugins"
+  private readonly plugins = new Map<string, EdithPlugin>()
+  private readonly pluginDir = ".edith/plugins"
 
-  async load(source: string): Promise<NovaPlugin> {
+  async load(source: string): Promise<EdithPlugin> {
     const resolved = path.isAbsolute(source) ? source : path.resolve(process.cwd(), source)
     const moduleUrl = pathToFileURL(resolved).toString()
     const imported = await import(moduleUrl)
-    const plugin = (imported.default ?? imported.plugin ?? imported) as NovaPlugin
+    const plugin = (imported.default ?? imported.plugin ?? imported) as EdithPlugin
 
     if (!plugin || typeof plugin !== "object" || !plugin.name || !plugin.version) {
       throw new Error(`Invalid plugin module: ${source}`)
@@ -89,7 +89,7 @@ export class PluginLoader {
     log.info("Plugin unloaded", { name })
   }
 
-  list(): NovaPlugin[] {
+  list(): EdithPlugin[] {
     return Array.from(this.plugins.values())
   }
 }
