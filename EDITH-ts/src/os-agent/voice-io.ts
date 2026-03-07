@@ -9,6 +9,7 @@ import { createLogger } from "../logger.js"
 import { createTurnSttProvider, type TurnSttProvider } from "../voice/providers.js"
 import { VOICE_PYTHON_CWD, resolveVoicePythonCommand } from "../voice/python-runtime.js"
 import type { RuntimeVoiceConfig } from "../voice/runtime-config.js"
+import { resolveOpenWakeWordInferenceAssets } from "../voice/wake-model-assets.js"
 import { resolveWakeWordConfig, type ResolvedWakeWordConfig } from "../voice/wake-word.js"
 import { resolveVoiceRuntimePlan, type PythonVoiceDependencies, type VoiceRuntimePlan } from "./voice-plan.js"
 import type { OSActionResult, VoiceIOConfig } from "./types.js"
@@ -91,6 +92,7 @@ def has_module(name):
 
 print(json.dumps({
     "pythonAvailable": True,
+    "dotenv": has_module("dotenv"),
     "sounddevice": has_module("sounddevice"),
     "soundfile": has_module("soundfile"),
     "whisper": has_module("whisper"),
@@ -110,6 +112,7 @@ print(json.dumps({
     log.warn("voice python dependency preflight failed", { error: String(error) })
     return {
       pythonAvailable: false,
+      dotenv: false,
       sounddevice: false,
       soundfile: false,
       whisper: false,
@@ -125,9 +128,15 @@ function buildCapturePythonCode(
   wakeConfig: ResolvedWakeWordConfig,
   runtimePlan: VoiceRuntimePlan,
 ): string {
+  const openWakeWordAssets = wakeConfig.keywordAssetKind === "openwakeword" && wakeConfig.keywordAssetPath
+    ? resolveOpenWakeWordInferenceAssets(wakeConfig.keywordAssetPath)
+    : null
   const pythonConfig = {
     wakeMode: runtimePlan.wakeWordImplementation,
     keywordAssetPath: wakeConfig.keywordAssetPath ?? "",
+    openwakewordModelPath: openWakeWordAssets?.modelPath ?? "",
+    openwakewordMelspectrogramPath: openWakeWordAssets?.melspectrogramPath ?? "",
+    openwakewordEmbeddingPath: openWakeWordAssets?.embeddingModelPath ?? "",
     picovoiceAccessKey: voiceConfig.providers?.picovoice?.accessKey ?? "",
   }
 
@@ -187,7 +196,12 @@ if CONFIG["wakeMode"] == "porcupine-native":
 elif CONFIG["wakeMode"] == "openwakeword-native":
     from openwakeword.model import Model
 
-    wake_detector = Model(wakeword_models=[CONFIG["keywordAssetPath"]])
+    wake_detector = Model(
+        wakeword_models=[CONFIG["openwakewordModelPath"]],
+        inference_framework="onnx",
+        melspec_model_path=CONFIG["openwakewordMelspectrogramPath"],
+        embedding_model_path=CONFIG["openwakewordEmbeddingPath"],
+    )
     wake_frame_bytes = int(SAMPLE_RATE * 0.08) * 2
 
 def capture():
@@ -231,7 +245,8 @@ def detect_openwakeword(pcm_bytes):
     while len(wake_buffer) >= wake_frame_bytes:
         frame = bytes(wake_buffer[:wake_frame_bytes])
         del wake_buffer[:wake_frame_bytes]
-        prediction = wake_detector.predict(frame)
+        pcm = np.frombuffer(frame, dtype=np.int16)
+        prediction = wake_detector.predict(pcm)
         if any(float(score) >= 0.5 for score in prediction.values()):
             return True
     return False
@@ -285,6 +300,7 @@ export class VoiceIO extends EventEmitter {
   private captureProcess: ReturnType<typeof execa> | null = null
   private pythonDependencies: PythonVoiceDependencies = {
     pythonAvailable: false,
+    dotenv: false,
     sounddevice: false,
     soundfile: false,
     whisper: false,

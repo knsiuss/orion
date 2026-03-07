@@ -102,4 +102,13 @@ describe("resolveWakeWordConfig", () => {
     expect(resolved.keywordAssetPath).toBe("models/hey_edith.onnx")
     expect(resolved.keywordAssetKind).toBe("openwakeword")
   })
+
+  it("strips version suffixes from managed wake-model filenames", () => {
+    const resolved = resolveWakeWordConfig(runtimeVoice({
+      engine: "openwakeword",
+      modelPath: "models/hey_mycroft_v0.1.onnx",
+    }))
+
+    expect(resolved.keyword).toBe("hey mycroft")
+  })
 })

@@ -22,6 +22,7 @@
     "doctor": "tsx src/cli/doctor.ts",
     "voice:deps:check": "tsx src/cli/voice-deps-check.ts",
     "voice:deps:setup": "tsx src/cli/voice-deps-setup.ts",
+    "voice:wake:prepare": "tsx src/cli/voice-wake-prepare.ts",
     "onboard": "tsx src/cli/onboard.ts",
     "quickstart": "tsx src/cli/onboard.ts --flow quickstart",
     "setup": "tsx src/cli/onboard.ts --flow quickstart",

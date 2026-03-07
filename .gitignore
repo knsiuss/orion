@@ -103,6 +103,9 @@ crashes/
 .claude/
 .claude-temp/
 
+# Test fixtures (local/sensitive)
+EDITH-ts/src/os-agent/__tests__/fixtures/*.json
+
 # IDE & Editor
 .vscode/
 .idea/

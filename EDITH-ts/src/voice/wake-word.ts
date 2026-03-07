@@ -30,6 +30,7 @@ function deriveWakeWordPhrase(value: string): string {
 
   return path
     .basename(trimmed, ext)
+    .replace(/[._-]v\d+(?:\.\d+)*$/i, "")
     .replace(/[._-]+/g, " ")
     .trim() || "hey-edith"
 }
