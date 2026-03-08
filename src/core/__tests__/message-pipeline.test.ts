@@ -129,6 +129,7 @@ vi.mock("../system-prompt-builder.js", () => ({
 vi.mock("../../engines/orchestrator.js", () => ({
   orchestrator: {
     generate: vi.fn().mockResolvedValue("mocked assistant reply"),
+    getLastUsedEngine: vi.fn().mockReturnValue({ name: "groq" }),
   },
 }))
 
