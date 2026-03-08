@@ -1,3 +1,12 @@
+/**
+ * @file types.ts
+ * @description Core type definitions and interfaces for the LLM engine layer.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Defines GenerateOptions, GenerateResult, Engine interface, and TaskType used
+ *   across all engine adapters (anthropic.ts, openai.ts, groq.ts, etc.) and by
+ *   orchestrator.ts for routing decisions.
+ */
 export interface GenerateOptions {
   prompt: string
   context?: Array<{ role: "user" | "assistant"; content: string }>

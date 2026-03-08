@@ -1,3 +1,12 @@
+/**
+ * @file anthropic.ts
+ * @description Anthropic Claude engine adapter — wraps the Anthropic SDK to implement the Engine interface.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Implements Engine from ./types.ts. Registered in orchestrator.ts as the primary
+ *   provider for 'reasoning' and 'multimodal' task types. Reads API key and model
+ *   selection from src/config.ts.
+ */
 import Anthropic from "@anthropic-ai/sdk"
 
 import config from "../config.js"

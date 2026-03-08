@@ -1,3 +1,14 @@
+/**
+ * @file incoming-message-service.ts
+ * @description Entry-point service that pre-processes an incoming user message and delegates to the message pipeline.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   handleIncomingUserMessage() is the primary callable for channel adapters (Telegram,
+ *   Discord, webchat, etc.) and the HTTP gateway. It consumes pending MemRL feedback
+ *   signals, estimates token usage for observability, invokes hook middleware, and then
+ *   calls processMessage() from message-pipeline.ts. Usage stats are forwarded to
+ *   usageTracker after the response is returned.
+ */
 import { orchestrator } from "../engines/orchestrator.js"
 import { hookPipeline } from "../hooks/pipeline.js"
 import { createLogger } from "../logger.js"

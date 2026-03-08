@@ -1,3 +1,13 @@
+/**
+ * @file event-bus.ts
+ * @description Typed internal event bus for decoupled communication between EDITH subsystems.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Singleton EventEmitter (`eventBus`) exported for use by any module that needs to
+ *   publish or subscribe to system-wide events (e.g. message received, memory save,
+ *   trigger fired, email draft created). Consumed by message-pipeline.ts, channels/email.ts,
+ *   and background/daemon.ts to decouple producers from consumers without direct imports.
+ */
 import { EventEmitter } from "node:events"
 
 import { createLogger } from "../logger.js"

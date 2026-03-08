@@ -1,3 +1,16 @@
+/**
+ * @file camel-guard.ts
+ * @description CaMeL-inspired taint tracking and capability token enforcement for tool call security.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Guards tool invocations in src/agents/ and src/skills/ by tainting data that
+ *   originates from untrusted sources (user input, web content) and blocking
+ *   capability-restricted operations. Integrates with message-pipeline.ts Stage 1
+ *   and references prompt-filter.ts for input classification.
+ *
+ * PAPER BASIS:
+ *   - CaMeL: arXiv:2503.18813 — capability-based agent security via taint propagation
+ */
 import crypto from "node:crypto"
 
 import { createLogger } from "../logger.js"

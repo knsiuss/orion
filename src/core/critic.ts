@@ -1,3 +1,13 @@
+/**
+ * @file critic.ts
+ * @description Self-critique module that evaluates and optionally refines LLM responses before delivery.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Uses the orchestrator ('reasoning' task type) to score a candidate response on accuracy,
+ *   helpfulness, and completeness. If the score falls below the configured threshold
+ *   (`CRITIC_THRESHOLD` from config), it performs up to `CRITIC_MAX_ITERATIONS` refinement
+ *   passes. Called from message-pipeline.ts as a post-generation quality gate.
+ */
 import config from "../config.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"

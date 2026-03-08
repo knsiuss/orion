@@ -1,3 +1,16 @@
+/**
+ * @file daemon.ts
+ * @description EDITHDaemon — background loop that evaluates proactive triggers and dispatches
+ *              autonomous messages to users based on schedule, inactivity, and context signals.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - Reads trigger definitions from triggers.ts (TriggerEngine) and quiet-hours.ts.
+ *   - Dispatches outbound messages via ChannelManager (channels/manager.ts).
+ *   - Integrates with ContextPredictor, VOICalculator, ACPRouter, MissionManager,
+ *     WellnessDetector, and LearningReport for enriched proactive behaviour.
+ *   - Wired into startup.ts; singleton exported as `edithDaemon`.
+ */
+
 import crypto from "node:crypto"
 
 import { channelManager } from "../channels/manager.js"

@@ -1,4 +1,17 @@
-﻿import { prisma } from "../database/index.js"
+﻿/**
+ * @file causal-graph.ts
+ * @description CausalGraph — extracts cause-effect relationships and hyper-edges from user
+ *              messages and stores them as a queryable graph of CausalNode and CausalEdge records.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - Uses the LLM orchestrator (engines/orchestrator.ts) with TaskType 'fast' for extraction.
+ *   - Persists nodes/edges/hyper-edges via Prisma (database/index.ts).
+ *   - Deduplication helpers from causal-graph-dedupe-utils.ts; temporal queries via temporal-index.ts.
+ *   - Consumed by hybrid-retriever.ts and message-pipeline.ts Stage 3 for context enrichment.
+ *   - Singleton exported as `causalGraph`.
+ */
+
+import { prisma } from "../database/index.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
 import { computeHyperEdgeMemberSetHash, normalizeCausalEventKey } from "./causal-graph-dedupe-utils.js"

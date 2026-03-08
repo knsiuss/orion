@@ -1,4 +1,12 @@
-﻿import Groq from "groq-sdk"
+﻿/**
+ * @file groq.ts
+ * @description Groq engine adapter — wraps the Groq SDK to implement the Engine interface for ultra-fast inference.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Implements Engine from ./types.ts. Registered in orchestrator.ts as a high-speed
+ *   provider for 'fast' task types. Reads API key and model selection from src/config.ts.
+ */
+import Groq from "groq-sdk"
 
 import config from "../config.js"
 import { createLogger } from "../logger.js"

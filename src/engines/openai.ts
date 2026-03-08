@@ -1,3 +1,11 @@
+/**
+ * @file openai.ts
+ * @description OpenAI engine adapter — wraps the OpenAI SDK to implement the Engine interface.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Implements Engine from ./types.ts. Registered in orchestrator.ts as a provider
+ *   for 'fast' and 'code' task types. Reads API key and model selection from src/config.ts.
+ */
 import OpenAI from "openai"
 
 import config from "../config.js"

@@ -1,3 +1,12 @@
+/**
+ * @file openrouter.ts
+ * @description OpenRouter engine adapter — routes requests through OpenRouter's unified API using the OpenAI-compatible client.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Implements Engine from ./types.ts. Registered in orchestrator.ts as a fallback
+ *   provider that gives access to many models via a single API key. Reads credentials
+ *   and model selection from src/config.ts.
+ */
 import OpenAI from "openai"
 
 import config from "../config.js"

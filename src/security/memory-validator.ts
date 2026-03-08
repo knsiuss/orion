@@ -1,3 +1,12 @@
+/**
+ * @file memory-validator.ts
+ * @description Validates memory entries before they are persisted to prevent injection of malicious or policy-violating content.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Called by src/memory/store.ts at write time (save()). Delegates content
+ *   inspection to prompt-filter.ts (filterPrompt) and enforces size/format
+ *   constraints before the entry reaches LanceDB.
+ */
 import { createLogger } from "../logger.js"
 import { filterPrompt } from "./prompt-filter.js"
 

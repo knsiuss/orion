@@ -20,6 +20,8 @@
  * @module core/message-pipeline
  */
 
+import { randomUUID } from "node:crypto"
+
 import config from "../config.js"
 import { saveMessage } from "../database/index.js"
 import { orchestrator } from "../engines/orchestrator.js"
@@ -43,6 +45,8 @@ import { retrievalEngine } from "../memory/knowledge/retrieval-engine.js"
 import { syncScheduler } from "../memory/knowledge/sync-scheduler.js"
 import { textSentiment } from "../emotion/text-sentiment.js"
 import { moodTracker } from "../emotion/mood-tracker.js"
+import { pipelineRateLimiter } from "../security/pipeline-rate-limiter.js"
+import { edithMetrics } from "../observability/metrics.js"
 
 const log = createLogger("core.pipeline")
 
@@ -64,6 +68,17 @@ export interface PipelineResult {
   retrievedMemoryIds: string[]
   /** Estimated provisional reward before user follow-up is known. */
   provisionalReward: number
+  /**
+   * True when the pipeline rejected the message before any processing.
+   * Currently set for: safety blocks and rate-limit rejections.
+   */
+  blocked?: boolean
+  /**
+   * UUID generated at the start of processMessage — propagated through all
+   * stage log calls so that a single request can be traced end-to-end across
+   * log lines and correlated with gateway request IDs.
+   */
+  requestId: string
 }
 
 export interface PipelineOptions {
@@ -73,11 +88,24 @@ export interface PipelineOptions {
   sessionMode?: "dm" | "group" | "subagent"
 }
 
-function blockedResult(): PipelineResult {
+function blockedResult(requestId: string): PipelineResult {
   return {
     response: BLOCKED_RESPONSE,
     retrievedMemoryIds: [],
     provisionalReward: 0,
+    blocked: true,
+    requestId,
+  }
+}
+
+/** Returned when the pipeline rejects a message due to per-user rate limiting. */
+function rateLimitedResult(requestId: string): PipelineResult {
+  return {
+    response: "Saya sedang sibuk memproses banyak permintaan. Coba lagi dalam semenit.",
+    retrievedMemoryIds: [],
+    provisionalReward: 0,
+    blocked: true,
+    requestId,
   }
 }
 
@@ -333,18 +361,32 @@ export async function processMessage(
 ): Promise<PipelineResult> {
   const { channel, sessionMode = "dm" } = options
 
+  /** UUID scoped to this single invocation — threaded through all stage logs. */
+  const requestId = randomUUID()
+  const pipelineStartMs = Date.now()
+
+  log.info("pipeline start", { requestId, userId, channel })
+
+  // Stage 0: Pipeline rate limit (20 msg/min per user, independent of channel)
+  if (!pipelineRateLimiter.check(userId)) {
+    log.warn("message rejected by pipeline rate limiter", { requestId, userId, channel })
+    return rateLimitedResult(requestId)
+  }
+
   // Stage 1: Input safety
   const inputSafety = await filterPromptWithAffordance(rawText, userId)
   if (!inputSafety.safe && inputSafety.affordance?.shouldBlock) {
-    log.warn("message blocked by affordance checker", { userId, channel })
-    return blockedResult()
+    log.warn("message blocked by affordance checker", { requestId, userId, channel })
+    edithMetrics.messagesTotal.inc({ channel, status: "blocked" })
+    return blockedResult(requestId)
   }
   const safeText = inputSafety.sanitized
+  log.debug("stage 1 complete: input safety passed", { requestId, userId })
 
   // Phase 21: Emotion detection (fire-and-forget — must not delay response)
   void textSentiment.detect(safeText)
     .then((sample) => moodTracker.record(userId, sample))
-    .catch((err) => log.warn("emotion detection failed", { userId, err }))
+    .catch((err) => log.warn("emotion detection failed", { requestId, userId, err }))
 
   // Stage 2: Persist user input and build retrieval context
   const { messages, systemContext, retrievedMemoryIds } = await persistUserMessageAndBuildContext(
@@ -354,6 +396,7 @@ export async function processMessage(
     safeText,
     inputSafety,
   )
+  log.debug("stage 2 complete: context built", { requestId, userId, retrievedCount: retrievedMemoryIds.length })
 
   // Stage 2.5: Opportunistic session compaction (best effort)
   await maybeCompactSessionHistory(userId, channel)
@@ -367,14 +410,14 @@ export async function processMessage(
     if (classification.type === "knowledge") {
       const kbContext = await retrievalEngine.retrieveContext(userId, safeText)
         .catch((err) => {
-          log.warn("KB retrieval failed", { userId, err })
+          log.warn("KB retrieval failed", { requestId, userId, err })
           return ""
         })
       if (kbContext) {
         dynamicContext = dynamicContext
           ? `${dynamicContext}\n\n${kbContext}`
           : kbContext
-        log.debug("KB context injected", { userId, confidence: classification.confidence })
+        log.debug("KB context injected", { requestId, userId, confidence: classification.confidence })
       }
     }
   }
@@ -386,22 +429,31 @@ export async function processMessage(
     extraContext: dynamicContext,
     userId, // Phase 10: inject per-user personality fragment
   })
+  log.debug("stage 4 complete: system prompt assembled", { requestId, userId })
 
   // Stage 5: LLM generation
   const prompt = buildGenerationPrompt(systemContext, safeText)
+  const llmStartMs = Date.now()
   const raw = await orchestrator.generate("reasoning", { prompt, context: messages, systemPrompt })
+  const provider = orchestrator.getLastUsedEngine()?.provider ?? "unknown"
+  edithMetrics.llmLatency.observe(Date.now() - llmStartMs, { provider })
+  edithMetrics.llmCallsTotal.inc({ provider, status: raw ? "ok" : "empty" })
+  log.debug("stage 5 complete: LLM response received", { requestId, userId })
 
   // Stage 6: Critique and refinement
   const critiqued = await responseCritic.critiqueAndRefine(safeText, raw, CRITIC_MAX_ITERATIONS)
   if (critiqued.refined) {
     log.debug("response refined by critic", {
+      requestId,
       score: critiqued.critique.score,
       iterations: critiqued.iterations,
     })
   }
+  log.debug("stage 6 complete: critique done", { requestId, userId, refined: critiqued.refined })
 
   // Stage 7: Output safety scan
   const { response, scanResult } = scanAssistantResponse(userId, critiqued.finalResponse)
+  log.debug("stage 7 complete: output scan done", { requestId, userId, safe: scanResult.safe })
 
   // Stage 8: Persist assistant response
   await persistAssistantResponse(
@@ -411,13 +463,20 @@ export async function processMessage(
     critiqued.finalResponse,
     scanResult,
   )
+  log.debug("stage 8 complete: persistence done", { requestId, userId })
 
   // Stage 9: Async side effects (fire-and-forget)
   launchAsyncSideEffects(userId, safeText, response, retrievedMemoryIds)
+
+  const pipelineDurationMs = Date.now() - pipelineStartMs
+  edithMetrics.messageLatency.observe(pipelineDurationMs, { channel })
+  edithMetrics.messagesTotal.inc({ channel, status: "ok" })
+  log.info("pipeline complete", { requestId, userId, channel, durationMs: pipelineDurationMs })
 
   return {
     response,
     retrievedMemoryIds,
     provisionalReward: computeProvisionalReward(retrievedMemoryIds),
+    requestId,
   }
 }

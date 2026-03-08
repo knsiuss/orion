@@ -1,3 +1,15 @@
+/**
+ * @file heartbeat.ts
+ * @description Heartbeat — periodic liveness probe that checks channel connectivity and
+ *              writes a timestamped status file used by health-check endpoints.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - Called by daemon.ts (EDITHDaemon) on each background loop tick.
+ *   - Queries ChannelManager (channels/manager.ts) for per-channel status.
+ *   - Status file is read by the Fastify gateway (/health endpoint in gateway/server.ts).
+ *   - Singleton exported as `heartbeat`.
+ */
+
 import fs from "node:fs/promises"
 import path from "node:path"
 

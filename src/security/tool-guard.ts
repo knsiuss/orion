@@ -1,3 +1,12 @@
+/**
+ * @file tool-guard.ts
+ * @description Validates and filters tool/skill invocation requests against an allowlist and blocked-command list.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Used by src/agents/ and src/skills/sandbox.ts before executing any tool call.
+ *   Complements camel-guard.ts (taint tracking) with a static blocklist of dangerous
+ *   shell commands and filesystem paths.
+ */
 import { createLogger } from "../logger.js"
 
 const log = createLogger("security.tool-guard")

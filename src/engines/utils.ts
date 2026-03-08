@@ -1,3 +1,11 @@
+/**
+ * @file utils.ts
+ * @description Shared utility helpers for LLM engine adapters, including message array construction.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Used by all engine adapters (anthropic.ts, openai.ts, groq.ts, etc.) to build
+ *   the messages array from GenerateOptions (prompt, context, systemPrompt).
+ */
 import type { GenerateOptions } from "./types.js"
 
 export function buildMessages(options: GenerateOptions): Array<{ role: "system" | "user" | "assistant"; content: string }> {

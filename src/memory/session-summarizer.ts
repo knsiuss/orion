@@ -1,4 +1,17 @@
-﻿import { saveMessage } from "../database/index.js"
+﻿/**
+ * @file session-summarizer.ts
+ * @description SessionSummarizer — compresses long conversation histories into a concise summary
+ *              message when the session exceeds a configurable threshold, keeping context windows lean.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - Reads session history from SessionStore (sessions/session-store.ts).
+ *   - Calls LLM orchestrator (engines/orchestrator.ts) with TaskType 'fast' to produce the summary.
+ *   - Saves the compressed summary back to the database via saveMessage (database/index.ts).
+ *   - Invoked from message-pipeline.ts as a fire-and-forget side effect after each response.
+ *   - Singleton exported as `sessionSummarizer`.
+ */
+
+import { saveMessage } from "../database/index.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
 import { sessionStore, type Message as SessionMessage } from "../sessions/session-store.js"

@@ -1,3 +1,11 @@
+/**
+ * @file gemini.ts
+ * @description Google Gemini engine adapter — wraps the Google Generative AI SDK to implement the Engine interface.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Implements Engine from ./types.ts. Registered in orchestrator.ts as a provider
+ *   for 'multimodal' task types. Reads API key and model selection from src/config.ts.
+ */
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
 import config from "../config.js"

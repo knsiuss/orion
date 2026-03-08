@@ -1,3 +1,12 @@
+/**
+ * @file output-scanner.ts
+ * @description Scans LLM-generated output for sensitive data leakage, PII, and policy violations before delivery.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Called in src/core/message-pipeline.ts after LLM generation (Stage 7) before
+ *   the response is dispatched to any channel. Works in tandem with prompt-filter.ts
+ *   (input side) to form a two-sided security boundary.
+ */
 import { createLogger } from "../logger.js"
 
 const log = createLogger("security.output-scanner")

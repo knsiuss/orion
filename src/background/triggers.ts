@@ -1,3 +1,15 @@
+/**
+ * @file triggers.ts
+ * @description TriggerEngine — loads, validates, and evaluates proactive trigger definitions
+ *              (scheduled, inactivity, pattern, webhook) from a YAML config file.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - Trigger definitions are read from `permissions/triggers.yaml` at runtime.
+ *   - Consumed by daemon.ts (EDITHDaemon) to decide when to send proactive messages.
+ *   - Uses session history from database/index.ts to evaluate inactivity conditions.
+ *   - Singleton exported as `triggerEngine`.
+ */
+
 import fs from "node:fs"
 
 import yaml from "js-yaml"

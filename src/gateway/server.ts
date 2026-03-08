@@ -39,6 +39,7 @@ import {
 } from "./auth-middleware.js"
 import { channelHealthMonitor } from "./channel-health-monitor.js"
 import { createRateLimiter } from "./rate-limiter.js"
+import { registry, edithMetrics } from "../observability/metrics.js"
 
 const logger = createLogger("gateway")
 
@@ -521,8 +522,8 @@ export class GatewayServer {
 
     // ── Rate Limiting ──────────────────────────────────────────────
     this.app.addHook("onRequest", async (req, reply) => {
-      // Skip rate limiting for health checks
-      if (req.url === "/health") return
+      // Skip rate limiting for health and metrics endpoints
+      if (req.url === "/health" || req.url === "/metrics") return
 
       const ip = req.ip
       const decision = rateLimiter.consume(ip)
@@ -595,6 +596,36 @@ export class GatewayServer {
         }
 
         return { channels: channelHealthMonitor.getHealth() }
+      })
+
+      /**
+       * Prometheus metrics scrape endpoint.
+       * Requires admin token (Authorization: Bearer <ADMIN_TOKEN>).
+       * Returns text/plain in Prometheus exposition format 0.0.4.
+       * Compatible with Prometheus, Grafana Agent, and DataDog agent.
+       *
+       * @example
+       *   curl -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:18789/metrics
+       */
+      app.get("/metrics", async (req, reply) => {
+        const configuredAdminToken = process.env.ADMIN_TOKEN
+        if (!isConfiguredAdminToken(configuredAdminToken)) {
+          return reply.code(503).send("# metrics endpoint requires ADMIN_TOKEN to be configured\n")
+        }
+
+        const adminCandidate = extractAdminToken(
+          req as { headers: Record<string, string | undefined>; query: Record<string, unknown> },
+        )
+        if (!isAdminTokenAuthorized(adminCandidate, configuredAdminToken)) {
+          return reply.code(401).send("# unauthorized\n")
+        }
+
+        // Refresh connection gauge before serializing
+        edithMetrics.activeConnections.set(this.clients.size)
+
+        return reply
+          .type("text/plain; version=0.0.4; charset=utf-8")
+          .send(registry.serialize())
       })
 
       app.post<{ Body?: { message?: unknown; userId?: unknown } }>(

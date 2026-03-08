@@ -1,3 +1,13 @@
+/**
+ * @file intelligence.ts
+ * @description Analyzes historical conversation data to surface usage patterns and recurring tasks.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   PatternIntelligence queries the database via searchMessages() to compute per-user
+ *   metrics: peak activity hours, common topics (TF-IDF word frequency), recurring task
+ *   phrases, and average response time. Results are used by the background daemon and
+ *   habit-model to drive proactive suggestions and quiet-hours calibration.
+ */
 import { searchMessages } from "../database/index.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"

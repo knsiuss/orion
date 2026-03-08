@@ -1,3 +1,12 @@
+/**
+ * @file dual-agent-reviewer.ts
+ * @description Dual-agent review layer that passes LLM outputs through a secondary critic model for safety verification.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Optionally invoked from src/core/message-pipeline.ts for high-risk task types.
+ *   Calls orchestrator.ts with a 'reasoning' task to run the critic pass, then
+ *   merges or rejects the original response based on critic verdict.
+ */
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
 

@@ -1,4 +1,14 @@
-﻿import { getHistory } from "../database/index.js"
+﻿/**
+ * @file context-predictor.ts
+ * @description Computes a multi-dimensional context vector from conversation history and message signals.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Exports predictContext() which reads recent history via getHistory() and returns a
+ *   MultiDimContext object (recency, urgency, topic continuity, sentiment, keyword overlap).
+ *   Consumed by system-prompt-builder.ts and message-pipeline.ts to inject contextual
+ *   metadata that guides LLM tone, routing task type, and proactive trigger decisions.
+ */
+import { getHistory } from "../database/index.js"
 import { createLogger } from "../logger.js"
 
 const log = createLogger("core.context-predictor")

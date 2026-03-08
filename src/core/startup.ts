@@ -8,6 +8,7 @@ import fs from "node:fs/promises"
 import path from "node:path"
 
 import { prisma } from "../database/index.js"
+import { applyPragmas } from "../database/pragmas.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
 import { memory } from "../memory/store.js"
@@ -32,6 +33,8 @@ import { deviceScanner } from "../hardware/device-scanner.js"
 import { deviceRegistry } from "../hardware/device-registry.js"
 import { gatewaySync } from "../gateway/gateway-sync.js"
 import { networkDiscovery } from "../gateway/network-discovery.js"
+import { sessionStore } from "../sessions/session-store.js"
+import { outbox } from "../channels/outbox.js"
 
 const log = createLogger("startup")
 
@@ -39,6 +42,12 @@ export interface StartupResult {
   processMessage: typeof processMessage
   shutdown: () => Promise<void>
 }
+
+/** Evict sessions idle for longer than this from in-memory store (1 hour). */
+const SESSION_INACTIVE_MS = 60 * 60 * 1_000
+
+/** How often to sweep inactive sessions (every 15 minutes). */
+const SESSION_CLEANUP_INTERVAL_MS = 15 * 60 * 1_000
 
 let eventHandlersInitialized = false
 
@@ -74,6 +83,9 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
     .$connect()
     .then(() => log.info("database connected"))
     .catch((error: unknown) => log.error("database connection failed", error))
+
+  // Apply production-grade SQLite pragmas (WAL mode, busy timeout, etc.)
+  await applyPragmas(prisma)
 
   await memory.init()
   await orchestrator.init()
@@ -177,8 +189,22 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
     log.warn("no engines available")
   }
 
+  // Session store: periodic LRU cleanup of inactive in-memory sessions
+  const sessionCleanupTimer = setInterval(() => {
+    const cleaned = sessionStore.cleanupInactiveSessions(SESSION_INACTIVE_MS)
+    if (cleaned > 0) {
+      log.debug("session cleanup sweep", { cleaned })
+    }
+  }, SESSION_CLEANUP_INTERVAL_MS)
+  sessionCleanupTimer.unref()
+
+  // Outbox: persist to .edith/ dir + start retry flusher
+  outbox.setPersistPath(path.join(workspaceDir, "..", ".edith"))
+
   const shutdown = async (): Promise<void> => {
     log.info("shutting down")
+    clearInterval(sessionCleanupTimer)
+    outbox.stopFlushing()
     if (daemon.isRunning()) {
       daemon.stop()
     }

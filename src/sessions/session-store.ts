@@ -1,7 +1,15 @@
 import { createLogger } from "../logger.js"
 import { getHistory } from "../database/index.js"
+import { edithMetrics } from "../observability/metrics.js"
 
 const log = createLogger("sessions.store")
+
+/**
+ * Maximum number of concurrent in-memory sessions.
+ * When this cap is reached, the least-recently-active session is evicted.
+ * Evicted sessions are not lost — history persists in SQLite and is reloaded on demand.
+ */
+const MAX_SESSIONS = 500
 
 export interface Message {
   role: "user" | "assistant" | "system"
@@ -40,6 +48,7 @@ class SessionStore {
       }
       this.sessions.set(key, session)
       log.debug("Session created", { key })
+      this.evictIfOverCapacity()
     } else {
       session.lastActivityAt = now
     }
@@ -118,7 +127,37 @@ class SessionStore {
   clearAllSessions(): void {
     this.sessions.clear()
     this.histories.clear()
+    edithMetrics.activeSessions.set(0)
     log.info("All sessions cleared")
+  }
+
+  /**
+   * Evict the least-recently-active session when the cap is exceeded.
+   * History is preserved in SQLite and will be reloaded on next access.
+   */
+  private evictIfOverCapacity(): void {
+    if (this.sessions.size <= MAX_SESSIONS) {
+      edithMetrics.activeSessions.set(this.sessions.size)
+      return
+    }
+
+    let lruKey: string | null = null
+    let lruTime = Infinity
+
+    for (const [k, s] of this.sessions) {
+      if (s.lastActivityAt < lruTime) {
+        lruTime = s.lastActivityAt
+        lruKey = k
+      }
+    }
+
+    if (lruKey) {
+      this.sessions.delete(lruKey)
+      this.histories.delete(lruKey)
+      log.debug("LRU session evicted", { key: lruKey, sessionCount: this.sessions.size })
+    }
+
+    edithMetrics.activeSessions.set(this.sessions.size)
   }
 
   getActiveSessions(): Session[] {
@@ -145,6 +184,7 @@ class SessionStore {
       log.info("Cleaned up inactive sessions", { count: cleaned })
     }
 
+    edithMetrics.activeSessions.set(this.sessions.size)
     return cleaned
   }
 }
