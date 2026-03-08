@@ -13,7 +13,7 @@
  *     6. Destroy pipeline rate limiter timer
  *     7. WAL checkpoint (flush WAL → main DB file)
  *     8. Prisma disconnect
- *     9. process.exit(0)
+ *    Callers are responsible for calling process.exit(0) after this resolves.
  *
  * @module core/shutdown
  */
@@ -54,7 +54,10 @@ export function _resetShutdownState(): void {
  *   6. Destroy pipeline rate limiter eviction timer
  *   7. SQLite WAL checkpoint (flush WAL → main database file)
  *   8. Prisma disconnect
- *   9. process.exit(0)
+ *
+ * Resolves cleanly when all steps complete. Callers should call process.exit(0)
+ * after awaiting. The internal watchdog timer calls process.exit(1) if any
+ * shutdown step hangs beyond SHUTDOWN_TIMEOUT_MS (last-resort escape hatch).
  */
 export async function performShutdown(): Promise<void> {
   if (shutdownCalled) return
@@ -103,6 +106,5 @@ export async function performShutdown(): Promise<void> {
     log.info("graceful shutdown complete")
   } finally {
     clearTimeout(timer)
-    process.exit(0)
   }
 }

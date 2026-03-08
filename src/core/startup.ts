@@ -264,9 +264,6 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
     sidecarManager.start("vision")
   }
 
-  process.on("SIGTERM", () => { void performShutdown() })
-  process.on("SIGINT",  () => { void performShutdown() })
-
   const shutdown = async (): Promise<void> => {
     log.info("shutting down via StartupResult.shutdown()")
     clearInterval(sessionCleanupTimer)
@@ -283,6 +280,11 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
     // Delegate remaining teardown (outbox flush, WAL checkpoint, prisma, channels, sidecars)
     await performShutdown()
   }
+
+  // Register signal handlers AFTER shutdown() is defined so they use the full
+  // shutdown path (which clears sessionCleanupTimer and all other local teardown).
+  process.on("SIGTERM", () => { void shutdown().then(() => process.exit(0)).catch(() => process.exit(1)) })
+  process.on("SIGINT",  () => { void shutdown().then(() => process.exit(0)).catch(() => process.exit(1)) })
 
   return {
     processMessage,
