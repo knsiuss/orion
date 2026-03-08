@@ -1,0 +1,7 @@
+- generic [ref=e2]:
+  - generic [ref=e3]: EDITH
+  - generic [ref=e4]: Your persistent AI companion
+  - generic [ref=e10]:
+    - generic [ref=e11]: Welcome to EDITH
+    - generic [ref=e12]: EDITH is a persistent AI companion that learns from your conversations, proactively reaches out, and helps you stay on top of your tasks. Let's get you set up.
+    - button "Get Started" [ref=e13] [cursor=pointer]

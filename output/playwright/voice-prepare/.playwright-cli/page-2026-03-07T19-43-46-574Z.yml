@@ -1,0 +1,7 @@
+- generic [ref=e2]:
+  - generic [ref=e3]: EDITH
+  - generic [ref=e4]: Your persistent AI companion
+  - generic [ref=e89]:
+    - generic [ref=e90]: All Set!
+    - generic [ref=e91]: EDITH is ready to go. You can start chatting now. The app will run in the system tray.
+    - button "Start Chatting" [ref=e92] [cursor=pointer]

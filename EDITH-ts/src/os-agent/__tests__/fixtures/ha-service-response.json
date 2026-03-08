@@ -1,0 +1,16 @@
+[
+  {
+    "entity_id": "light.bedroom",
+    "state": "on",
+    "attributes": {
+      "friendly_name": "Bedroom Light",
+      "brightness": 255
+    },
+    "last_changed": "2026-03-08T10:01:00Z",
+    "context": {
+      "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "parent_id": null,
+      "user_id": null
+    }
+  }
+]

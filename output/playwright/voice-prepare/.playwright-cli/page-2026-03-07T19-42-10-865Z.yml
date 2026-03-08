@@ -1,0 +1,24 @@
+- generic [ref=e2]:
+  - generic [ref=e3]: EDITH
+  - generic [ref=e4]: Your persistent AI companion
+  - generic [ref=e14]:
+    - generic [ref=e15]: Choose AI Provider
+    - generic [ref=e16]: Select the AI engine you want to use.
+    - generic [ref=e17]:
+      - generic [ref=e18] [cursor=pointer]:
+        - generic [ref=e19]:
+          - text: Groq
+          - generic [ref=e20]: Recommended
+        - generic [ref=e21]: Free, fast inference with Llama models
+      - generic [ref=e22] [cursor=pointer]:
+        - generic [ref=e23]: Ollama
+        - generic [ref=e24]: Local, private, free - runs on your machine
+      - generic [ref=e25] [cursor=pointer]:
+        - generic [ref=e26]: Anthropic
+        - generic [ref=e27]: Claude - best quality reasoning
+      - generic [ref=e28] [cursor=pointer]:
+        - generic [ref=e29]: OpenAI
+        - generic [ref=e30]: GPT-4 - excellent for code and tasks
+    - generic [ref=e31]:
+      - button "Back" [ref=e32] [cursor=pointer]
+      - button "Continue" [ref=e33] [cursor=pointer]
