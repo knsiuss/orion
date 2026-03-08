@@ -676,3 +676,16 @@ model PredictionCache {
 
   @@index([userId])
 }
+
+model ExpenseRecord {
+  id          String   @id @default(cuid())
+  userId      String
+  amount      Float
+  currency    String   @default("IDR")
+  category    String
+  description String
+  date        DateTime @default(now())
+  source      String   @default("manual")
+
+  @@index([userId])
+}
