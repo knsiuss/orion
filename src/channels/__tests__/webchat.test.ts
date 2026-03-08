@@ -29,6 +29,7 @@ vi.mock("fastify", () => ({
   default: () => ({
     register: vi.fn().mockResolvedValue(undefined),
     get: vi.fn(),
+    post: vi.fn(),
     listen: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
   }),
