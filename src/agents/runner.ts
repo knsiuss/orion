@@ -3,7 +3,7 @@ import crypto from "node:crypto"
 import { generateText } from "ai"
 
 import { orchestrator } from "../engines/orchestrator.js"
-import { orionTools } from "./tools.js"
+import { edithTools } from "./tools.js"
 import { createLogger } from "../logger.js"
 import { acpRouter } from "../acp/router.js"
 import { signMessage, type ACPMessage, type AgentCredential } from "../acp/protocol.js"
@@ -15,6 +15,8 @@ import { taskPlanner, type TaskDAG } from "./task-planner.js"
 import { executionMonitor, type TaskResult } from "./execution-monitor.js"
 import { buildSystemPrompt } from "../core/system-prompt-builder.js"
 import { LoopDetector } from "../core/loop-detector.js"
+import { LATSPlanner } from "./lats-planner.js"
+import { loadEDITHConfig } from "../config/edith-config.js"
 
 const logger = createLogger("runner")
 
@@ -39,6 +41,7 @@ export class AgentRunner {
     this.credential = acpRouter.registerAgent(
       "runner",
       ["runner.execute", "runner.parallel", "runner.supervise", "runner.status"],
+      ["runner.execute", "runner.parallel", "runner.supervise", "runner.status", "runner.lats"],
       async (msg) => this.handleACPMessage(msg),
     )
   }
@@ -54,7 +57,7 @@ export class AgentRunner {
       const engine = orchestrator.route("reasoning")
       const inferredTaskType = inferTaskType(task.task)
       const taskScope = getScopeForTask(inferredTaskType)
-      const scopeResult = applyTaskScope(orionTools, taskScope, {
+      const scopeResult = applyTaskScope(edithTools, taskScope, {
         actorId: task.userId ?? "runner",
       })
       const scopedTools = scopeResult.tools
@@ -70,7 +73,7 @@ export class AgentRunner {
           id: task.id,
           result: "",
           error:
-            "Task requires explicit approval for system-level tools. Set ORION_SYSTEM_TOOL_APPROVED=true to allow.",
+            "Task requires explicit approval for system-level tools. Set EDITH_SYSTEM_TOOL_APPROVED=true to allow.",
           durationMs: Date.now() - start,
         }
       }
@@ -224,6 +227,32 @@ Provide a clear, unified answer.`
     }
   }
 
+  async runWithLATS(goal: string): Promise<string> {
+    const config = await loadEDITHConfig()
+    const planner = new LATSPlanner(config.computerUse ?? {}, {
+      actorId: "runner",
+    })
+
+    try {
+      const result = await planner.run(goal)
+      if (result.success) {
+        return result.output
+      }
+
+      logger.warn("lats returned partial result, falling back to supervisor", {
+        goal: goal.slice(0, 80),
+        output: result.output.slice(0, 200),
+      })
+    } catch (error) {
+      logger.warn("lats execution failed, falling back to supervisor", {
+        goal: goal.slice(0, 80),
+        error: String(error),
+      })
+    }
+
+    return this.runWithSupervisor(goal)
+  }
+
   private limitDagSize(dag: TaskDAG, maxSubtasks: number): TaskDAG {
     const boundedMax = Number.isFinite(maxSubtasks)
       ? Math.max(1, Math.min(8, Math.floor(maxSubtasks)))
@@ -272,6 +301,8 @@ Provide a clear, unified answer.`
         String(payload.goal ?? ""),
         Number(payload.maxSubtasks ?? 8),
       )
+    } else if (message.action === "runner.lats") {
+      result = await this.runWithLATS(String(payload.goal ?? ""))
     } else {
       result = { error: `unknown action: ${message.action}` }
     }
