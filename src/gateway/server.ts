@@ -11,6 +11,9 @@
  * - Transport-level validation/normalization
  * - Usage summary API endpoints
  * - Rate limiting, CORS, security headers
+ *
+ * TODO: Extract route groups into gateway/routes/ (usage, models, webhooks, mobile)
+ *       to reduce this file below 600 lines. See docs/architecture.md.
  */
 
 import crypto from "node:crypto"
@@ -969,8 +972,10 @@ export class GatewayServer {
       if (config.OPENAI_COMPAT_API_ENABLED === 'true') {
         const { registerChatCompletions } = await import("../api/openai-compat/chat-completions.js")
         const { registerEmbeddings } = await import("../api/openai-compat/embeddings.js")
+        const { registerModels } = await import("../api/openai-compat/models.js")
         registerChatCompletions(app)
         registerEmbeddings(app)
+        registerModels(app)
         logger.info("openai-compat API routes registered")
       }
     })

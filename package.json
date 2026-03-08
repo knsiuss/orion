@@ -78,6 +78,7 @@
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.0.18",
     "minimatch": "^10.2.4",
+    "oxlint": "^1.2.0",
     "prisma": "^6.19.2",
     "rollup": "^4.59.0",
     "tsup": "^8.5.1",

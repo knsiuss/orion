@@ -689,3 +689,39 @@ model ExpenseRecord {
 
   @@index([userId])
 }
+
+/**
+ * Phase 38 — Subscription tracking for recurring expenses.
+ */
+model SubscriptionRecord {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  amount      Float
+  currency    String    @default("IDR")
+  interval    String    @default("monthly")
+  category    String    @default("uncategorized")
+  nextDue     DateTime?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([active])
+}
+
+/**
+ * Phase 39 — Per-message quality scores for MemRL reward calibration.
+ */
+model MessageScore {
+  id          String   @id @default(cuid())
+  messageId   String
+  userId      String
+  score       Float
+  source      String   @default("auto")
+  feedback    String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([messageId])
+}

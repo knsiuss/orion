@@ -60,6 +60,7 @@ vi.mock("../../config.js", () => ({
 
 vi.mock("../../database/index.js", () => ({
   saveMessage: vi.fn().mockResolvedValue(undefined),
+  prisma: {},
 }))
 
 vi.mock("../../memory/store.js", () => ({

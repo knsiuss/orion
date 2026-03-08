@@ -27,6 +27,7 @@ import { memory } from "./memory/store.js"
 import { orchestrator } from "./engines/orchestrator.js"
 import { ENGINE_MODEL_CATALOG } from "./engines/model-preferences.js"
 import { printBanner, printStatusBox, colors, type StatusSection } from "./cli/banner.js"
+import type { PipelineResult, PipelineOptions } from "./core/message-pipeline.js"
 
 const log = createLogger("main")
 
@@ -35,13 +36,16 @@ const mode = process.argv.includes("--mode")
   : "text"
 const workspaceDir = process.env.EDITH_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
 
+/** Signature that matches the exported processMessage from message-pipeline. */
+type ProcessMessageFn = (userId: string, rawText: string, options: PipelineOptions) => Promise<PipelineResult>
+
 interface PendingMemRLFeedback {
   memoryIds: string[]
   previousResponseLength: number
   provisionalReward: number
 }
 
-async function startCLI(processMessage: Function): Promise<void> {
+async function startCLI(processMessage: ProcessMessageFn): Promise<void> {
   const rl = readline.createInterface({ input, output })
   let pendingFeedback: PendingMemRLFeedback | null = null
 

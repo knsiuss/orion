@@ -67,15 +67,4 @@ export function registerChatCompletions(app: FastifyInstance): void {
       return reply.code(500).send({ error: { message: 'Internal server error', type: 'server_error' } })
     }
   })
-
-  app.get('/v1/models', async (_req, reply) => {
-    return reply.send({
-      object: 'list',
-      data: [
-        { id: 'edith-1', object: 'model', created: 1700000000, owned_by: 'edith' },
-        { id: 'edith-fast', object: 'model', created: 1700000000, owned_by: 'edith' },
-        { id: 'edith-reasoning', object: 'model', created: 1700000000, owned_by: 'edith' },
-      ],
-    })
-  })
 }

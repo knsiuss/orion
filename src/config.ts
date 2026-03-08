@@ -209,6 +209,7 @@ const ConfigSchema = z.object({
   OBSIDIAN_VAULT_PATH: z.string().default(""),
   OCR_ENABLED: boolFromEnv.default(false),
   // Phase 14: Calendar extended config
+  GCAL_ENABLED: boolFromEnv.default(false),
   GCAL_TIMEZONE: z.string().default("Asia/Jakarta"),
   GCAL_CALENDARS: z.string().default("primary"),
   CALENDAR_ALERT_MINUTES: intFromEnv.default(15),

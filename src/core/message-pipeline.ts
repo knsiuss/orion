@@ -52,6 +52,8 @@ import { edithMetrics } from "../observability/metrics.js"
 import { auditEngine } from "../security/audit.js"
 import { intentPredictor } from "../predictive/intent-predictor.js"
 import { preFetcher } from "../predictive/pre-fetcher.js"
+import { hookPipeline } from "../hooks/pipeline.js"
+import type { HookContext } from "../hooks/registry.js"
 
 const log = createLogger("core.pipeline")
 
@@ -415,6 +417,18 @@ export async function processMessage(
   const safeText = inputSafety.sanitized
   log.debug("stage 1 complete: input safety passed", { requestId, userId })
 
+  // Stage 1.5: pre_message hook — allows hooks to modify/abort before processing
+  const preHookCtx = await hookPipeline.run("pre_message", {
+    userId,
+    channel,
+    content: safeText,
+    metadata: { requestId },
+  } satisfies HookContext)
+  if (preHookCtx.abort) {
+    log.info("message aborted by pre_message hook", { requestId, userId, reason: preHookCtx.abortReason })
+    return blockedResult(requestId)
+  }
+
   // Phase 21: Emotion detection (fire-and-forget — must not delay response)
   void textSentiment.detect(safeText)
     .then((sample) => moodTracker.record(userId, sample))
@@ -499,6 +513,15 @@ export async function processMessage(
 
   // Stage 9: Async side effects (fire-and-forget)
   launchAsyncSideEffects(userId, safeText, response, retrievedMemoryIds)
+
+  // Stage 9.5: post_message hook (fire-and-forget — must not delay response)
+  void hookPipeline.run("post_message", {
+    userId,
+    channel,
+    content: response,
+    metadata: { requestId, retrievedMemoryIds },
+  } satisfies HookContext)
+    .catch((err) => log.warn("post_message hook failed", { requestId, err }))
 
   const pipelineDurationMs = Date.now() - pipelineStartMs
   edithMetrics.messageLatency.observe(pipelineDurationMs, { channel })
