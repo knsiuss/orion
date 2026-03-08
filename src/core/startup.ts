@@ -6,6 +6,7 @@
 
 import fs from "node:fs/promises"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 
 import { prisma } from "../database/index.js"
 import { applyPragmas } from "../database/pragmas.js"
@@ -35,6 +36,7 @@ import { gatewaySync } from "../gateway/gateway-sync.js"
 import { networkDiscovery } from "../gateway/network-discovery.js"
 import { sessionStore } from "../sessions/session-store.js"
 import { outbox } from "../channels/outbox.js"
+import { sidecarManager } from "./sidecar-manager.js"
 
 const log = createLogger("startup")
 
@@ -74,7 +76,42 @@ async function ensureWorkspaceStructure(workspaceDir: string): Promise<void> {
   await fs.mkdir(path.join(workspaceDir, "memory"), { recursive: true })
 }
 
+/**
+ * Validates that at least one LLM API key is configured.
+ * Crashes with an actionable error message rather than a confusing runtime failure.
+ *
+ * Called once at the top of initialize().
+ */
+function validateRequiredEnv(): void {
+  const llmKeys = [
+    { key: "ANTHROPIC_API_KEY",  value: config.ANTHROPIC_API_KEY  },
+    { key: "OPENAI_API_KEY",     value: config.OPENAI_API_KEY     },
+    { key: "GEMINI_API_KEY",     value: config.GEMINI_API_KEY     },
+    { key: "GROQ_API_KEY",       value: config.GROQ_API_KEY       },
+    { key: "OPENROUTER_API_KEY", value: config.OPENROUTER_API_KEY },
+  ]
+
+  const hasLLM = llmKeys.some(({ value }) => value && value.trim().length > 0)
+  if (!hasLLM) {
+    log.error("STARTUP FAILED: no LLM API key configured", {
+      required: "Set at least one of: " + llmKeys.map(k => k.key).join(", "),
+      hint: "Copy .env.example to .env and fill in at least one API key",
+    })
+    process.exit(1)
+  }
+
+  if (!config.DATABASE_URL) {
+    log.error("STARTUP FAILED: DATABASE_URL is not set", {
+      hint: "Set DATABASE_URL in your .env file (e.g. DATABASE_URL=file:./edith.db)",
+    })
+    process.exit(1)
+  }
+
+  log.info("env validation passed")
+}
+
 export async function initialize(workspaceDir: string): Promise<StartupResult> {
+  validateRequiredEnv()
   log.info("starting EDITH")
 
   await ensureWorkspaceStructure(workspaceDir)
@@ -200,6 +237,35 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
 
   // Outbox: persist to .edith/ dir + start retry flusher
   outbox.setPersistPath(path.join(workspaceDir, "..", ".edith"))
+
+  // Python sidecar supervision
+  const __filename = fileURLToPath(import.meta.url)
+  const __dirname = path.dirname(__filename)
+  const pythonCwd = path.resolve(__dirname, "../../python")
+  const py = config.PYTHON_PATH ?? "python"
+
+  if (config.VOICE_ENABLED) {
+    sidecarManager.register({
+      name: "voice",
+      command: py,
+      args: ["-m", "delivery.streaming_voice"],
+      cwd: pythonCwd,
+    })
+    sidecarManager.start("voice")
+  }
+
+  if (config.VISION_ENABLED) {
+    sidecarManager.register({
+      name: "vision",
+      command: py,
+      args: ["-m", "vision.processor"],
+      cwd: pythonCwd,
+    })
+    sidecarManager.start("vision")
+  }
+
+  process.on("SIGTERM", () => sidecarManager.stopAll())
+  process.on("SIGINT", () => sidecarManager.stopAll())
 
   const shutdown = async (): Promise<void> => {
     log.info("shutting down")
