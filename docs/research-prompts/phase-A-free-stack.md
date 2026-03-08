@@ -2,7 +2,7 @@
 
 ## Tujuan
 Ganti semua paid API ke free tier supaya development bisa jalan tanpa keluar biaya.
-Target: semua fitur Orion berfungsi dengan $0/bulan.
+Target: semua fitur EDITH berfungsi dengan $0/bulan.
 
 ## Problem Saat Ini
 - `memory/store.ts` pakai `openAIEmbed()` → berbayar
@@ -22,8 +22,8 @@ Target: semua fitur Orion berfungsi dengan $0/bulan.
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Orion-TS, AI companion system berbasis TypeScript/Node 22.
-Repo: orion-ts/src/
+Kamu sedang memodifikasi EDITH, AI companion system berbasis TypeScript/Node 22.
+Repo: src/
 
 ### TASK: Phase A — Free Stack Migration
 
@@ -105,6 +105,6 @@ Tulis guide singkat (maksimal 60 baris) tentang cara setup zero-cost:
 ```bash
 ollama pull nomic-embed-text
 pnpm dev --mode text
-# Ketik: "halo orion"
+# Ketik: "halo edith"
 # Harusnya response tanpa error embedding
 ```

@@ -68,7 +68,7 @@ describe("gateway/csrf helpers", () => {
       url: "/message",
       headers: {
         origin: allowedOrigin,
-        cookie: "orion_csrf_token=cookie-token",
+        cookie: "edith_csrf_token=cookie-token",
         [CSRF_HEADER_NAME]: "header-token",
       },
     })
@@ -98,7 +98,7 @@ describe("gateway/csrf helpers", () => {
       url: "/message",
       headers: {
         origin: "https://evil.example",
-        cookie: "orion_csrf_token=abc",
+        cookie: "edith_csrf_token=abc",
         [CSRF_HEADER_NAME]: "abc",
       },
     })

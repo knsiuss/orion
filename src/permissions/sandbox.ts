@@ -42,12 +42,6 @@ interface PermissionSection {
   quiet_hours?: { start: string; end: string }
 }
 
-interface PermissionResult {
-  allowed: boolean
-  requiresConfirm: boolean
-  reason: string
-}
-
 type ChannelManager = {
   sendWithConfirm: (userId: string, message: string, action: string) => Promise<boolean>
 }
@@ -65,10 +59,9 @@ const logger = createLogger("permissions.sandbox")
 export class PermissionSandbox {
   private config: Record<string, PermissionSection> = {}
   private channelManager: ChannelManager | null = null
-  private defaultUserId: string
 
   constructor(defaultUserId = "owner") {
-    this.defaultUserId = defaultUserId
+    void defaultUserId
   }
 
   setChannelManager(manager: ChannelManager): void {
@@ -87,7 +80,7 @@ export class PermissionSandbox {
     }
   }
 
-  async check(action: PermissionAction, userId: string, authContext?: AuthCheckContext): Promise<boolean> {
+  async check(action: PermissionAction, _userId: string, authContext?: AuthCheckContext): Promise<boolean> {
     const sectionKey = ACTION_TO_SECTION[action]
     if (!sectionKey) {
       return false

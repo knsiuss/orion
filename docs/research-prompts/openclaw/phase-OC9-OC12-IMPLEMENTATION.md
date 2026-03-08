@@ -1,4 +1,4 @@
-# Orion — Phase OC-9 to OC-12: Implementation Prompt
+# EDITH — Phase OC-9 to OC-12: Implementation Prompt
 # Focus: MemRL Fix, Hybrid Search, Telemetry, Multi-Tenant
 # Research basis: RESEARCH-PAPERS-PHASE-OC9-OC12.md
 # Date: Feb 22, 2026
@@ -7,9 +7,9 @@
 
 ## KONTEKS UNTUK AI (baca dulu sebelum mulai)
 
-Orion adalah AI companion dengan full TypeScript stack di `orion-ts/`.
+EDITH adalah AI companion dengan full TypeScript stack di ``.
 Phase OC-0 sampai OC-8 sudah selesai atau sedang dikerjakan.
-Phase ini implement 4 sistem berikutnya yang membawa Orion dari "feature parity" ke "production platform":
+Phase ini implement 4 sistem berikutnya yang membawa EDITH dari "feature parity" ke "production platform":
 
 - **OC-9**: Fix bug kritis di MemRL + upgrade ke Intent-Experience-Utility triplets
 - **OC-10**: Hybrid memory search (FTS + Vector + RRF reranking)
@@ -140,7 +140,7 @@ await memrl.updateFromFeedback(sessionId, retrievedIds.map(m => m.id), 'success'
 
 ### Background
 
-Orion pakai pure vector search (LanceDB) untuk semua memory retrieval.
+EDITH pakai pure vector search (LanceDB) untuk semua memory retrieval.
 Vector search fails untuk: exact names, dates, IDs, newly-coined terms.
 OpenClaw punya FTS fallback + query expansion. Kita implement hybrid dengan RRF reranking.
 
@@ -294,7 +294,7 @@ async retrieveContext(query: string, sessionId: string): Promise<MemoryEntry[]> 
 
 ### Background
 
-Orion tidak punya visibility ke token usage atau cost. OpenClaw punya real-time cost dashboard per model.
+EDITH tidak punya visibility ke token usage atau cost. OpenClaw punya real-time cost dashboard per model.
 Kita implement lightweight in-process telemetry — tidak butuh external OTel collector.
 
 Research basis: Portkey/Maxim observability research, OTel for MCP agents (Glama.ai).
@@ -501,7 +501,7 @@ app.get('/api/usage/summary', (req, res) => {
 ### Background
 
 `workspaceResolver.ts` sudah ada di prompt OC-3 tapi belum diimplementasi.
-Tanpa ini, Orion tidak bisa serve multiple users dengan data isolation.
+Tanpa ini, EDITH tidak bisa serve multiple users dengan data isolation.
 Ini prerequisite untuk SaaS monetization.
 
 Research basis: AWS AaaS Whitepaper 2026, Fast.io Multi-Tenant Guide 2026.
@@ -581,14 +581,14 @@ export class WorkspaceResolver {
 }
 ```
 
-### Buat file baru: `src/config/orion-config.ts`
+### Buat file baru: `src/config/edith-config.ts`
 
 ```typescript
 import { z } from 'zod';
 
-const OrionConfigSchema = z.object({
+const EDITHConfigSchema = z.object({
   // Core
-  instanceId: z.string().default('orion-default'),
+  instanceId: z.string().default('edith-default'),
   environment: z.enum(['development', 'staging', 'production']).default('development'),
   
   // Multi-tenant
@@ -621,11 +621,11 @@ const OrionConfigSchema = z.object({
   }).default({}),
 });
 
-export type OrionConfig = z.infer<typeof OrionConfigSchema>;
+export type EDITHConfig = z.infer<typeof EDITHConfigSchema>;
 
-export function loadConfig(overrides?: Partial<OrionConfig>): OrionConfig {
+export function loadConfig(overrides?: Partial<EDITHConfig>): EDITHConfig {
   const raw = {
-    instanceId: process.env.ORION_INSTANCE_ID,
+    instanceId: process.env.EDITH_INSTANCE_ID,
     environment: process.env.NODE_ENV,
     multiTenant: {
       enabled: process.env.MULTI_TENANT_ENABLED === 'true',
@@ -638,7 +638,7 @@ export function loadConfig(overrides?: Partial<OrionConfig>): OrionConfig {
     ...overrides,
   };
   
-  return OrionConfigSchema.parse(raw);
+  return EDITHConfigSchema.parse(raw);
 }
 
 export const config = loadConfig();
@@ -716,7 +716,7 @@ if (usageTracker.isOverBudget(tenantCtx.tenantId, tenantCtx.rateLimits.costCapUs
 
 ### OC-12 (Multi-Tenant)
 - [ ] Buat `src/core/workspace-resolver.ts` (full content di atas)
-- [ ] Buat `src/config/orion-config.ts` (full content di atas)
+- [ ] Buat `src/config/edith-config.ts` (full content di atas)
 - [ ] Patch `prisma/schema.prisma` — tambah `tenantId` + `tier` ke User, tambah Tenant model
 - [ ] Run `pnpm prisma migrate dev --name add-tenant-fields`
 - [ ] Patch `gateway/index.ts` — inject TenantContext ke semua request handlers

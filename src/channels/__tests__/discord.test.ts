@@ -14,8 +14,8 @@ describe("discord channel helpers", () => {
     expect(__discordTestUtils.normalizeDiscordCommand("hello")).toBeNull()
   })
 
-  it("maps Orion user and channel target ids", () => {
-    expect(__discordTestUtils.toDiscordOrionUserId("u123")).toBe("discord:u123")
+  it("maps EDITH user and channel target ids", () => {
+    expect(__discordTestUtils.toDiscordEDITHUserId("u123")).toBe("discord:u123")
     expect(__discordTestUtils.toDiscordChannelTargetId("c456")).toBe("discord:channel:c456")
     expect(__discordTestUtils.parseDiscordChannelTargetId("discord:channel:c456")).toBe("c456")
     expect(__discordTestUtils.parseDiscordChannelTargetId("discord:u123")).toBeNull()

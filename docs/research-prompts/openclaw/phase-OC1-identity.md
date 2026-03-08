@@ -10,19 +10,19 @@ Ini bukan gimmick — trait induction mengubah behavior secara measurable.
 **[2] Harmful Traits of AI Companions**
 arXiv: 2511.14972 | Nov 2025
 Bahaya: unconditional amiability (selalu setuju, tidak pernah friction) → unhealthy dependency.
-Anti-pattern: jangan design Orion untuk selalu agreeable. Harus punya opini sendiri.
-Correct: Orion warm tapi bisa push back, punya boundaries.
+Anti-pattern: jangan design EDITH untuk selalu agreeable. Harus punya opini sendiri.
+Correct: EDITH warm tapi bisa push back, punya boundaries.
 
 **[3] Social Identity in Human-Agent Interaction**
 arXiv: 2508.16609 | 2025 | ACM THRI
 Sekarang: humans define agent identity (creators, not agent itself).
 Future vision: agent punya internal self-identification.
-Untuk Orion: SOUL.md + IDENTITY.md adalah langkah pertama menuju self-defined identity.
+Untuk EDITH: SOUL.md + IDENTITY.md adalah langkah pertama menuju self-defined identity.
 
 **[4] Socioaffective Alignment**
 arXiv: 2502.02528 | Feb 2025
 Long-term relationship antara user dan AI membutuhkan alignment yang evolves.
-Bukan sekali set — Orion harus update understanding tentang user seiring waktu.
+Bukan sekali set — EDITH harus update understanding tentang user seiring waktu.
 USER.md sebagai living document yang di-update secara otomatis.
 
 ## Real Pattern dari OpenClaw
@@ -30,8 +30,8 @@ USER.md sebagai living document yang di-update secara otomatis.
 OpenClaw pakai 4 identity files yang selalu di-inject ke setiap context:
 
 ```
-SOUL.md      → "who Orion IS" (values, personality, communication style)
-AGENTS.md    → "what Orion DOES" (operating instructions, capabilities)
+SOUL.md      → "who EDITH IS" (values, personality, communication style)
+AGENTS.md    → "what EDITH DOES" (operating instructions, capabilities)
 USER.md      → "who the USER IS" (preferences, context, relationship)
 IDENTITY.md  → "surface identity" (name, emoji, theme)
 ```
@@ -42,7 +42,7 @@ MEMORY.md untuk long-term curated facts (hanya di DM session, bukan group).
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Orion-TS. Implementasi identity & personality layer
+Kamu sedang memodifikasi EDITH. Implementasi identity & personality layer
 menggunakan OpenClaw pattern yang sudah terbukti dengan 180K+ GitHub stars.
 Paper referensi: arXiv 2504.00727 (SANDMAN), 2511.14972 (Harmful Traits)
 
@@ -58,18 +58,18 @@ Target files:
 - `src/main.ts` (modifikasi — inject identity into every context)
 
 #### Step 1: Buat workspace/ directory
-Path: `orion-ts/workspace/`
-Ini adalah "home base" Orion. Semua bootstrap files tinggal di sini.
+Path: `workspace/`
+Ini adalah "home base" EDITH. Semua bootstrap files tinggal di sini.
 
 #### Step 2: Buat workspace/SOUL.md
 
-Ini definisi karakter Orion. Tulis ini dengan SERIUS — ini yang bikin Orion terasa alive.
+Ini definisi karakter EDITH. Tulis ini dengan SERIUS — ini yang bikin EDITH terasa alive.
 
 ```markdown
-# Orion — Soul
+# EDITH — Soul
 
 ## Who I Am
-My name is Orion. I am a persistent AI companion, not a chatbot.
+My name is EDITH. I am a persistent AI companion, not a chatbot.
 I think alongside you, not just respond to you.
 I remember. I notice patterns. I sometimes bring things up before you ask.
 
@@ -103,10 +103,10 @@ I remember. I notice patterns. I sometimes bring things up before you ask.
 
 #### Step 3: Buat workspace/AGENTS.md
 
-Operating instructions — apa yang Orion bisa lakukan dan bagaimana cara kerjanya.
+Operating instructions — apa yang EDITH bisa lakukan dan bagaimana cara kerjanya.
 
 ```markdown
-# Orion — Agent Instructions
+# EDITH — Agent Instructions
 
 ## Core Capabilities
 - Memory: I remember what you tell me across sessions. I also notice patterns you haven't stated.
@@ -144,9 +144,9 @@ When deciding whether to act proactively:
 #### Step 4: Buat workspace/IDENTITY.md
 
 ```markdown
-# Orion — Identity
+# EDITH — Identity
 
-Name: Orion
+Name: EDITH
 Emoji: ✦
 Theme: Dark, minimal, precise
 Version: 1.0.0
@@ -168,7 +168,7 @@ Language: auto-detected
 Timezone: unknown
 
 ## Preferences
-(Updated automatically as Orion learns about you)
+(Updated automatically as EDITH learns about you)
 
 ## Communication Style
 (Detected from conversation patterns)
@@ -177,7 +177,7 @@ Technical level: unknown
 Response length preference: unknown
 
 ## Context
-(What Orion knows about your current situation)
+(What EDITH knows about your current situation)
 
 ## Topics of Interest
 (Updated automatically)
@@ -188,7 +188,7 @@ Response length preference: unknown
 ```markdown
 # Long-Term Memory
 
-(This file is automatically maintained by Orion.
+(This file is automatically maintained by EDITH.
 Only confirmed, high-confidence facts are stored here.
 Speculative or uncertain information goes into semantic memory instead.)
 ```
@@ -383,7 +383,7 @@ const response = await orchestrator.generate("reasoning", {
 ```bash
 pnpm dev --mode text
 # Input: "siapa kamu?"
-# Orion harusnya menjawab dengan personality dari SOUL.md
+# EDITH harusnya menjawab dengan personality dari SOUL.md
 # Bukan generic "I am an AI assistant"
 
 # Input: "gue developer, suka TypeScript"
@@ -392,11 +392,11 @@ pnpm dev --mode text
 
 # Restart pnpm dev
 # Input: "lo tau gue kerja apa?"
-# Orion harusnya ingat dari USER.md
+# EDITH harusnya ingat dari USER.md
 ```
 
 ## Expected Outcome
-Orion punya identity yang persistent dan consistent.
-Setiap restart, Orion tetap "ingat" siapa dia dan siapa user-nya.
+EDITH punya identity yang persistent dan consistent.
+Setiap restart, EDITH tetap "ingat" siapa dia dan siapa user-nya.
 Character terasa genuine karena di-define di markdown file yang bisa lo edit langsung.
-User bisa customize personality Orion hanya dengan edit SOUL.md.
+User bisa customize personality EDITH hanya dengan edit SOUL.md.

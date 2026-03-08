@@ -1,4 +1,4 @@
-﻿# Operations Runbook
+# Operations Runbook
 
 ## Daily Checks
 1. Run `pnpm doctor`.
@@ -8,7 +8,7 @@
 ## Startup Procedure
 1. Ensure env and credentials loaded.
 2. Apply migrations if schema changed.
-3. Start Orion in target mode.
+3. Start EDITH in target mode.
 4. Validate connected channels list.
 
 ## Incident Handling

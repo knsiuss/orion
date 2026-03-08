@@ -1,4 +1,4 @@
-# Architecture — Orion TS
+# Architecture — EDITH TS
 
 > Last updated after the Step 10 refactor pass.
 
@@ -19,7 +19,7 @@
   └── Output: outputScanner.scan()
          ↓
 [Identity Layer — OpenClaw Paradigm]
-  workspace/SOUL.md       ← who Orion is (static, source of truth)
+  workspace/SOUL.md       ← who EDITH is (static, source of truth)
   workspace/AGENTS.md     ← operating instructions
   workspace/IDENTITY.md   ← name, emoji, theme
   workspace/USER.md       ← user profile (auto-updated by profiler)
@@ -57,7 +57,7 @@
 Workspace markdown files are the source of truth for identity.
 Code is the execution environment. SOUL.md beats persona.ts.
 
-The static identity (who Orion is, values, tone) lives in `workspace/SOUL.md`.
+The static identity (who EDITH is, values, tone) lives in `workspace/SOUL.md`.
 Dynamic context (current user mood, expertise, topic) is computed at runtime
 by `PersonaEngine` and injected AFTER the bootstrap files.
 
@@ -115,7 +115,7 @@ Usage tracking via UsageTracker with:
 
 ### 7. **Multi-Tenancy (SaaS Mode)**
 
-When `ORION_SAAS_MODE=true`:
+When `EDITH_SAAS_MODE=true`:
 - Per-user isolated workspaces
 - Tenant-level resource quotas (messages, storage, skills, rate limits)
 - Feature flags (voice, vision, custom skills, API access)

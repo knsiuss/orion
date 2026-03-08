@@ -44,7 +44,7 @@ describe("gateway/rate-limiter", () => {
   })
 
   it("shares counters across instances with file backend", () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "orion-rate-limit-"))
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "edith-rate-limit-"))
     const filePath = path.join(tempDir, "rate-limit.json")
 
     try {

@@ -1,5 +1,5 @@
 # ============================================
-# Orion — .gitignore
+# EDITH — .gitignore
 # ============================================
 
 # Environment variables — NEVER commit
@@ -66,5 +66,10 @@ build/
 .venv*/
 .tmp*/
 models/
-.orion/
+.edith/
+.playwright-cli/
+output/
+edith.json
+workbenches/
+apps/desktop/dist/
 .pnpm-store/

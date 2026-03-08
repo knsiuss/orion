@@ -224,14 +224,13 @@ Use for: reading live websites, filling forms, extracting data, web research.`,
     }
     
     try {
-      const page = await getPage()
-
       if (action === "navigate") {
         if (!url) return "Error: url required for navigate action"
         const guard = guardUrl(url)
         if (!guard.allowed) {
           return `Browser action failed: ${guard.reason ?? "URL blocked"}`
         }
+        const page = await getPage()
         await page.goto(url, { timeout: PAGE_TIMEOUT_MS, waitUntil: "domcontentloaded" })
         await injectSetOfMark(page)
         const title = await page.title()
@@ -239,6 +238,8 @@ Use for: reading live websites, filling forms, extracting data, web research.`,
         log.info("browser navigated", { url, title })
         return JSON.stringify(observation)
       }
+
+      const page = await getPage()
 
       if (action === "click") {
         if (!selector) return "Error: selector required for click action"

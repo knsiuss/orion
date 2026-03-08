@@ -1,6 +1,6 @@
-# Orion Desktop
+# EDITH Desktop
 
-Electron wrapper for Orion gateway.
+Electron wrapper for EDITH gateway.
 
 ## Run
 

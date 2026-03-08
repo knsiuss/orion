@@ -36,6 +36,7 @@ interface QuickstartPlan {
   channel: ChannelChoice
   provider: ProviderChoice
   updates: Record<string, string>
+  computerUseEnabled: boolean
 }
 
 interface NextStepCommands {
@@ -43,6 +44,28 @@ interface NextStepCommands {
   all: string
   onboard: string
 }
+
+const DEFAULT_ONBOARD_COMPUTER_USE_CONFIG = {
+  enabled: true,
+  planner: "lats",
+  fallbackPlanner: "dag",
+  maxEpisodes: 30,
+  maxStepsPerEpisode: 20,
+  explorationConstant: 1.4142135623730951,
+  expansionBranches: 3,
+  taskTimeoutMs: 120000,
+  browser: {
+    injectSetOfMark: true,
+    maxElements: 50,
+    pageTimeoutMs: 15000,
+    headless: true,
+  },
+  fileAgent: {
+    allowedPaths: ["./workspace", "./workbenches"],
+    maxFileSizeMb: 10,
+    allowWrite: true,
+  },
+} as const
 
 const CHANNEL_CHOICES: ReadonlyArray<{ key: ChannelChoice; label: string; description: string }> = [
   { key: "telegram", label: "Telegram (recommended)", description: "Fastest path for phone testing via Bot API" },
@@ -66,7 +89,7 @@ const WHATSAPP_MODE_CHOICES: ReadonlyArray<{ key: WhatsAppSetupMode; label: stri
 ]
 
 function printHelp(): void {
-  console.log("Orion Onboarding (OpenClaw-inspired)")
+  console.log("EDITH Onboarding (OpenClaw-inspired)")
   console.log("====================================")
   console.log("")
   console.log("Usage:")
@@ -296,8 +319,8 @@ async function loadEnvTemplate(cwd: string): Promise<EnvTemplate> {
 }
 
 function resolveOnboardEnvPaths(cwd: string): OnboardEnvPaths {
-  const explicitEnvPath = typeof process.env.ORION_ENV_FILE === "string" && process.env.ORION_ENV_FILE.trim().length > 0
-    ? path.resolve(process.env.ORION_ENV_FILE.trim())
+  const explicitEnvPath = typeof process.env.EDITH_ENV_FILE === "string" && process.env.EDITH_ENV_FILE.trim().length > 0
+    ? path.resolve(process.env.EDITH_ENV_FILE.trim())
     : null
 
   return {
@@ -305,6 +328,37 @@ function resolveOnboardEnvPaths(cwd: string): OnboardEnvPaths {
     // Keep using the repo template as the canonical base when writing a profile env.
     envExamplePath: path.join(cwd, ".env.example"),
   }
+}
+
+function resolveOnboardConfigPath(cwd: string): string {
+  return path.join(cwd, "edith.json")
+}
+
+async function writeComputerUseConfig(cwd: string, enabled: boolean): Promise<string> {
+  const configPath = resolveOnboardConfigPath(cwd)
+  let parsed: Record<string, unknown> = {}
+
+  try {
+    parsed = JSON.parse(await fs.readFile(configPath, "utf-8")) as Record<string, unknown>
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw error
+    }
+  }
+
+  const currentComputerUse =
+    parsed.computerUse && typeof parsed.computerUse === "object"
+      ? parsed.computerUse as Record<string, unknown>
+      : {}
+
+  parsed.computerUse = {
+    ...DEFAULT_ONBOARD_COMPUTER_USE_CONFIG,
+    ...currentComputerUse,
+    enabled,
+  }
+
+  await fs.writeFile(configPath, `${JSON.stringify(parsed, null, 2)}\n`, "utf-8")
+  return configPath
 }
 
 function redactSecretValue(key: string, value: string): string {
@@ -321,14 +375,14 @@ function redactSecretValue(key: string, value: string): string {
 }
 
 function defaultNextStepCommands(env: NodeJS.ProcessEnv = process.env): NextStepCommands {
-  const usingGlobalWrapper = [env.ORION_ENV_FILE, env.ORION_WORKSPACE, env.ORION_STATE_DIR]
+  const usingGlobalWrapper = [env.EDITH_ENV_FILE, env.EDITH_WORKSPACE, env.EDITH_STATE_DIR]
     .some((value) => typeof value === "string" && value.trim().length > 0)
 
   if (usingGlobalWrapper) {
     return {
-      doctor: "orion doctor",
-      all: "orion all",
-      onboard: "orion onboard",
+      doctor: "edith doctor",
+      all: "edith all",
+      onboard: "edith onboard",
     }
   }
 
@@ -344,7 +398,7 @@ function buildNextSteps(plan: QuickstartPlan, commands: NextStepCommands = defau
 
   lines.push("Next steps:")
   lines.push(`1. Run \`${commands.doctor}\` to validate config + ports.`)
-  lines.push(`2. Start Orion with channels: \`${commands.all}\``)
+  lines.push(`2. Start EDITH with channels: \`${commands.all}\``)
 
   if (plan.channel === "telegram") {
     lines.push("3. Open Telegram on your phone and DM your bot.")
@@ -475,7 +529,7 @@ async function askYesNo(
 }
 
 function buildQuickstartBanner(): void {
-  console.log("Orion Setup Wizard (OpenClaw-inspired)")
+  console.log("EDITH Setup Wizard (OpenClaw-inspired)")
   console.log("======================================")
   console.log("")
   console.log("This wizard helps you:")
@@ -658,7 +712,12 @@ async function collectQuickstartPlan(
       updates.AUTO_START_GATEWAY = "true"
     }
 
-    return { channel, provider, updates }
+    const enableComputerUse = await askYesNoMaybe(
+      "Enable computer use defaults in edith.json",
+      true,
+    )
+
+    return { channel, provider, updates, computerUseEnabled: enableComputerUse }
   } finally {
     rl?.close()
   }
@@ -670,6 +729,7 @@ function printPlannedChanges(plan: QuickstartPlan, envPath: string, templateSour
   console.log("===============")
   console.log(`Channel: ${plan.channel}`)
   console.log(`Provider: ${plan.provider}`)
+  console.log(`Computer use defaults: ${plan.computerUseEnabled ? "enabled" : "disabled"}`)
   console.log(`Target env file: ${envPath} (base: ${templateSource})`)
   console.log("")
   if (Object.keys(plan.updates).length === 0) {
@@ -720,8 +780,10 @@ async function runOnboarding(argv: string[]): Promise<void> {
 
     if (shouldWrite) {
       await writeEnvFile(cwd, template, plan.updates)
+      const configPath = await writeComputerUseConfig(cwd, plan.computerUseEnabled)
       console.log("")
       console.log(`Wrote ${envPath}`)
+      console.log(`Wrote ${configPath}`)
     } else {
       console.log("")
       console.log("Skipped writing .env")
@@ -741,6 +803,7 @@ export const __onboardTestUtils = {
   buildNextSteps,
   defaultNextStepCommands,
   parseEnvLineKey,
+  writeComputerUseConfig,
 }
 
 async function main(): Promise<void> {

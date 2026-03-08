@@ -29,7 +29,7 @@ Status:
 - Stage 3 migration verified locally on empty SQLite dataset (safe syntax/runtime check)
 - Runtime writer is hardened for Stage-3 unique constraint races (`P2002`) in `src/memory/causal-graph.ts`
 - `getDownstreamEffects()` read path now also uses normalized `eventKey` fallback (prevents case/trim misses after dedupe)
-- Stage 3 deploy remains blocked until real environment backfill/dedupe verification is complete
+- **Stage 3 COMPLETE** — `prisma/schema.prisma` now enforces `@@unique([userId, eventKey])` on `CausalNode` and `@@unique([userId, relation, memberSetHash])` on `HyperEdge`; deploy blocked only if backfill verification (`pnpm dedupe:causal-graph:dry-run`) shows remaining duplicates
 
 ### Stage 1: Add columns/indexes (non-breaking)
 

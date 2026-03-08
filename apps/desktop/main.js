@@ -5,30 +5,30 @@ const WebSocket = require("ws")
 
 let mainWindow = null
 let tray = null
-let orionProcess = null
+let edithProcess = null
 let ws = null
 let gatewayReady = false
 
 function startGateway() {
-  orionProcess = spawn("node", [
-    path.join(__dirname, "../../orion-ts/dist/main.js"),
+  edithProcess = spawn("node", [
+    path.join(__dirname, "../../dist/main.js"),
     "--mode", "gateway"
   ])
 
-  orionProcess.stdout.on("data", (data) => {
+  edithProcess.stdout.on("data", (data) => {
     const text = data.toString()
-    console.log("[orion]", text)
+    console.log("[edith]", text)
     if (text.includes("gateway running")) {
       gatewayReady = true
       connectToGateway()
     }
   })
 
-  orionProcess.stderr.on("data", (data) => {
-    console.error("[orion stderr]", data.toString())
+  edithProcess.stderr.on("data", (data) => {
+    console.error("[edith stderr]", data.toString())
   })
 
-  orionProcess.on("exit", () => {
+  edithProcess.on("exit", () => {
     gatewayReady = false
     console.log("Gateway process exited")
   })
@@ -68,9 +68,9 @@ function connectToGateway() {
 function createTray() {
   const icon = nativeImage.createEmpty()
   tray = new Tray(icon)
-  tray.setToolTip("Orion")
+  tray.setToolTip("EDITH")
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "Open Orion", click: () => mainWindow?.show() },
+    { label: "Open EDITH", click: () => mainWindow?.show() },
     { label: "Status", click: () => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "status" }))
@@ -128,7 +128,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   app.isQuitting = true
-  orionProcess?.kill()
+  edithProcess?.kill()
   ws?.close()
 })
 

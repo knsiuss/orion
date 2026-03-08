@@ -11,7 +11,7 @@ arXiv: 2601.13671 | Jan 2026 | Formal MCP/A2A framework
 arXiv: 2512.06659 | Dec 2025 | Five-generation taxonomy
 
 ## Core Idea dari Papers
-Orion sekarang punya `AgentRunner` yang bisa single/parallel/sequential/supervisor.
+EDITH sekarang punya `AgentRunner` yang bisa single/parallel/sequential/supervisor.
 Tapi ini basic — tidak ada persistent task state, tidak ada retry dengan different approach,
 tidak ada true agent specialization.
 
@@ -20,17 +20,17 @@ ALAS three-layer model:
 2. Agent Factory: instantiate specialized agents per node
 3. Runtime Monitor: handle failures, retry, escalate
 
-Untuk Orion, translate ini ke:
+Untuk EDITH, translate ini ke:
 1. TaskPlanner: buat DAG (directed acyclic graph) dari task dependencies
 2. SpecializedAgents: agents dengan prompt/tool set berbeda (researcher, coder, writer, analyst)
 3. ExecutionMonitor: track state, handle failures, decide retry vs escalate
 
-"Combat Assist" dalam konteks Orion = kemampuan mengambil aksi autonomous yang complex:
+"Combat Assist" dalam konteks EDITH = kemampuan mengambil aksi autonomous yang complex:
 - Research + Summarize + Write = multi-agent pipeline
 - Debug + Fix + Test = sequential agents dengan feedback loop
 - Monitor + Alert + Respond = background autonomous loop
 
-## Gap di Orion Sekarang
+## Gap di EDITH Sekarang
 `agents/runner.ts` → supervisor hanya break goal ke parallel subtasks.
 Tidak ada task dependencies (DAG).
 Tidak ada specialized agents dengan different tools/prompts.
@@ -39,7 +39,7 @@ Tidak ada state persistence between agent calls.
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Orion-TS. Implementasi true multi-agent coordination.
+Kamu sedang memodifikasi EDITH. Implementasi true multi-agent coordination.
 Paper referensi: arXiv 2505.12501, 2601.13671
 
 ### TASK: Phase G — Multi-Agent System

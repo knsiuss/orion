@@ -137,7 +137,7 @@ describe("memory/episodic", () => {
     })
 
     it("persists episodes across restarts when persistence is enabled", () => {
-      const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "orion-episodic-"))
+      const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "edith-episodic-"))
 
       try {
         const first = new EpisodicMemory({ persist: true, stateDir })

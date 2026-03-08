@@ -18,7 +18,7 @@ Users generally prefer responsive systems; artificial delays hurt experienced us
 
 Implementation choice:
 - no artificial delay
-- immediate lightweight feedback (`typing…`) in-channel before Orion response
+- immediate lightweight feedback (`typing…`) in-channel before EDITH response
 
 ### 2. Better repair messages beat vague failures
 
@@ -77,7 +77,7 @@ DISCORD_CHANNEL_ID=123456789012345678
 4. Set `.env`:
    - `DISCORD_BOT_TOKEN=...`
    - optional `DISCORD_CHANNEL_ID=...`
-5. Run Orion:
+5. Run EDITH:
    - `pnpm dev -- --mode all`
 6. In Discord mobile/desktop:
    - DM the bot or use your allowlisted channel
@@ -86,7 +86,7 @@ DISCORD_CHANNEL_ID=123456789012345678
 
 ## Troubleshooting
 
-- Bot is online but Orion does not reply:
+- Bot is online but EDITH does not reply:
   - verify `Message Content Intent` is enabled in Discord Developer Portal
   - verify channel is DM or included in `DISCORD_CHANNEL_ID`
 - Guild channel ignored:

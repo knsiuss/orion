@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require("electron")
 
-contextBridge.exposeInMainWorld("orion", {
+contextBridge.exposeInMainWorld("edith", {
   sendMessage: (content, userId) =>
     ipcRenderer.invoke("send:message", content, userId),
 

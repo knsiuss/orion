@@ -1,4 +1,4 @@
-# ORION — OpenClaw-Style Architecture Study
+# EDITH — OpenClaw-Style Architecture Study
 ## Dari Source Code + Docs Resmi (Verified Feb 2026)
 
 ---
@@ -13,7 +13,7 @@ Feb 14 2026: Steinberger joined OpenAI, OpenClaw dilanjutkan independent foundat
 Insight kunci dari Medium/DeepWiki analysis:
 > "The LLM provides intelligence. OpenClaw provides the execution environment."
 
-Orion sekarang sudah punya ~70% dari arsitektur ini. Yang missing adalah lapisan
+EDITH sekarang sudah punya ~70% dari arsitektur ini. Yang missing adalah lapisan
 identity (SOUL/AGENTS/USER), skill lazy-loading yang benar, dan security hardening.
 
 ---
@@ -203,7 +203,7 @@ Channel access modes:
 2. Scope next → di mana agent boleh act
 3. Model last → assume model bisa dimanipulasi, minimize blast radius
 
-### SOUL.md Security Vulnerability (PENTING untuk Orion!)
+### SOUL.md Security Vulnerability (PENTING untuk EDITH!)
 
 Dari mmntm.net + penligent.ai analysis:
 - SOUL.md adalah file yang PALING SERING diserang
@@ -213,7 +213,7 @@ Dari mmntm.net + penligent.ai analysis:
 - CVE-2026-25253 (CVSS 8.8): patched — malicious webpage bisa leak gateway auth token via WebSocket
 - ClawHub audit: 341 dari 2,857 skills ditemukan malicious
 
-**Defense untuk Orion:**
+**Defense untuk EDITH:**
 - Treat SOUL.md dan semua bootstrap files seperti executable code, bukan config files
 - File Integrity Monitoring (FIM) untuk bootstrap files
 - Read-only permissions pada SOUL.md saat runtime normal
@@ -261,16 +261,16 @@ OpenClaw punya hook system: `workspace/hooks/` + `~/.openclaw/hooks/`
 Setiap hook adalah TypeScript file dengan `HOOK.md`.
 Hook bisa intercept lifecycle events: `agent:bootstrap`, `agent:turn`, dll.
 
-Use case untuk Orion SaaS:
+Use case untuk EDITH SaaS:
 - `agent:bootstrap` → swap SOUL.md per user/tenant
 - `agent:turn` → inject user-specific context
 - `agent:session-end` → save session state ke user DB
 
 ---
 
-## 3. GAP ANALYSIS: ORION vs OPENCLAW
+## 3. GAP ANALYSIS: EDITH vs OPENCLAW
 
-| Komponen | OpenClaw | Orion Sekarang | Gap Level |
+| Komponen | OpenClaw | EDITH Sekarang | Gap Level |
 |---|---|---|---|
 | SOUL.md | ✅ File-based, always-inject | ❌ Tidak ada | CRITICAL |
 | AGENTS.md | ✅ Operating instructions | ❌ Tidak ada | CRITICAL |
@@ -318,7 +318,7 @@ Use case untuk Orion SaaS:
 
 ## 5. ROADMAP IMPLEMENTASI
 
-### Tahap 1: OpenClaw-Compatible (Target: Orion works like OpenClaw)
+### Tahap 1: OpenClaw-Compatible (Target: EDITH works like OpenClaw)
 
 ```
 OC-0: Workspace Structure Setup
@@ -363,6 +363,6 @@ SAAS-3: File Integrity Monitoring
   → Alert jika SOUL.md atau AGENTS.md berubah unexpectedly
 
 SAAS-4: Config Schema
-  → orion.json equivalent dengan full schema (Zod validation)
+  → edith.json equivalent dengan full schema (Zod validation)
   → Per-channel, per-agent configuration
 ```

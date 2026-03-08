@@ -310,7 +310,7 @@ export class HybridRetriever {
       const path = await import("node:path")
       const fs = await import("node:fs/promises")
       
-      const dbPath = path.resolve(process.cwd(), ".orion", "lancedb")
+      const dbPath = path.resolve(process.cwd(), ".edith", "lancedb")
       await fs.mkdir(path.dirname(dbPath), { recursive: true })
       
       const db = await lancedb.connect(dbPath)

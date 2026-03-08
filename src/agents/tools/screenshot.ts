@@ -2,7 +2,7 @@
  * screenshotAnalyzeTool — Capture and analyze screen content via Vision LLM.
  *
  * Connects the existing VisionBridge (Python layer) to the agent tool system.
- * Allows Orion to "see" the screen and answer questions about it.
+ * Allows EDITH to "see" the screen and answer questions about it.
  *
  * Actions:
  *   analyze_screen  — Capture screen and analyze with prompt

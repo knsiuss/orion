@@ -45,7 +45,7 @@ Use this first before calling mcpCallTool.`,
   execute: async () => {
     const servers = mcpClient.getConnectedServers()
     if (servers.length === 0) {
-      return "No MCP servers connected. Add MCP server configs to orion.json under 'mcp.servers'."
+      return "No MCP servers connected. Add MCP server configs to edith.json under 'mcp.servers'."
     }
 
     const tools = mcpClient.getAllTools()

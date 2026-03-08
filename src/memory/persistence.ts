@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
 
-const DEFAULT_STATE_DIR = ".orion"
+const DEFAULT_STATE_DIR = ".edith"
 
 function asTrimmedString(value: string | undefined): string | null {
   if (typeof value !== "string") {
@@ -17,7 +17,7 @@ export function resolvePersistenceEnabled(explicit: boolean | undefined): boolea
     return explicit
   }
 
-  const env = asTrimmedString(process.env.ORION_MEMORY_PERSIST)
+  const env = asTrimmedString(process.env.EDITH_MEMORY_PERSIST)
   if (env) {
     const normalized = env.toLowerCase()
     if (normalized === "false" || normalized === "0" || normalized === "no") {
@@ -32,7 +32,7 @@ export function resolvePersistenceEnabled(explicit: boolean | undefined): boolea
 }
 
 export function resolveStateDir(explicitStateDir?: string): string {
-  const envStateDir = asTrimmedString(process.env.ORION_STATE_DIR)
+  const envStateDir = asTrimmedString(process.env.EDITH_STATE_DIR)
   const selected = asTrimmedString(explicitStateDir) ?? envStateDir ?? DEFAULT_STATE_DIR
   return path.resolve(selected)
 }

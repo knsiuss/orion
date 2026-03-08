@@ -1,62 +1,62 @@
-# Orion Global CLI (OpenClaw-style Wrapper)
+# EDITH Global CLI (OpenClaw-style Wrapper)
 
 Date: 2026-02-26
 
 ## Goal
 
-Provide a single command (`orion`) that feels closer to OpenClaw:
+Provide a single command (`edith`) that feels closer to OpenClaw:
 
 - run from any directory
-- support a smart first-run `orion` entrypoint (launch setup when profile isn't configured)
-- link your Orion repo once
-- use simple commands like `orion wa scan`
-- validate readiness with `orion self-test`
-- use OpenClaw-style aliases like `orion setup`, `orion configure`, `orion status`
+- support a smart first-run `edith` entrypoint (launch setup when profile isn't configured)
+- link your EDITH repo once
+- use simple commands like `edith wa scan`
+- validate readiness with `edith self-test`
+- use OpenClaw-style aliases like `edith setup`, `edith configure`, `edith status`
 
 This is now a **Phase 2 wrapper** (repo-linked runtime + profile state), not yet a fully repo-independent runtime.
 
 ## What it does (Phase 2)
 
-- Stores a linked repo path in `~/.orion/cli.json`
-- Stores an active profile under `~/.orion/profiles/default` (config/state/workspace)
+- Stores a linked repo path in `~/.edith/cli.json`
+- Stores an active profile under `~/.edith/profiles/default` (config/state/workspace)
 - Proxies commands to `pnpm --dir <repo> ...`
 - Removes the `pnpm setup` UX trap by exposing beginner-friendly commands:
-  - `orion quickstart`
-  - `orion setup`
-  - `orion configure`
-- `orion status`
-- `orion dashboard`
-- `orion logs`
-- `orion channels ...`
-  - `orion wa scan`
-  - `orion wa cloud`
-  - `orion channels status --json`
-  - `orion dashboard --open`
-- Runs Orion commands with profile-scoped env variables:
-  - `ORION_ENV_FILE`
-  - `ORION_WORKSPACE`
-  - `ORION_STATE_DIR`
+  - `edith quickstart`
+  - `edith setup`
+  - `edith configure`
+- `edith status`
+- `edith dashboard`
+- `edith logs`
+- `edith channels ...`
+  - `edith wa scan`
+  - `edith wa cloud`
+  - `edith channels status --json`
+  - `edith dashboard --open`
+- Runs EDITH commands with profile-scoped env variables:
+  - `EDITH_ENV_FILE`
+  - `EDITH_WORKSPACE`
+  - `EDITH_STATE_DIR`
 
 ## Install (local machine)
 
 From your repo directory:
 
 ```bash
-npm install -g C:\Users\test\OneDrive\Desktop\orion\orion-ts
-orion
+npm install -g C:\Users\test\OneDrive\Desktop\EDITH
+edith
 ```
 
-On first run, `orion` now behaves like an OpenClaw-style entrypoint:
+On first run, `edith` now behaves like an OpenClaw-style entrypoint:
 
-- if a linked repo/profile is missing, it prints the shortest next step (`orion link ...`)
-- if run inside an Orion repo and no link exists, it auto-detects and auto-links the repo
+- if a linked repo/profile is missing, it prints the shortest next step (`edith link ...`)
+- if run inside an EDITH repo and no link exists, it auto-detects and auto-links the repo
 - if the active profile is not configured yet, it launches the setup wizard automatically
 - if configured, it shows the next recommended commands (`dashboard`, `channels login`, `all`, `status`)
 
 Alternative (without global install), you can still run:
 
 ```bash
-node bin/orion.js
+node bin/edith.js
 ```
 
 ## Install (local machine, explicit)
@@ -64,7 +64,7 @@ node bin/orion.js
 From your repo directory:
 
 ```bash
-cd C:\Users\test\OneDrive\Desktop\orion\orion-ts
+cd C:\Users\test\OneDrive\Desktop\EDITH
 npm install -g .
 ```
 
@@ -73,64 +73,64 @@ npm install -g .
 Link the repo once:
 
 ```bash
-orion link C:\Users\test\OneDrive\Desktop\orion\orion-ts
+edith link C:\Users\test\OneDrive\Desktop\EDITH
 ```
 
 Verify:
 
 ```bash
-orion repo
+edith repo
 ```
 
 Initialize profile files (recommended once):
 
 ```bash
-orion profile init
-orion self-test
-orion self-test --fix
+edith profile init
+edith self-test
+edith self-test --fix
 ```
 
 Named profile shortcut (OpenClaw-style):
 
 ```bash
-orion --profile work profile init
-orion --profile work status
+edith --profile work profile init
+edith --profile work status
 ```
 
 Or do both and start the wizard in one command:
 
 ```bash
-orion init
+edith init
 ```
 
 ## WhatsApp QR test (OpenClaw-style)
 
 ```bash
-orion wa scan
-orion all
+edith wa scan
+edith all
 ```
 
 Scriptable quick setup (no prompts, uses defaults + QR mode):
 
 ```bash
-orion wa scan --yes --provider groq
-orion all
+edith wa scan --yes --provider groq
+edith all
 ```
 
 OpenClaw-style channels namespace (same result, more parity):
 
 ```bash
-orion channels login --channel whatsapp --non-interactive --provider groq
-orion channels status --channel whatsapp
-orion channels status --channel telegram
-orion all
+edith channels login --channel whatsapp --non-interactive --provider groq
+edith channels status --channel whatsapp
+edith channels status --channel telegram
+edith all
 ```
 
 Dev sandbox profile (isolated state):
 
 ```bash
-orion --dev setup --non-interactive --channel whatsapp --whatsapp-mode scan --provider groq
-orion --dev all
+edith --dev setup --non-interactive --channel whatsapp --whatsapp-mode scan --provider groq
+edith --dev all
 ```
 
 Then scan QR from your phone:
@@ -141,68 +141,68 @@ Then scan QR from your phone:
 ## Useful commands
 
 ```bash
-orion quickstart
-orion setup
-orion configure
-orion
-orion status
-orion dashboard
-orion dashboard --open
-orion logs gateway
-orion channels help
-orion channels login --channel whatsapp
-orion channels status --channel whatsapp
-orion channels status --channel whatsapp --json
-orion channels status --channel telegram
-orion channels status --channel discord
-orion channels status --channel webchat
-orion self-test
-orion self-test --fix
-orion self-test --fix --migrate
-orion self-test --json
-orion doctor
-orion gateway
-orion wa scan
-orion wa cloud
-orion onboard -- --channel telegram --provider groq
+edith quickstart
+edith setup
+edith configure
+edith
+edith status
+edith dashboard
+edith dashboard --open
+edith logs gateway
+edith channels help
+edith channels login --channel whatsapp
+edith channels status --channel whatsapp
+edith channels status --channel whatsapp --json
+edith channels status --channel telegram
+edith channels status --channel discord
+edith channels status --channel webchat
+edith self-test
+edith self-test --fix
+edith self-test --fix --migrate
+edith self-test --json
+edith doctor
+edith gateway
+edith wa scan
+edith wa cloud
+edith onboard -- --channel telegram --provider groq
 ```
 
-`orion self-test` is the recommended first troubleshooting step. It checks:
+`edith self-test` is the recommended first troubleshooting step. It checks:
 
 - repo link + profile directories
 - profile `.env` existence
 - provider/WhatsApp mode basics
 - `pnpm` availability on PATH (with a hint to reopen terminal if PATH is stale)
 
-`orion self-test --fix` applies safe local fixes to the active profile:
+`edith self-test --fix` applies safe local fixes to the active profile:
 
 - bootstraps profile directories if missing
 - creates `permissions/permissions.yaml` template if missing
 - adds baseline env keys (database path, permissions file path, default user, log level)
 - enables `AUTO_START_GATEWAY=true` for WhatsApp Cloud mode if it is enabled but unset
 
-`orion self-test --migrate` runs a profile-scoped `prisma migrate deploy` preflight (same mechanism used by `orion all` / `orion gateway`) and reports the result.
+`edith self-test --migrate` runs a profile-scoped `prisma migrate deploy` preflight (same mechanism used by `edith all` / `edith gateway`) and reports the result.
 
-`orion self-test --json` and `orion channels status --channel <name> --json` print machine-readable status output for scripting/support tooling. Channel JSON now includes a `runtime` snapshot where available (for example WhatsApp auth/session hints and WebChat localhost reachability probe).
+`edith self-test --json` and `edith channels status --channel <name> --json` print machine-readable status output for scripting/support tooling. Channel JSON now includes a `runtime` snapshot where available (for example WhatsApp auth/session hints and WebChat localhost reachability probe).
 
-`orion all` and `orion gateway` now auto-run a profile-scoped `prisma migrate deploy` preflight (using your profile `DATABASE_URL`) before starting Orion, which prevents first-run `P2021` table-missing errors on fresh profiles.
+`edith all` and `edith gateway` now auto-run a profile-scoped `prisma migrate deploy` preflight (using your profile `DATABASE_URL`) before starting EDITH, which prevents first-run `P2021` table-missing errors on fresh profiles.
 
-`orion logs` and `orion channels logs --channel <name>` now run the same profile DB migration preflight before starting foreground logs, reducing noisy first-run `P2021` errors in log streams.
+`edith logs` and `edith channels logs --channel <name>` now run the same profile DB migration preflight before starting foreground logs, reducing noisy first-run `P2021` errors in log streams.
 
-`orion dashboard --open` tries to open the dashboard URL in your default browser (best effort) and then starts gateway foreground mode.
+`edith dashboard --open` tries to open the dashboard URL in your default browser (best effort) and then starts gateway foreground mode.
 
-`--repo` and `--profile` are one-shot overrides for the current command. They do not rewrite your saved default link/profile unless you run `orion link`.
+`--repo` and `--profile` are one-shot overrides for the current command. They do not rewrite your saved default link/profile unless you run `edith link`.
 
-`--profile <name>` maps to `~/.orion/profiles/<name>`. Use a path (e.g. `--profile .tmp-profile`) if you want an explicit directory.
+`--profile <name>` maps to `~/.edith/profiles/<name>`. Use a path (e.g. `--profile .tmp-profile`) if you want an explicit directory.
 
-`--dev` is a shortcut for using the isolated `dev` profile (`~/.orion/profiles/dev`).
+`--dev` is a shortcut for using the isolated `dev` profile (`~/.edith/profiles/dev`).
 
-`orion channels ...` is an OpenClaw-style namespace facade:
-- `channels login --channel whatsapp` -> Orion WhatsApp QR/Cloud setup flow
+`edith channels ...` is an OpenClaw-style namespace facade:
+- `channels login --channel whatsapp` -> EDITH WhatsApp QR/Cloud setup flow
 - `channels status --channel <name>` -> channel-focused readiness checks + runtime hints (WhatsApp auth/session, Telegram/Discord token sanity, WebChat localhost reachability)
-- `channels status` -> Orion global readiness/self-test
+- `channels status` -> EDITH global readiness/self-test
 - `channels logs --channel <name>` -> best-effort filtered live logs (channel tags + fatal passthrough)
-- `channels logs` -> Orion live foreground logs
+- `channels logs` -> EDITH live foreground logs
 
 ## Current limitations (important)
 
@@ -218,5 +218,5 @@ Phase 2 is still **repo-backed**:
 To match OpenClaw more closely, the next step is:
 
 - remove remaining repo-relative runtime defaults and move all state to profile by default
-- support `orion init` without needing a linked repo checkout (template download/init flow)
+- support `edith init` without needing a linked repo checkout (template download/init flow)
 - bundle/run without shelling out to `pnpm`

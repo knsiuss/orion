@@ -1,9 +1,9 @@
 """
 processor.py
 
-Vision engine integration for Orion.
+Vision engine integration for EDITH.
 Processes frames via Gemini Vision or GPT-4V for scene understanding.
-Part of Orion — Persistent AI Companion System.
+Part of EDITH — Persistent AI Companion System.
 """
 
 import base64
@@ -14,7 +14,7 @@ import numpy as np
 
 import config
 
-_log = logging.getLogger("orion.vision")
+_log = logging.getLogger("edith.vision")
 _log_file = config.LOGS_DIR / "vision.log"
 _handler = logging.FileHandler(_log_file)
 _handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)-8s | %(message)s"))

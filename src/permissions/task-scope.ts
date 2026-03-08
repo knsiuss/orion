@@ -111,7 +111,7 @@ export function applyTaskScope(
   options?: { explicitApproval?: boolean; actorId?: string },
 ): ScopedToolsResult {
   const actorId = options?.actorId ?? "unknown"
-  const explicitApproval = options?.explicitApproval ?? process.env.ORION_SYSTEM_TOOL_APPROVED === "true"
+  const explicitApproval = options?.explicitApproval ?? process.env.EDITH_SYSTEM_TOOL_APPROVED === "true"
 
   if (scope.requiresExplicitApproval && !explicitApproval) {
     logger.warn("Scope requires explicit approval; tools disabled", {

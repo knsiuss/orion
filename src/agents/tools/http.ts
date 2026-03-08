@@ -65,7 +65,7 @@ Note: Cannot access localhost or internal network addresses.`,
     try {
       const requestHeaders: Record<string, string> = {
         "Content-Type": contentType ?? "application/json",
-        "User-Agent": "Orion-Agent/1.0",
+        "User-Agent": "EDITH-Agent/1.0",
         ...headers,
       }
 

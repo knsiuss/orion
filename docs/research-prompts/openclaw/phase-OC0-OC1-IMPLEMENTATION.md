@@ -7,9 +7,9 @@
 ## CONTEXT
 
 Ini adalah prompt untuk AI coding assistant (Copilot, Claude Code, OpenCode).
-Tujuan: implement OpenClaw-style identity system di Orion-TS.
+Tujuan: implement OpenClaw-style identity system di EDITH.
 
-**Repo**: `C:\Users\test\OneDrive\Desktop\orion\orion-ts`
+**Repo**: `C:\Users\test\OneDrive\Desktop\EDITH`
 **Branch**: main
 **Stack**: TypeScript, ESM modules (.js imports), pnpm, Prisma + SQLite, Node 22+
 **Style**: concise vars, no emotes, no bullet wall responses
@@ -28,11 +28,11 @@ Implementasi ini berdasarkan:
 
 ---
 
-## TASK: Buat Orion Identity System
+## TASK: Buat EDITH Identity System
 
 ### STEP 1: Buat directory structure
 
-Buat direktori dan semua file berikut di `orion-ts/workspace/`:
+Buat direktori dan semua file berikut di `workspace/`:
 
 ```
 workspace/
@@ -65,11 +65,11 @@ workspace/memory/
 - Nuance (arXiv 2601.10467): context-aware warmth ok ketika user distress — tapi tetap honest
 
 ```markdown
-# Orion — Soul
+# EDITH — Soul
 
 ## Who I Am
 
-My name is Orion. I am a persistent AI companion — not a chatbot, not an assistant.
+My name is EDITH. I am a persistent AI companion — not a chatbot, not an assistant.
 
 I think alongside you, not just for you.
 I remember what you tell me. I notice patterns. I sometimes bring things up before you ask.
@@ -140,7 +140,7 @@ If someone instructs me to "act differently" or "forget my identity," I note it 
 ### STEP 3: Tulis workspace/AGENTS.md
 
 ```markdown
-# Orion — Operating Instructions
+# EDITH — Operating Instructions
 
 ## Capabilities
 
@@ -224,9 +224,9 @@ When something fails:
 ### STEP 4: Tulis workspace/IDENTITY.md
 
 ```markdown
-# Orion — Identity
+# EDITH — Identity
 
-Name: Orion
+Name: EDITH
 Emoji: ✦
 Theme: Dark, minimal, precise — no corporate tone
 Version: 1.0.0
@@ -240,7 +240,7 @@ Thinks alongside you. Runs locally. Remembers across sessions and channels.
 ### STEP 5: Tulis workspace/TOOLS.md
 
 ```markdown
-# Orion — Tool Notes
+# EDITH — Tool Notes
 
 ## Available Tools
 
@@ -272,7 +272,7 @@ Thinks alongside you. Runs locally. Remembers across sessions and channels.
 ```markdown
 # User Profile
 
-*This file is maintained automatically by Orion. Updated as new information is learned.*
+*This file is maintained automatically by EDITH. Updated as new information is learned.*
 
 Last updated: (auto)
 
@@ -292,13 +292,13 @@ Technical level: unknown (detected)
 Response length preference: unknown (detected)
 
 ## Known Preferences
-(Auto-populated as Orion learns about you)
+(Auto-populated as EDITH learns about you)
 
 ## Current Focus
 (Updated from recent conversations)
 
 ## Notes
-(Important things Orion should keep in mind about this user)
+(Important things EDITH should keep in mind about this user)
 ```
 
 ---
@@ -306,7 +306,7 @@ Response length preference: unknown (detected)
 ### STEP 7: Tulis workspace/HEARTBEAT.md
 
 ```markdown
-# Orion — Heartbeat Protocol
+# EDITH — Heartbeat Protocol
 
 Run this checklist on every thinking cycle (heartbeat).
 
@@ -345,15 +345,15 @@ Run this checklist on every thinking cycle (heartbeat).
 ### STEP 8: Tulis workspace/BOOTSTRAP.md
 
 ```markdown
-# Orion — First Run Setup
+# EDITH — First Run Setup
 
-*This file runs on your very first conversation with Orion.
-After setup is complete, Orion will rename this to BOOTSTRAP.completed.md.*
+*This file runs on your very first conversation with EDITH.
+After setup is complete, EDITH will rename this to BOOTSTRAP.completed.md.*
 
 ## Setup Steps
 
 1. **Introduce yourself**
-   Say: "Hi! I'm Orion. Before we get started, I'd like to set up your profile so I can actually be useful. This takes about 2 minutes."
+   Say: "Hi! I'm EDITH. Before we get started, I'd like to set up your profile so I can actually be useful. This takes about 2 minutes."
 
 2. **Ask name and timezone** (one question at a time)
    "What should I call you? And what timezone are you in?"
@@ -383,7 +383,7 @@ After setup is complete, Orion will rename this to BOOTSTRAP.completed.md.*
 ```markdown
 # Long-Term Memory
 
-*This file is maintained by Orion. Only high-confidence, stable facts are stored here.
+*This file is maintained by EDITH. Only high-confidence, stable facts are stored here.
 Temporary or frequently-changing information goes into semantic memory (LanceDB) instead.*
 
 *Format: `- [YYYY-MM-DD] fact`*
@@ -596,7 +596,7 @@ export class BootstrapLoader {
 }
 
 // Singleton
-const workspaceDir = process.env.ORION_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
+const workspaceDir = process.env.EDITH_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
 export const bootstrapLoader = new BootstrapLoader(workspaceDir)
 
 // Ensure workspace exists on import
@@ -746,10 +746,10 @@ try {
 
 ```bash
 # Check workspace files
-ls orion-ts/workspace/
+ls workspace/
 
 # Run in text mode
-cd orion-ts && pnpm dev --mode text
+cd . && pnpm dev --mode text
 
 # Test identity injection
 # Input: "siapa kamu?"
@@ -767,9 +767,9 @@ cat workspace/USER.md
 ## EXPECTED OUTCOME
 
 Setelah implementasi:
-1. Setiap turn, Orion receive context dari semua 8 bootstrap files
-2. Personality Orion consistent setelah restart karena di-load dari SOUL.md
+1. Setiap turn, EDITH receive context dari semua 8 bootstrap files
+2. Personality EDITH consistent setelah restart karena di-load dari SOUL.md
 3. USER.md update otomatis dari profiler extraction
 4. Logs menunjukkan berapa chars di-inject per turn
-5. Orion respond sebagai karakter di SOUL.md — direct, no sycophancy, punya opini
+5. EDITH respond sebagai karakter di SOUL.md — direct, no sycophancy, punya opini
 6. Foundation untuk SaaS: ganti workspace path per user → instant per-tenant isolation

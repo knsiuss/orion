@@ -4,7 +4,7 @@
 **[1] AURA: Affordance-Understanding and Risk-aware Alignment**
 arXiv: 2508.06124 | Aug 2025
 Security bukan tentang prompt guardrails — itu gampang di-bypass.
-Harus ada architectural constraints: siapa yang boleh bicara ke Orion adalah boundary pertama.
+Harus ada architectural constraints: siapa yang boleh bicara ke EDITH adalah boundary pertama.
 
 **[2] OpenClaw Security Docs (Official)**
 docs.openclaw.ai/gateway/security
@@ -41,7 +41,7 @@ Command Authorization:
 - Session operations confined ke `agent/sessions/` directory
 - Per-client auth-failure throttling (429 + Retry-After)
 
-## Orion Sekarang
+## EDITH Sekarang
 `pairing/manager.ts` sudah ada tapi basic.
 Tidak ada proper device token management.
 Tidak ada access control hierarchy.
@@ -49,7 +49,7 @@ Tidak ada access control hierarchy.
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Orion-TS. Upgrade auth system ke production-grade.
+Kamu sedang memodifikasi EDITH. Upgrade auth system ke production-grade.
 Reference: docs.openclaw.ai/gateway/security
 Paper: arXiv:2508.06124
 
@@ -335,7 +335,7 @@ pnpm dev --mode text
 # Input: "/pair confirm 123456"
 
 # Check database
-sqlite3 .orion/orion.db "SELECT * FROM DeviceToken"
+sqlite3 .edith/edith.db "SELECT * FROM DeviceToken"
 ```
 
 ## Expected Outcome

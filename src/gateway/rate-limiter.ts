@@ -331,9 +331,9 @@ function resolveDefaultBackend(): "memory" | "file" {
 }
 
 function resolveDefaultStatePath(): string {
-  const stateDir = typeof process.env.ORION_STATE_DIR === "string" && process.env.ORION_STATE_DIR.trim().length > 0
-    ? process.env.ORION_STATE_DIR.trim()
-    : ".orion"
+  const stateDir = typeof process.env.EDITH_STATE_DIR === "string" && process.env.EDITH_STATE_DIR.trim().length > 0
+    ? process.env.EDITH_STATE_DIR.trim()
+    : ".edith"
 
   return path.resolve(stateDir, "gateway", "rate-limit.json")
 }

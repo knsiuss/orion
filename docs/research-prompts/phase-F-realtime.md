@@ -11,7 +11,7 @@ arXiv: 2512.18706 | Dec 2025 | Event bus architecture, full-duplex
 arXiv: 2505.12501 | May 2025 | Event-driven multi-agent execution
 
 ## Core Idea dari Papers
-Daemon Orion sekarang: polling setiap 10-60 detik.
+Daemon EDITH sekarang: polling setiap 10-60 detik.
 Masalah: lambat, miss events, waste API calls kalau tidak ada activity.
 
 Event-driven architecture (dari X-Talk dan ALAS):
@@ -19,7 +19,7 @@ Event-driven architecture (dari X-Talk dan ALAS):
 - Setiap komponen subscribe ke events yang relevan
 - Action terjadi segera ketika event masuk, bukan tunggu polling interval
 
-Event types untuk Orion:
+Event types untuk EDITH:
 ```
 user.message.received      → trigger memory save + response generation
 user.message.sent          → trigger memrl feedback update
@@ -35,7 +35,7 @@ Manfaat konkret:
 - Daemon tidak perlu loop — hanya react ke events
 - Memory operations bisa overlap dengan response generation (parallel)
 
-## Gap di Orion Sekarang
+## Gap di EDITH Sekarang
 `background/daemon.ts` — polling loop setiap N detik.
 `main.ts` — sequential: save memory → build context → generate → save response.
 Memory save dan LLM call bisa diparalel tapi tidak.
@@ -43,7 +43,7 @@ Memory save dan LLM call bisa diparalel tapi tidak.
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Orion-TS. Implementasi event-driven architecture.
+Kamu sedang memodifikasi EDITH. Implementasi event-driven architecture.
 Paper referensi: arXiv 2410.21620, 2512.18706
 
 ### TASK: Phase F — Event Bus Architecture
@@ -64,7 +64,7 @@ import { createLogger } from "../logger.js"
 const log = createLogger("core.event-bus")
 
 // Definisi semua event types
-export type OrionEvent =
+export type EDITHEvent =
   | { type: "user.message.received"; userId: string; content: string; channel: string; timestamp: number }
   | { type: "user.message.sent"; userId: string; content: string; channel: string; timestamp: number }
   | { type: "memory.save.requested"; userId: string; content: string; metadata: Record<string, unknown> }
@@ -76,23 +76,23 @@ export type OrionEvent =
   | { type: "causal.update.requested"; userId: string; content: string }
   | { type: "system.heartbeat"; timestamp: number }
 
-class OrionEventBus extends EventEmitter {
+class EDITHEventBus extends EventEmitter {
   constructor() {
     super()
     this.setMaxListeners(50)
   }
 
-  emit<T extends OrionEvent["type"]>(
+  emit<T extends EDITHEvent["type"]>(
     eventType: T,
-    data: Extract<OrionEvent, { type: T }>
+    data: Extract<EDITHEvent, { type: T }>
   ): boolean {
     log.debug("event emitted", { type: eventType })
     return super.emit(eventType, data)
   }
 
-  on<T extends OrionEvent["type"]>(
+  on<T extends EDITHEvent["type"]>(
     eventType: T,
-    listener: (data: Extract<OrionEvent, { type: T }>) => void | Promise<void>
+    listener: (data: Extract<EDITHEvent, { type: T }>) => void | Promise<void>
   ): this {
     return super.on(eventType, (data) => {
       const result = listener(data)
@@ -103,16 +103,16 @@ class OrionEventBus extends EventEmitter {
   }
 
   // Fire and forget — emit without waiting
-  dispatch<T extends OrionEvent["type"]>(
+  dispatch<T extends EDITHEvent["type"]>(
     eventType: T,
-    data: Omit<Extract<OrionEvent, { type: T }>, "type">
+    data: Omit<Extract<EDITHEvent, { type: T }>, "type">
   ): void {
-    const fullData = { ...data, type: eventType } as Extract<OrionEvent, { type: T }>
+    const fullData = { ...data, type: eventType } as Extract<EDITHEvent, { type: T }>
     this.emit(eventType, fullData)
   }
 }
 
-export const eventBus = new OrionEventBus()
+export const eventBus = new EDITHEventBus()
 ```
 
 #### Step 2: Refactor background/daemon.ts

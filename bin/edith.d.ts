@@ -110,7 +110,7 @@ export function buildWebchatSelfTestChecks(
 ): Array<{ level: "ok" | "warn" | "error"; label: string; detail: string }>
 export function isProfileEnvLikelyConfigured(envMap: Record<string, string>): boolean
 
-export function parseOrionCliArgs(argv: string[]): {
+export function parseEDITHCliArgs(argv: string[]): {
   repoOverride: string | null
   profileOverride: string | null
   dev: boolean
@@ -130,12 +130,12 @@ export function saveCliConfig(
   },
 ): Promise<void>
 
-export function isOrionRepoDir(
+export function isEDITHRepoDir(
   repoDir: string,
   fsModule?: { readFile: (path: string, encoding: string) => Promise<string> },
 ): Promise<boolean>
 
-export function findOrionRepoUpwards(
+export function findEDITHRepoUpwards(
   startDir: string,
   fsModule?: { readFile: (path: string, encoding: string) => Promise<string> },
 ): Promise<string | null>

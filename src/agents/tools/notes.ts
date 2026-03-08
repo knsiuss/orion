@@ -7,7 +7,7 @@
  *   search  — Full-text search in notes
  *   list    — List recent note titles
  *
- * Notes stored in .orion/notes/YYYY-MM-DD.md (one file per day)
+ * Notes stored in .edith/notes/YYYY-MM-DD.md (one file per day)
  * with YAML frontmatter for metadata (tags, category).
  *
  * @module agents/tools/notes
@@ -19,7 +19,7 @@ import path from "node:path"
 import { createLogger } from "../../logger.js"
 
 const log = createLogger("tools.notes")
-const NOTES_DIR = path.resolve(process.cwd(), ".orion", "notes")
+const NOTES_DIR = path.resolve(process.cwd(), ".edith", "notes")
 
 async function ensureNotesDir(): Promise<void> {
   await fs.mkdir(NOTES_DIR, { recursive: true })
@@ -32,7 +32,7 @@ function todayFilename(): string {
 export const notesTool = tool({
   description: `Manage persistent notes and journal entries.
 Actions: append(text, tags?), read(date?), search(query), list.
-Notes persist across sessions in .orion/notes/.
+Notes persist across sessions in .edith/notes/.
 Use for: saving important info, journaling, tagging observations, to-do items.`,
   inputSchema: z.object({
     action: z.enum(["append", "read", "search", "list"]),

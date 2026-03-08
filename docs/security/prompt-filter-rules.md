@@ -1,4 +1,4 @@
-﻿# Prompt Filter Rules
+# Prompt Filter Rules
 
 File: `src/security/prompt-filter.ts`
 
@@ -33,7 +33,7 @@ File: `src/security/prompt-filter.ts`
 - Checker timeout/error is fail-open by design to preserve availability.
 
 ## Policy Decision
-- By default, Orion does not hard-stop all unsafe prompts.
+- By default, EDITH does not hard-stop all unsafe prompts.
 - It proceeds with sanitized content to reduce false-positive lockouts.
 
 ## Tool Output Filtering

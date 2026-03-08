@@ -53,7 +53,6 @@ export class HeartbeatEngine {
   private running = false
   private timer: NodeJS.Timeout | null = null
   private lastActivityTime = Date.now()
-  private lastHeartbeatTime = 0
   private consecutiveSkips = 0
   private nextIntervalMs = INTERVAL_NORMAL
 
@@ -151,7 +150,6 @@ export class HeartbeatEngine {
   private async runHeartbeat(): Promise<void> {
     const userId = config.DEFAULT_USER_ID
     const startedAt = Date.now()
-    this.lastHeartbeatTime = startedAt
 
     eventBus.dispatch("system.heartbeat", { timestamp: startedAt })
 
@@ -183,7 +181,7 @@ export class HeartbeatEngine {
       )
 
       const response = await orchestrator.generate("fast", {
-        systemPrompt: `You are Orion running a heartbeat reflection cycle.\n\n${heartbeatInstructions}\n\nIf nothing needs attention, reply with exactly ${HEARTBEAT_PASS_MARKER}.\nIf something needs attention, respond only with the message to send.`,
+        systemPrompt: `You are EDITH running a heartbeat reflection cycle.\n\n${heartbeatInstructions}\n\nIf nothing needs attention, reply with exactly ${HEARTBEAT_PASS_MARKER}.\nIf something needs attention, respond only with the message to send.`,
         prompt: `Current time: ${currentTime}\nTime since last user interaction: ${minutesSinceLastInteraction} minutes\n\nRecent conversation summary:\n${recentSummary || "(no recent conversations)"}`,
       })
 

@@ -1,5 +1,5 @@
 /**
- * main.ts — Orion entry point.
+ * main.ts — EDITH entry point.
  *
  * Responsibilities:
  *   - Parse the `--mode` flag (text | gateway | all)
@@ -29,7 +29,7 @@ const log = createLogger("main")
 const mode = process.argv.includes("--mode")
   ? process.argv[process.argv.indexOf("--mode") + 1]
   : "text"
-const workspaceDir = process.env.ORION_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
+const workspaceDir = process.env.EDITH_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
 
 interface PendingMemRLFeedback {
   memoryIds: string[]
@@ -120,9 +120,9 @@ async function startCLI(processMessage: Function): Promise<void> {
 
 async function start(): Promise<void> {
   const { processMessage, shutdown } = await initialize(workspaceDir)
-  const available = log.info("available engines", { engines: "loaded" })
+  log.info("available engines", { engines: "loaded" })
 
-  console.log("=== Orion TS ===")
+  console.log("=== EDITH TS ===")
   console.log(`Mode: ${mode}`)
 
   if (mode === "gateway" || mode === "all") {

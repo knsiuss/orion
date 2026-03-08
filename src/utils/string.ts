@@ -1,5 +1,5 @@
 /**
- * String utility functions shared across the Orion codebase.
+ * String utility functions shared across the EDITH codebase.
  * Centralizing these prevents logic drift from copy-pasted implementations.
  */
 

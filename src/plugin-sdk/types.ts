@@ -1,6 +1,6 @@
-﻿import type { Hook } from "../hooks/registry.js"
+import type { Hook } from "../hooks/registry.js"
 
-export interface OrionPlugin {
+export interface EDITHPlugin {
   name: string
   version: string
   description: string

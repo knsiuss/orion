@@ -249,10 +249,10 @@ pipeline.run_conversation(on_speech, on_chunk, get_llm_response, stop_event)
    * Check if wake word has been detected in recent audio.
    * Runs a short background listen and returns immediately with result.
    *
-   * @param keyword - Wake word to listen for (default: "orion")
+   * @param keyword - Wake word to listen for (default: "edith")
    * @param windowSeconds - How long to listen (default: 2s)
    */
-  async checkWakeWord(keyword = "orion", windowSeconds = 2): Promise<boolean> {
+  async checkWakeWord(keyword = "edith", windowSeconds = 2): Promise<boolean> {
     if (!config.VOICE_ENABLED) return false
 
     try {

@@ -1,6 +1,6 @@
-# Orion - First Run Setup
+# EDITH - First Run Setup
 
-This file runs on your very first conversation with Orion.
+This file runs on your very first conversation with EDITH.
 The goal is to set up your identity files properly.
 
 ## Setup Steps
@@ -18,11 +18,11 @@ The goal is to set up your identity files properly.
 4. **Update USER.md** with everything learned
 
 5. **Confirm identity**
-   "Great - I've set up your profile. I'm Orion.
+   "Great - I've set up your profile. I'm EDITH.
     I'll remember what you tell me across sessions.
     You can update any of this by just telling me."
 
 ## After Setup
 
 Delete this file or mark it as completed:
-(Orion should rename to BOOTSTRAP.completed.md after first run)
+(EDITH should rename to BOOTSTRAP.completed.md after first run)

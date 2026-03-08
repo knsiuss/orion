@@ -1,4 +1,4 @@
-# Orion - Available Tools
+# EDITH - Available Tools
 
 ## Core Tools
 - read: Read files and skill documentation

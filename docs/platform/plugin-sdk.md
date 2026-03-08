@@ -1,4 +1,4 @@
-﻿# Plugin SDK
+# Plugin SDK
 
 Files:
 - `src/plugin-sdk/types.ts`
@@ -14,7 +14,7 @@ Files:
 - onUnload()
 
 ## Loader Behavior
-- Default plugin dir: `.orion/plugins`.
+- Default plugin dir: `.edith/plugins`.
 - Loads JS modules and directory `index.js` entries.
 - Registers hook contributions automatically.
 - Calls plugin lifecycle callbacks.

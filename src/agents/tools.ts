@@ -6,7 +6,7 @@ import path from "node:path"
 
 import { memory } from "../memory/store.js"
 import { filterToolResult } from "../security/prompt-filter.js"
-import { BLOCKED_COMMANDS, guardTerminal, guardFilePath } from "../security/tool-guard.js"
+import { guardTerminal, guardFilePath } from "../security/tool-guard.js"
 import { createLogger } from "../logger.js"
 import { skillLoader } from "../skills/loader.js"
 

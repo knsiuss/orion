@@ -1,8 +1,18 @@
-import { describe, expect, it } from "vitest"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+
+import { afterEach, describe, expect, it } from "vitest"
 
 import { __onboardTestUtils } from "../onboard.js"
 
 describe("onboard cli helpers", () => {
+  const tempDirs: string[] = []
+
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })))
+  })
+
   it("parses quickstart args with channel/provider/write mode", () => {
     const parsed = __onboardTestUtils.parseOnboardArgs([
       "--channel=telegram",
@@ -50,6 +60,7 @@ describe("onboard cli helpers", () => {
       channel: "telegram",
       provider: "groq",
       updates: { TELEGRAM_BOT_TOKEN: "abc" },
+      computerUseEnabled: true,
     })
 
     expect(steps.join("\n")).toContain("/start")
@@ -66,6 +77,7 @@ describe("onboard cli helpers", () => {
         WHATSAPP_MODE: "cloud",
         WHATSAPP_CLOUD_VERIFY_TOKEN: "verify",
       },
+      computerUseEnabled: true,
     })
 
     expect(steps.join("\n")).toContain("/webhooks/whatsapp")
@@ -81,6 +93,7 @@ describe("onboard cli helpers", () => {
         WHATSAPP_ENABLED: "true",
         WHATSAPP_MODE: "baileys",
       },
+      computerUseEnabled: true,
     })
 
     const text = steps.join("\n")
@@ -89,9 +102,9 @@ describe("onboard cli helpers", () => {
     expect(text).toContain("WHATSAPP_MODE=baileys")
   })
 
-  it("uses global `orion` command hints when wrapper env is present", () => {
+  it("uses global `edith` command hints when wrapper env is present", () => {
     const commands = __onboardTestUtils.defaultNextStepCommands({
-      ORION_ENV_FILE: "C:\\Users\\test\\.orion\\profiles\\default\\.env",
+      EDITH_ENV_FILE: "C:\\Users\\test\\.edith\\profiles\\default\\.env",
     } as any)
 
     const steps = __onboardTestUtils.buildNextSteps(
@@ -102,13 +115,43 @@ describe("onboard cli helpers", () => {
           WHATSAPP_ENABLED: "true",
           WHATSAPP_MODE: "baileys",
         },
+        computerUseEnabled: true,
       },
       commands,
     )
 
     const text = steps.join("\n")
-    expect(text).toContain("`orion doctor`")
-    expect(text).toContain("`orion all`")
+    expect(text).toContain("`edith doctor`")
+    expect(text).toContain("`edith all`")
     expect(text).not.toContain("`pnpm all`")
+  })
+
+  it("writes the default computerUse config into edith.json", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "edith-onboard-"))
+    tempDirs.push(tempDir)
+
+    const configPath = await __onboardTestUtils.writeComputerUseConfig(tempDir, true)
+    const parsed = JSON.parse(await fs.readFile(configPath, "utf-8")) as { computerUse: { planner: string; enabled: boolean } }
+
+    expect(parsed.computerUse.planner).toBe("lats")
+    expect(parsed.computerUse.enabled).toBe(true)
+  })
+
+  it("preserves existing computerUse keys while toggling enabled state", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "edith-onboard-"))
+    tempDirs.push(tempDir)
+    await fs.writeFile(path.join(tempDir, "edith.json"), JSON.stringify({
+      computerUse: {
+        planner: "dag",
+        maxEpisodes: 12,
+      },
+    }, null, 2))
+
+    const configPath = await __onboardTestUtils.writeComputerUseConfig(tempDir, false)
+    const parsed = JSON.parse(await fs.readFile(configPath, "utf-8")) as { computerUse: { planner: string; maxEpisodes: number; enabled: boolean } }
+
+    expect(parsed.computerUse.planner).toBe("dag")
+    expect(parsed.computerUse.maxEpisodes).toBe(12)
+    expect(parsed.computerUse.enabled).toBe(false)
   })
 })

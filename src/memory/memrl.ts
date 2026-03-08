@@ -176,8 +176,6 @@ export class MemRLUpdater {
   private readonly gamma = clamp(config.MEMRL_GAMMA, 0, 1)
   /** Bellman Q-learning rate */
   private readonly qAlpha = 0.1
-  /** Eligibility trace decay */
-  private readonly lambda = 0.9
 
   /**
    * Ensure LanceDB table is initialized and available
@@ -188,7 +186,7 @@ export class MemRLUpdater {
     }
 
     try {
-      const dbPath = path.resolve(process.cwd(), ".orion", "lancedb")
+      const dbPath = path.resolve(process.cwd(), ".edith", "lancedb")
       await fs.mkdir(path.dirname(dbPath), { recursive: true })
       this.db = await lancedb.connect(dbPath)
 

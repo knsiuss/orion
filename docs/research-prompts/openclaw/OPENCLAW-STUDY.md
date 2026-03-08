@@ -1,4 +1,4 @@
-# OpenClaw Architecture — Deep Study & Gap Analysis for Orion
+# OpenClaw Architecture — Deep Study & Gap Analysis for EDITH
 
 ## Apa Itu OpenClaw (Realnya)
 
@@ -212,9 +212,9 @@ ACP (Agent Client Protocol) via `@agentclientprotocol/sdk`.
 
 ---
 
-## Gap Orion vs OpenClaw
+## Gap EDITH vs OpenClaw
 
-| Komponen | OpenClaw | Orion Sekarang | Gap |
+| Komponen | OpenClaw | EDITH Sekarang | Gap |
 |---|---|---|---|
 | Identity files | SOUL.md + AGENTS.md + USER.md + IDENTITY.md | Tidak ada | CRITICAL |
 | Skill system | SKILL.md lazy-loading index | `skills/manager.ts` ada tapi belum lazy | Medium |

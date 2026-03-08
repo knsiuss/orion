@@ -1,22 +1,22 @@
-﻿import fs from "node:fs/promises"
+import fs from "node:fs/promises"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
 import { createLogger } from "../logger.js"
 import { hookRegistry } from "../hooks/registry.js"
-import type { OrionPlugin } from "./types.js"
+import type { EDITHPlugin } from "./types.js"
 
 const log = createLogger("plugin.loader")
 
 export class PluginLoader {
-  private readonly plugins = new Map<string, OrionPlugin>()
-  private readonly pluginDir = ".orion/plugins"
+  private readonly plugins = new Map<string, EDITHPlugin>()
+  private readonly pluginDir = ".edith/plugins"
 
-  async load(source: string): Promise<OrionPlugin> {
+  async load(source: string): Promise<EDITHPlugin> {
     const resolved = path.isAbsolute(source) ? source : path.resolve(process.cwd(), source)
     const moduleUrl = pathToFileURL(resolved).toString()
     const imported = await import(moduleUrl)
-    const plugin = (imported.default ?? imported.plugin ?? imported) as OrionPlugin
+    const plugin = (imported.default ?? imported.plugin ?? imported) as EDITHPlugin
 
     if (!plugin || typeof plugin !== "object" || !plugin.name || !plugin.version) {
       throw new Error(`Invalid plugin module: ${source}`)
@@ -89,7 +89,7 @@ export class PluginLoader {
     log.info("Plugin unloaded", { name })
   }
 
-  list(): OrionPlugin[] {
+  list(): EDITHPlugin[] {
     return Array.from(this.plugins.values())
   }
 }

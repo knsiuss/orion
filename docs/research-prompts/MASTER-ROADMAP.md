@@ -1,4 +1,4 @@
-# Orion-TS Research Roadmap — Superhuman Target
+# EDITH Research Roadmap — Superhuman Target
 
 ## Vision
 

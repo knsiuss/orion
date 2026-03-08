@@ -37,7 +37,7 @@ class LogStream {
     try {
       const logsDir = path.resolve(process.cwd(), "logs")
       fs.mkdirSync(logsDir, { recursive: true })
-      this.stream = fs.createWriteStream(path.join(logsDir, "orion.log"), { flags: "a" })
+      this.stream = fs.createWriteStream(path.join(logsDir, "edith.log"), { flags: "a" })
       this.initialized = true
     } catch (error) {
       console.error(`[Logger] Failed to initialize log stream: ${error}`)

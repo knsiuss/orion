@@ -8,7 +8,6 @@ import { fileURLToPath } from "node:url"
 import config from "../config.js"
 import { createLogger } from "../logger.js"
 import type { BaseChannel } from "./base.js"
-import { pollForConfirm } from "./base.js"
 import { markdownProcessor } from "../markdown/processor.js"
 
 const logger = createLogger("webchat-channel")

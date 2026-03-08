@@ -1,11 +1,11 @@
 /**
  * client.ts — MCP (Model Context Protocol) client implementation.
  *
- * Connects Orion to any MCP server and dynamically registers their
- * tools into the Orion tool registry at runtime.
+ * Connects EDITH to any MCP server and dynamically registers their
+ * tools into the EDITH tool registry at runtime.
  *
  * Architecture (MCP-Zero, arXiv 2506.01056):
- *   - Static tool registry: tools configured in orion.json
+ *   - Static tool registry: tools configured in edith.json
  *   - Dynamic discovery: agent discovers tools at runtime
  *   - Server lifecycle: start, health check, restart on crash
  *
@@ -33,7 +33,7 @@ export interface MCPServerConfig {
   url?: string
   /** Environment variables to pass to the server process */
   env?: Record<string, string>
-  /** Whether this server starts automatically on Orion startup */
+  /** Whether this server starts automatically on EDITH startup */
   autoStart?: boolean
 }
 
@@ -59,7 +59,7 @@ interface MCPConnection {
 
 /**
  * Manages connections to multiple MCP servers and exposes
- * their tools as Orion-compatible tool definitions.
+ * their tools as EDITH-compatible tool definitions.
  */
 export class MCPClientManager {
   private readonly connections = new Map<string, MCPConnection>()
@@ -70,7 +70,7 @@ export class MCPClientManager {
   private requestIdCounter = 0
 
   /**
-   * Load MCP server configs from orion.json and connect to autoStart servers.
+   * Load MCP server configs from edith.json and connect to autoStart servers.
    */
   async init(configs: MCPServerConfig[]): Promise<void> {
     for (const config of configs) {
@@ -217,7 +217,7 @@ export class MCPClientManager {
       params: {
         protocolVersion: "2024-11-05",
         capabilities: {},
-        clientInfo: { name: "orion", version: "1.0.0" },
+        clientInfo: { name: "edith", version: "1.0.0" },
       },
     })
   }
@@ -232,7 +232,7 @@ export class MCPClientManager {
         jsonrpc: "2.0",
         id: ++this.requestIdCounter,
         method: "initialize",
-        params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "orion", version: "1.0.0" } },
+        params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "edith", version: "1.0.0" } },
       }),
     })
 
@@ -285,7 +285,7 @@ export class MCPClientManager {
     })
   }
 
-  private handleStdioData(serverName: string, data: string): void {
+  private handleStdioData(_serverName: string, data: string): void {
     const lines = data.trim().split("\n")
     for (const line of lines) {
       try {

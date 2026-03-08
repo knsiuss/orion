@@ -8,12 +8,12 @@ import net from "node:net"
 import { spawn } from "node:child_process"
 import { fileURLToPath } from "node:url"
 
-const CLI_CONFIG_DIR_NAME = ".orion"
+const CLI_CONFIG_DIR_NAME = ".edith"
 const CLI_CONFIG_FILE_NAME = "cli.json"
 const CLI_PROFILES_DIR_NAME = "profiles"
 const DEFAULT_PROFILE_NAME = "default"
 const DEV_PROFILE_NAME = "dev"
-const LOCAL_PACKAGE_NAME = "orion"
+const LOCAL_PACKAGE_NAME = "edith"
 const SUPPORTED_CHANNELS = ["telegram", "discord", "whatsapp", "webchat"]
 
 function testIcon(level) {
@@ -63,13 +63,13 @@ function buildMigrationFailureRecoveryHint(profileDir, databaseUrl, stderr = "",
   return [
     "Local profile DB has a failed migration record.",
     "Quick recovery (keeps profile config, resets local DB data only):",
-    `- Stop Orion, then delete: ${normalizedDbPath}`,
-    "- Re-run: `orion status --fix --migrate`",
+    `- Stop EDITH, then delete: ${normalizedDbPath}`,
+    "- Re-run: `edith status --fix --migrate`",
     "",
     "Safer alternative (fresh profile for testing):",
-    "- `orion --profile demo profile init`",
-    "- `orion --profile demo status --fix --migrate`",
-    "- `orion --profile demo dashboard --open`",
+    "- `edith --profile demo profile init`",
+    "- `edith --profile demo status --fix --migrate`",
+    "- `edith --profile demo dashboard --open`",
   ].join("\n")
 }
 
@@ -133,7 +133,7 @@ export function getChannelLogHints(channel, line) {
   ) {
     hints.push({
       id: "db-schema-missing",
-      message: "Profile DB schema looks missing. Run `orion status --fix --migrate` (or just `orion all`, which now auto-migrates before startup).",
+      message: "Profile DB schema looks missing. Run `edith status --fix --migrate` (or just `edith all`, which now auto-migrates before startup).",
     })
   }
 
@@ -141,7 +141,7 @@ export function getChannelLogHints(channel, line) {
     if (/\[whatsapp-channel\]/i.test(text) && /statusCode\":?405/i.test(text)) {
       hints.push({
         id: "wa-405",
-        message: "WhatsApp Baileys disconnected with status 405 during registration. Common fixes: sync system clock, disable VPN/proxy, try another network, clear `~/.orion/.../whatsapp-auth`, then retry QR pairing.",
+        message: "WhatsApp Baileys disconnected with status 405 during registration. Common fixes: sync system clock, disable VPN/proxy, try another network, clear `~/.edith/.../whatsapp-auth`, then retry QR pairing.",
       })
     }
     if (/\"class\"\s*:\s*\"baileys\"/i.test(text) && /Connection Failure/i.test(text)) {
@@ -167,47 +167,47 @@ export function shouldUseShellForCommand(command, platform = process.platform) {
 }
 
 function printHelp() {
-  console.log("Orion CLI (OpenClaw-style wrapper)")
+  console.log("EDITH CLI (OpenClaw-style wrapper)")
   console.log("==================================")
   console.log("")
   console.log("Usage:")
-  console.log("  orion                           Smart entrypoint (first-run: launches setup wizard)")
-  console.log("  orion link <path-to-orion-ts>     Link your Orion repo once")
-  console.log("  orion repo                        Show linked repo path")
-  console.log("  orion profile                     Show active profile path")
-  console.log("  orion profile init                Create ~/.orion profile files (env/workspace/state)")
-  console.log("  orion setup                       OpenClaw-style setup alias (quickstart wizard)")
-  console.log("  orion init                        Bootstrap profile + run quickstart wizard")
-  console.log("  orion quickstart                  Run onboarding wizard")
-  console.log("  orion configure                   Re-run onboarding wizard (configure alias)")
-  console.log("  orion dashboard                   Start gateway and print dashboard URL")
-  console.log("  orion status                      Readiness/status check (self-test alias)")
-  console.log("  orion logs [all|gateway]          Stream live logs by starting a target mode")
-  console.log("  orion channels login ...          OpenClaw-style channel login namespace (WhatsApp QR / Cloud)")
-  console.log("  orion channels status [--channel] Channel readiness/status alias")
-  console.log("  orion channels logs [--channel]   Channel log entrypoint (live logs fallback)")
-  console.log("  orion self-test                   Check repo/profile/env readiness (beginner-friendly)")
-  console.log("  orion wa scan                     WhatsApp QR setup (OpenClaw-style)")
-  console.log("  orion wa cloud                    WhatsApp Cloud API setup")
-  console.log("  orion all                         Start Orion (gateway + channels + CLI)")
-  console.log("  orion gateway                     Start gateway mode")
-  console.log("  orion doctor                      Run doctor checks")
-  console.log("  orion onboard -- <args>           Pass raw args to onboard CLI")
+  console.log("  edith                           Smart entrypoint (first-run: launches setup wizard)")
+  console.log("  edith link <path-to-EDITH>        Link your EDITH repo once")
+  console.log("  edith repo                        Show linked repo path")
+  console.log("  edith profile                     Show active profile path")
+  console.log("  edith profile init                Create ~/.edith profile files (env/workspace/state)")
+  console.log("  edith setup                       OpenClaw-style setup alias (quickstart wizard)")
+  console.log("  edith init                        Bootstrap profile + run quickstart wizard")
+  console.log("  edith quickstart                  Run onboarding wizard")
+  console.log("  edith configure                   Re-run onboarding wizard (configure alias)")
+  console.log("  edith dashboard                   Start gateway and print dashboard URL")
+  console.log("  edith status                      Readiness/status check (self-test alias)")
+  console.log("  edith logs [all|gateway]          Stream live logs by starting a target mode")
+  console.log("  edith channels login ...          OpenClaw-style channel login namespace (WhatsApp QR / Cloud)")
+  console.log("  edith channels status [--channel] Channel readiness/status alias")
+  console.log("  edith channels logs [--channel]   Channel log entrypoint (live logs fallback)")
+  console.log("  edith self-test                   Check repo/profile/env readiness (beginner-friendly)")
+  console.log("  edith wa scan                     WhatsApp QR setup (OpenClaw-style)")
+  console.log("  edith wa cloud                    WhatsApp Cloud API setup")
+  console.log("  edith all                         Start EDITH (gateway + channels + CLI)")
+  console.log("  edith gateway                     Start gateway mode")
+  console.log("  edith doctor                      Run doctor checks")
+  console.log("  edith onboard -- <args>           Pass raw args to onboard CLI")
   console.log("")
   console.log("Options:")
   console.log("  --repo <path>                     Override linked repo for this command")
-  console.log("  --profile <name|path>             Use a named profile (~/.orion/profiles/<name>) or an explicit path")
-  console.log("  --dev                             Use isolated dev profile (~/.orion/profiles/dev)")
+  console.log("  --profile <name|path>             Use a named profile (~/.edith/profiles/<name>) or an explicit path")
+  console.log("  --dev                             Use isolated dev profile (~/.edith/profiles/dev)")
   console.log("  --help, -h                        Show help")
   console.log("")
   console.log("Examples:")
-  console.log("  orion link C:\\Users\\you\\orion\\orion-ts")
-  console.log("  orion profile init")
-  console.log("  orion --profile work wa scan --yes --provider groq")
-  console.log("  orion channels login --channel whatsapp --non-interactive --provider groq")
-  console.log("  orion --dev dashboard")
-  console.log("  orion wa scan")
-  console.log("  orion all")
+  console.log("  edith link C:\\Users\\you\\EDITH")
+  console.log("  edith profile init")
+  console.log("  edith --profile work wa scan --yes --provider groq")
+  console.log("  edith channels login --channel whatsapp --non-interactive --provider groq")
+  console.log("  edith --dev dashboard")
+  console.log("  edith wa scan")
+  console.log("  edith all")
 }
 
 function normalizePathInput(value) {
@@ -446,7 +446,7 @@ export function parseDashboardArgs(argv) {
   return { open, help, positionals }
 }
 
-export function parseOrionCliArgs(argv) {
+export function parseEDITHCliArgs(argv) {
   const args = [...argv]
   let repoOverride = null
   let profileOverride = null
@@ -512,7 +512,7 @@ export async function saveCliConfig(config, fsModule = fs) {
   await fsModule.writeFile(getCliConfigPath(), content, "utf-8")
 }
 
-export async function isOrionRepoDir(repoDir, fsModule = fs) {
+export async function isEDITHRepoDir(repoDir, fsModule = fs) {
   const packageJsonPath = path.join(repoDir, "package.json")
   try {
     const raw = await fsModule.readFile(packageJsonPath, "utf-8")
@@ -523,16 +523,16 @@ export async function isOrionRepoDir(repoDir, fsModule = fs) {
   }
 }
 
-export async function findOrionRepoUpwards(startDir, fsModule = fs) {
+export async function findEDITHRepoUpwards(startDir, fsModule = fs) {
   let current = path.resolve(startDir)
 
   while (true) {
-    if (await isOrionRepoDir(current, fsModule)) {
+    if (await isEDITHRepoDir(current, fsModule)) {
       return current
     }
 
-    const nestedCandidate = path.join(current, "orion-ts")
-    if (await isOrionRepoDir(nestedCandidate, fsModule)) {
+    const nestedCandidate = path.join(current, "EDITH")
+    if (await isEDITHRepoDir(nestedCandidate, fsModule)) {
       return nestedCandidate
     }
 
@@ -550,7 +550,7 @@ export function getProfilePaths(profileDir) {
     profileDir: resolvedProfileDir,
     envPath: path.join(resolvedProfileDir, ".env"),
     workspaceDir: path.join(resolvedProfileDir, "workspace"),
-    stateDir: path.join(resolvedProfileDir, ".orion"),
+    stateDir: path.join(resolvedProfileDir, ".edith"),
   }
 }
 
@@ -559,10 +559,10 @@ function formatEnvLiteral(value) {
 }
 
 function buildProfileBootstrapEnv(profilePaths) {
-  const dbPath = path.join(profilePaths.profileDir, "orion.db").replaceAll("\\", "/")
+  const dbPath = path.join(profilePaths.profileDir, "edith.db").replaceAll("\\", "/")
   const permissionsPath = path.join(profilePaths.profileDir, "permissions", "permissions.yaml")
   return [
-    "# Orion profile env (generated by `orion profile init`)",
+    "# EDITH profile env (generated by `edith profile init`)",
     `DATABASE_URL=${formatEnvLiteral(`file:${dbPath}`)}`,
     `PERMISSIONS_FILE=${formatEnvLiteral(permissionsPath)}`,
     "DEFAULT_USER_ID=owner",
@@ -629,14 +629,14 @@ export async function ensureProfileBootstrap(repoDir, profileDir) {
   return paths
 }
 
-function buildOrionChildEnv(parentEnv, profileDir) {
+function buildEDITHChildEnv(parentEnv, profileDir) {
   const paths = getProfilePaths(profileDir)
   return {
     ...parentEnv,
-    ORION_PROFILE_DIR: paths.profileDir,
-    ORION_ENV_FILE: paths.envPath,
-    ORION_WORKSPACE: paths.workspaceDir,
-    ORION_STATE_DIR: paths.stateDir,
+    EDITH_PROFILE_DIR: paths.profileDir,
+    EDITH_ENV_FILE: paths.envPath,
+    EDITH_WORKSPACE: paths.workspaceDir,
+    EDITH_STATE_DIR: paths.stateDir,
   }
 }
 
@@ -1040,7 +1040,7 @@ async function buildWhatsAppChannelStatusChecks(envMap, profilePaths) {
     checks.push({
       level: "warn",
       label: "WhatsApp Session",
-      detail: "Auth state dir does not exist yet (start `orion all` to generate QR login state)",
+      detail: "Auth state dir does not exist yet (start `edith all` to generate QR login state)",
     })
   } else {
     checks.push({
@@ -1053,7 +1053,7 @@ async function buildWhatsAppChannelStatusChecks(envMap, profilePaths) {
       checks.push({
         level: "warn",
         label: "WhatsApp Session",
-        detail: "Auth dir exists but creds.json is missing (run `orion all` and scan QR, or clear stale auth dir)",
+        detail: "Auth dir exists but creds.json is missing (run `edith all` and scan QR, or clear stale auth dir)",
       })
     } else if (auth.parseError) {
       checks.push({
@@ -1074,8 +1074,8 @@ async function buildWhatsAppChannelStatusChecks(envMap, profilePaths) {
         level: "warn",
         label: "WhatsApp Session",
         detail: auth.creds.hasIdentityMaterial
-          ? "Auth keys exist but account is not paired yet (start `orion all` and scan QR)"
-          : "No usable WhatsApp credentials yet (start `orion all` and scan QR)",
+          ? "Auth keys exist but account is not paired yet (start `edith all` and scan QR)"
+          : "No usable WhatsApp credentials yet (start `edith all` and scan QR)",
       })
     }
   }
@@ -1258,7 +1258,7 @@ export function buildWebchatSelfTestChecks(envMap) {
   return [{
     level: "ok",
     label: "WebChat",
-    detail: `WebChat available on http://127.0.0.1:${port} (when Orion is running)`,
+    detail: `WebChat available on http://127.0.0.1:${port} (when EDITH is running)`,
   }]
 }
 
@@ -1289,7 +1289,7 @@ export function isProfileEnvLikelyConfigured(envMap) {
 
 function buildDefaultPermissionsTemplate() {
   return [
-    "# Orion permissions template (generated by `orion self-test --fix`)",
+    "# EDITH permissions template (generated by `edith self-test --fix`)",
     "# Review and tighten before broader use.",
     "messaging:",
     "  enabled: true",
@@ -1316,14 +1316,14 @@ function buildDefaultPermissionsTemplate() {
 
 function buildProfileBootstrapEnvMap(profilePaths) {
   return {
-    DATABASE_URL: `file:${path.join(profilePaths.profileDir, "orion.db").replaceAll("\\", "/")}`,
+    DATABASE_URL: `file:${path.join(profilePaths.profileDir, "edith.db").replaceAll("\\", "/")}`,
     PERMISSIONS_FILE: path.join(profilePaths.profileDir, "permissions", "permissions.yaml"),
     DEFAULT_USER_ID: "owner",
     LOG_LEVEL: "info",
   }
 }
 
-function mergeMissingEnvKeys(baseContent, updates, sourceLabel = "orion self-test --fix") {
+function mergeMissingEnvKeys(baseContent, updates, sourceLabel = "edith self-test --fix") {
   const normalizedBase = String(baseContent ?? "").replace(/\r\n/g, "\n")
   const lines = normalizedBase.split("\n")
   const present = new Set()
@@ -1391,12 +1391,12 @@ async function applySelfTestFixes(repoDir, profileDir) {
 }
 
 function printSelfTestHelp() {
-  console.log("Orion Self-Test")
+  console.log("EDITH Self-Test")
   console.log("===============")
   console.log("")
   console.log("Usage:")
-  console.log("  orion self-test [--fix] [--migrate] [--json]")
-  console.log("  orion status [--fix] [--migrate] [--json]")
+  console.log("  edith self-test [--fix] [--migrate] [--json]")
+  console.log("  edith status [--fix] [--migrate] [--json]")
   console.log("")
   console.log("Options:")
   console.log("  --fix   Apply safe local fixes (profile bootstrap, permissions template, env baseline keys)")
@@ -1474,7 +1474,7 @@ async function collectSelfTestChecks(repoDir, profileDir) {
     label: "AUTO_START_GATEWAY",
     detail: autoGateway
       ? "Enabled for `pnpm dev`"
-      : "Disabled (fine for `orion all`; required if you expect `pnpm dev` to start gateway automatically)",
+      : "Disabled (fine for `edith all`; required if you expect `pnpm dev` to start gateway automatically)",
   })
 
   checks.push(...buildWhatsAppSelfTestChecks(envMap, profilePaths))
@@ -1542,10 +1542,10 @@ async function maybeAutoMigrateProfileDb(repoDir, profileDir, triggerCommand) {
     return
   }
 
-  console.log(`Ensuring profile database schema is up to date before \`orion ${triggerCommand}\`...`)
+  console.log(`Ensuring profile database schema is up to date before \`edith ${triggerCommand}\`...`)
   const result = await runChildCapture(getPnpmCommand(), ["--dir", repoDir, "exec", "prisma", "migrate", "deploy"], {
     env: {
-      ...buildOrionChildEnv(process.env, profileDir),
+      ...buildEDITHChildEnv(process.env, profileDir),
       DATABASE_URL: databaseUrl,
       PRISMA_HIDE_UPDATE_MESSAGE: "1",
     },
@@ -1574,7 +1574,7 @@ async function runProfileDbMigrationPreflight(repoDir, profileDir, triggerComman
 
   const result = await runChildCapture(getPnpmCommand(), ["--dir", repoDir, "exec", "prisma", "migrate", "deploy"], {
     env: {
-      ...buildOrionChildEnv(process.env, profileDir),
+      ...buildEDITHChildEnv(process.env, profileDir),
       DATABASE_URL: databaseUrl,
       PRISMA_HIDE_UPDATE_MESSAGE: "1",
     },
@@ -1685,7 +1685,7 @@ async function handleSelfTest(repoOverride, profileOverride, devMode = false, re
     process.exit(errors > 0 || migrationFailed ? 1 : 0)
   }
 
-  console.log("Orion Self-Test")
+  console.log("EDITH Self-Test")
   console.log("===============")
   console.log(`Repo:    ${repoDir}`)
   console.log(`Profile: ${profilePaths.profileDir}`)
@@ -1731,8 +1731,8 @@ async function handleSelfTest(repoOverride, profileOverride, devMode = false, re
   if (errors === 0 && !migrationFailed) {
     console.log("")
     console.log("Next:")
-    console.log("- `orion wa scan` (WhatsApp QR setup)")
-    console.log("- `orion all` (start Orion)")
+    console.log("- `edith wa scan` (WhatsApp QR setup)")
+    console.log("- `edith all` (start EDITH)")
   }
 
   process.exit(errors > 0 || migrationFailed ? 1 : 0)
@@ -1747,11 +1747,11 @@ async function resolveRepoDirWithAutoDetect(repoOverride) {
     return { repoDir: await resolveRepoDir(null), autoLinked: false }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (!/No Orion repo linked/i.test(message)) {
+    if (!/No EDITH repo linked/i.test(message)) {
       throw error
     }
 
-    const detected = await findOrionRepoUpwards(process.cwd())
+    const detected = await findEDITHRepoUpwards(process.cwd())
     if (!detected) {
       throw error
     }
@@ -1766,18 +1766,18 @@ async function handleDefaultEntry(repoOverride, profileOverride, devMode = false
     resolved = await resolveRepoDirWithAutoDetect(repoOverride)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (/No Orion repo linked/i.test(message)) {
-      console.log("Orion CLI")
+    if (/No EDITH repo linked/i.test(message)) {
+      console.log("EDITH CLI")
       console.log("=========")
       console.log("")
-      console.log("No linked Orion repo found yet.")
+      console.log("No linked EDITH repo found yet.")
       console.log("OpenClaw-style first run needs a repo path one time (until standalone package runtime lands).")
       console.log("")
       console.log("Next:")
-      console.log("- `orion link C:\\path\\to\\orion-ts`")
-      console.log("- then run `orion` again (it will launch setup wizard if profile is not configured)")
+      console.log("- `edith link C:\\path\\to\\EDITH`")
+      console.log("- then run `edith` again (it will launch setup wizard if profile is not configured)")
       console.log("")
-      console.log("Tip: if you run this inside the repo, use `orion link .`")
+      console.log("Tip: if you run this inside the repo, use `edith link .`")
       return
     }
     throw error
@@ -1789,7 +1789,7 @@ async function handleDefaultEntry(repoOverride, profileOverride, devMode = false
 
   if (autoLinked && !repoOverride && !profileOverride) {
     await saveCliConfig({ ...(await loadCliConfig()), repoDir, profileDir })
-    console.log(`Auto-linked Orion repo: ${repoDir}`)
+    console.log(`Auto-linked EDITH repo: ${repoDir}`)
     console.log(`Active profile: ${profileDir}`)
     console.log("")
   }
@@ -1802,35 +1802,35 @@ async function handleDefaultEntry(repoOverride, profileOverride, devMode = false
     return
   }
 
-  console.log("Orion CLI is ready.")
+  console.log("EDITH CLI is ready.")
   console.log(`Repo:    ${repoDir}`)
   console.log(`Profile: ${profileDir}`)
   console.log("")
   console.log("Next:")
-  console.log("- `orion dashboard` (web dashboard / gateway)")
-  console.log("- `orion channels login --channel whatsapp` (QR login)")
-  console.log("- `orion all` (run Orion + channels)")
-  console.log("- `orion status` (readiness check)")
+  console.log("- `edith dashboard` (web dashboard / gateway)")
+  console.log("- `edith channels login --channel whatsapp` (QR login)")
+  console.log("- `edith all` (run EDITH + channels)")
+  console.log("- `edith status` (readiness check)")
 }
 
 async function resolveRepoDir(repoOverride) {
   if (repoOverride) {
     const resolved = path.resolve(process.cwd(), repoOverride)
-    if (!(await isOrionRepoDir(resolved))) {
-      throw new Error(`Invalid Orion repo path: ${resolved}`)
+    if (!(await isEDITHRepoDir(resolved))) {
+      throw new Error(`Invalid EDITH repo path: ${resolved}`)
     }
     return resolved
   }
 
-  const envRepo = normalizePathInput(process.env.ORION_REPO_DIR ?? "")
+  const envRepo = normalizePathInput(process.env.EDITH_REPO_DIR ?? "")
   if (envRepo) {
     const resolved = path.resolve(envRepo)
-    if (await isOrionRepoDir(resolved)) {
+    if (await isEDITHRepoDir(resolved)) {
       return resolved
     }
   }
 
-  const autoDetected = await findOrionRepoUpwards(process.cwd())
+  const autoDetected = await findEDITHRepoUpwards(process.cwd())
   if (autoDetected) {
     return autoDetected
   }
@@ -1839,13 +1839,13 @@ async function resolveRepoDir(repoOverride) {
   const linkedRepo = normalizePathInput(typeof cfg.repoDir === "string" ? cfg.repoDir : "")
   if (linkedRepo) {
     const resolved = path.resolve(linkedRepo)
-    if (await isOrionRepoDir(resolved)) {
+    if (await isEDITHRepoDir(resolved)) {
       return resolved
     }
-    throw new Error(`Linked repo not found or invalid: ${resolved}. Run \`orion link <path>\` again.`)
+    throw new Error(`Linked repo not found or invalid: ${resolved}. Run \`edith link <path>\` again.`)
   }
 
-  throw new Error("No Orion repo linked. Run `orion link <path-to-orion-ts>` first.")
+  throw new Error("No EDITH repo linked. Run `edith link <path-to-EDITH>` first.")
 }
 
 async function resolveProfileDir(profileOverride, devMode = false) {
@@ -1857,7 +1857,7 @@ async function resolveProfileDir(profileOverride, devMode = false) {
     return getNamedProfileDir(DEV_PROFILE_NAME)
   }
 
-  const envProfile = normalizePathInput(process.env.ORION_PROFILE_DIR ?? "")
+  const envProfile = normalizePathInput(process.env.EDITH_PROFILE_DIR ?? "")
   if (envProfile) {
     return resolveProfileSelector(envProfile) ?? getDefaultProfileDir()
   }
@@ -1991,7 +1991,7 @@ function tryOpenUrl(url) {
 async function runPnpmScript(repoDir, profileDir, script, extraArgs = []) {
   const args = ["--dir", repoDir, script, ...extraArgs]
   const code = await runChild(getPnpmCommand(), args, {
-    env: buildOrionChildEnv(process.env, profileDir),
+    env: buildEDITHChildEnv(process.env, profileDir),
   })
   process.exit(code)
 }
@@ -2001,7 +2001,7 @@ async function runPnpmScriptFiltered(repoDir, profileDir, script, lineMatcher, e
   const hintChannel = normalizeChannelName(options.hintChannel ?? "") ?? null
   const shownHints = new Set()
   const result = await runChildFilteredLines(getPnpmCommand(), args, lineMatcher, {
-    env: buildOrionChildEnv(process.env, profileDir),
+    env: buildEDITHChildEnv(process.env, profileDir),
     onLine(line) {
       if (!hintChannel) {
         return
@@ -2011,7 +2011,7 @@ async function runPnpmScriptFiltered(repoDir, profileDir, script, lineMatcher, e
           continue
         }
         shownHints.add(hint.id)
-        console.log(`[orion-cli] Hint: ${hint.message}`)
+        console.log(`[edith-cli] Hint: ${hint.message}`)
       }
     },
   })
@@ -2023,7 +2023,7 @@ async function runPnpmScriptFiltered(repoDir, profileDir, script, lineMatcher, e
 
 async function runPnpmRaw(repoDir, profileDir, args) {
   const code = await runChild(getPnpmCommand(), ["--dir", repoDir, ...args], {
-    env: buildOrionChildEnv(process.env, profileDir),
+    env: buildEDITHChildEnv(process.env, profileDir),
   })
   process.exit(code)
 }
@@ -2031,21 +2031,21 @@ async function runPnpmRaw(repoDir, profileDir, args) {
 async function handleLink(targetPathArg, profileOverride, devMode = false) {
   const candidate = targetPathArg
     ? path.resolve(process.cwd(), targetPathArg)
-    : await findOrionRepoUpwards(process.cwd())
+    : await findEDITHRepoUpwards(process.cwd())
 
   if (!candidate) {
-    throw new Error("Could not auto-detect Orion repo here. Pass a path: `orion link <path-to-orion-ts>`")
+    throw new Error("Could not auto-detect EDITH repo here. Pass a path: `edith link <path-to-EDITH>`")
   }
 
-  if (!(await isOrionRepoDir(candidate))) {
-    throw new Error(`Not an Orion repo: ${candidate}`)
+  if (!(await isEDITHRepoDir(candidate))) {
+    throw new Error(`Not an EDITH repo: ${candidate}`)
   }
 
   const profileDir = await resolveProfileDir(profileOverride, devMode)
   await saveCliConfig({ repoDir: candidate, profileDir })
-  console.log(`Linked Orion repo: ${candidate}`)
+  console.log(`Linked EDITH repo: ${candidate}`)
   console.log(`Active profile: ${profileDir}`)
-  console.log("You can now run `orion wa scan` or `orion quickstart` from any directory.")
+  console.log("You can now run `edith wa scan` or `edith quickstart` from any directory.")
 }
 
 async function handleRepo(repoOverride) {
@@ -2074,7 +2074,7 @@ async function handleProfile(repoOverride, profileOverride, subcommand, devMode 
     return
   }
 
-  throw new Error("Unknown `orion profile` subcommand. Use `orion profile` or `orion profile init`.")
+  throw new Error("Unknown `edith profile` subcommand. Use `edith profile` or `edith profile init`.")
 }
 
 async function detectGatewayPortFromProfileEnv(profileDir) {
@@ -2094,23 +2094,23 @@ async function detectGatewayPortFromProfileEnv(profileDir) {
 async function handleLogs(repoDir, profileDir, rest) {
   const target = (rest[0] ?? "all").toLowerCase()
   if (target !== "all" && target !== "gateway") {
-    console.log("Orion does not run a persistent daemon log store yet.")
-    console.log("Use `orion logs all` or `orion logs gateway` to stream live logs by starting a process.")
+    console.log("EDITH does not run a persistent daemon log store yet.")
+    console.log("Use `edith logs all` or `edith logs gateway` to stream live logs by starting a process.")
     return
   }
   await maybeAutoMigrateProfileDb(repoDir, profileDir, `logs ${target}`)
-  console.log(`Streaming live logs via \`orion ${target}\` (foreground process). Press Ctrl+C to stop.`)
+  console.log(`Streaming live logs via \`edith ${target}\` (foreground process). Press Ctrl+C to stop.`)
   await runPnpmScript(repoDir, profileDir, target)
 }
 
 async function handleDashboard(repoDir, profileDir, rest = []) {
   const options = parseDashboardArgs(rest)
   if (options.help) {
-    console.log("Orion Dashboard")
+    console.log("EDITH Dashboard")
     console.log("==============")
     console.log("")
     console.log("Usage:")
-    console.log("  orion dashboard [--open|--no-open]")
+    console.log("  edith dashboard [--open|--no-open]")
     console.log("")
     console.log("Options:")
     console.log("  --open      Open dashboard URL in the default browser (best effort)")
@@ -2136,21 +2136,21 @@ async function handleDashboard(repoDir, profileDir, rest = []) {
 }
 
 function printChannelsHelp() {
-  console.log("Orion Channels (OpenClaw-style namespace)")
+  console.log("EDITH Channels (OpenClaw-style namespace)")
   console.log("=========================================")
   console.log("")
   console.log("Usage:")
-  console.log("  orion channels login --channel whatsapp [--mode scan|cloud] [-- ...args]")
-  console.log("  orion channels status [--channel whatsapp]")
-  console.log("  orion channels logs [all|gateway] [--channel whatsapp]")
+  console.log("  edith channels login --channel whatsapp [--mode scan|cloud] [-- ...args]")
+  console.log("  edith channels status [--channel whatsapp]")
+  console.log("  edith channels logs [all|gateway] [--channel whatsapp]")
   console.log("")
   console.log("Notes:")
-  console.log("  - `channels login` maps to the existing Orion setup/login flows.")
+  console.log("  - `channels login` maps to the existing EDITH setup/login flows.")
   console.log("  - WhatsApp defaults to QR scan mode unless `--mode cloud` is provided.")
   console.log("  - `channels status --channel <name>` prints channel-focused readiness (and runtime auth/session hints where supported).")
-  console.log("  - `channels status` without `--channel` reuses `orion status` (global self-test).")
+  console.log("  - `channels status` without `--channel` reuses `edith status` (global self-test).")
   console.log("  - `channels logs --channel <name>` streams best-effort channel-filtered live logs (foreground).")
-  console.log("  - `channels logs` without `--channel` reuses `orion logs ...`.")
+  console.log("  - `channels logs` without `--channel` reuses `edith logs ...`.")
 }
 
 async function handleChannelsCommand(repoOverride, profileOverride, devMode, rest) {
@@ -2187,7 +2187,7 @@ async function handleChannelsCommand(repoOverride, profileOverride, devMode, res
           },
         }, null, 2))
       } else {
-        console.log(`Orion Channel Status (${channel})`)
+        console.log(`EDITH Channel Status (${channel})`)
         console.log("=".repeat(24 + channel.length))
         console.log(`Repo:    ${repoDir}`)
         console.log(`Profile: ${status.profileDir}`)
@@ -2217,12 +2217,12 @@ async function handleChannelsCommand(repoOverride, profileOverride, devMode, res
     if (channel) {
       const target = (targetArgs[0] ?? "all").toLowerCase()
       if (target !== "all" && target !== "gateway") {
-        console.log("Orion does not run a persistent daemon log store yet.")
-        console.log("Use `orion channels logs --channel <name> [all|gateway]` to stream live filtered logs.")
+        console.log("EDITH does not run a persistent daemon log store yet.")
+        console.log("Use `edith channels logs --channel <name> [all|gateway]` to stream live filtered logs.")
         return
       }
       await maybeAutoMigrateProfileDb(repoDir, profileDir, `channels logs ${target}`)
-      console.log(`Streaming best-effort filtered logs for channel '${channel}' via \`orion ${target}\` (Ctrl+C to stop)...`)
+      console.log(`Streaming best-effort filtered logs for channel '${channel}' via \`edith ${target}\` (Ctrl+C to stop)...`)
       await runPnpmScriptFiltered(
         repoDir,
         profileDir,
@@ -2250,14 +2250,14 @@ async function handleChannelsCommand(repoOverride, profileOverride, devMode, res
     }
 
     if (["telegram", "discord", "webchat"].includes(resolvedChannel)) {
-      console.log(`Channel '${resolvedChannel}' does not have a standalone login flow in Orion yet.`)
+      console.log(`Channel '${resolvedChannel}' does not have a standalone login flow in EDITH yet.`)
       console.log("Launching onboarding quickstart for that channel instead.")
       await runPnpmScript(repoDir, profileDir, "quickstart", ["--channel", resolvedChannel, ...remainingPositionals])
       return
     }
   }
 
-  throw new Error("Unknown `orion channels` subcommand. Use `orion channels help`.")
+  throw new Error("Unknown `edith channels` subcommand. Use `edith channels help`.")
 }
 
 async function handleCommand(repoOverride, profileOverride, devMode, positionals) {
@@ -2279,7 +2279,7 @@ async function handleCommand(repoOverride, profileOverride, devMode, positionals
 
   if (command === "unlink") {
     await saveCliConfig({})
-    console.log("Unlinked Orion repo.")
+    console.log("Unlinked EDITH repo.")
     return
   }
 
@@ -2315,7 +2315,7 @@ async function handleCommand(repoOverride, profileOverride, devMode, positionals
     return
   }
 
-  // Commands below run Orion using the linked profile env/state instead of the repo root.
+  // Commands below run EDITH using the linked profile env/state instead of the repo root.
   await ensureProfileBootstrap(repoDir, profileDir)
 
   if (command === "quickstart" || command === "setup" || command === "configure") {
@@ -2339,7 +2339,7 @@ async function handleCommand(repoOverride, profileOverride, devMode, positionals
       await runPnpmScript(repoDir, profileDir, "wa:cloud", waArgs)
       return
     }
-    throw new Error("Unknown `orion wa` subcommand. Use `orion wa scan` or `orion wa cloud`.")
+    throw new Error("Unknown `edith wa` subcommand. Use `edith wa scan` or `edith wa cloud`.")
   }
 
   if (command === "all" || command === "doctor" || command === "gateway") {
@@ -2368,11 +2368,11 @@ async function handleCommand(repoOverride, profileOverride, devMode, positionals
     return
   }
 
-  throw new Error(`Unknown command: ${command}. Run \`orion help\`.`)
+  throw new Error(`Unknown command: ${command}. Run \`edith help\`.`)
 }
 
 export async function main(argv = process.argv.slice(2)) {
-  const parsed = parseOrionCliArgs(argv)
+  const parsed = parseEDITHCliArgs(argv)
   if (parsed.help) {
     printHelp()
     return
@@ -2382,9 +2382,9 @@ export async function main(argv = process.argv.slice(2)) {
     await handleCommand(parsed.repoOverride, parsed.profileOverride, parsed.dev, parsed.positionals)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    console.error(`Orion CLI error: ${message}`)
-    if (/No Orion repo linked/i.test(message)) {
-      console.error("Hint: run `orion link C:\\path\\to\\orion-ts` once, then retry.")
+    console.error(`EDITH CLI error: ${message}`)
+    if (/No EDITH repo linked/i.test(message)) {
+      console.error("Hint: run `edith link C:\\path\\to\\EDITH` once, then retry.")
     }
     process.exit(1)
   }

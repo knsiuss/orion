@@ -147,7 +147,6 @@ export class TelegramChannel implements BaseChannel {
   private readonly replies = new Map<string, QueuedReply[]>()
   private readonly inboundChains = new Map<string, Promise<void>>()
   private readonly deniedChatNoticeSent = new Set<string>()
-  private readonly unsupportedChatNoticeSent = new Set<string>()
   private allowedChatIds = new Set<string>()
 
   async start(): Promise<void> {
@@ -370,14 +369,14 @@ export class TelegramChannel implements BaseChannel {
       await this.apiCall("sendMessage", {
         chat_id: chatId,
         text: [
-          "Orion Telegram test channel ready.",
+          "EDITH Telegram test channel ready.",
           "",
           "Commands:",
           "/help - show this help",
           "/id - show Telegram chat id (for TELEGRAM_CHAT_ID allowlist)",
           "/ping - health check",
           "",
-          "Send any text message to chat with Orion.",
+          "Send any text message to chat with EDITH.",
         ].join("\n"),
       }).catch((error) => log.warn("Telegram help command failed", { chatId, error }))
       return

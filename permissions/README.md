@@ -1,6 +1,6 @@
 # Triggers Configuration
 
-Orion reads proactive trigger rules from `permissions/triggers.yaml`.
+EDITH reads proactive trigger rules from `permissions/triggers.yaml`.
 
 ## Default State
 

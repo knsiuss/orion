@@ -76,7 +76,7 @@ function readPackageVersion(): string {
 const APP_VERSION = readPackageVersion()
 const CONTENT_SECURITY_POLICY = "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 const CSRF_HEADER_NAME = "x-csrf-token"
-const CSRF_COOKIE_NAME = "orion_csrf_token"
+const CSRF_COOKIE_NAME = "edith_csrf_token"
 const CSRF_TOKEN_BYTES = 32
 
 const CSRF_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"])
@@ -91,10 +91,6 @@ const rateLimiter = createRateLimiter({
 
 function isRateLimited(ip: string): boolean {
   return rateLimiter.consume(ip).limited
-}
-
-function getRateLimitRemaining(ip: string): number {
-  return rateLimiter.getRemaining(ip)
 }
 
 // Cleanup stale rate limit entries every 5 minutes
@@ -115,11 +111,6 @@ interface GatewayResponse {
   type: string
   requestId?: unknown
   [key: string]: unknown
-}
-
-interface GatewayErrorResponse extends GatewayResponse {
-  type: "error"
-  message: string
 }
 
 interface GatewayClientMessage {
@@ -956,7 +947,7 @@ export class GatewayServer {
   }
 
   private async handleWakeWord(userId: string, msg: GatewayClientMessage): Promise<GatewayResponse> {
-    const keyword = msg.keyword ?? "orion"
+    const keyword = msg.keyword ?? "edith"
     const windowSeconds = msg.windowSeconds ?? 2
 
     try {

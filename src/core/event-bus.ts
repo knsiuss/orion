@@ -4,7 +4,7 @@ import { createLogger } from "../logger.js"
 
 const log = createLogger("core.event-bus")
 
-export type OrionEvent =
+export type EDITHEvent =
   | {
     type: "user.message.received"
     userId: string
@@ -60,25 +60,25 @@ export type OrionEvent =
     timestamp: number
   }
 
-class OrionEventBus extends EventEmitter {
+class EDITHEventBus extends EventEmitter {
   constructor() {
     super()
     this.setMaxListeners(50)
   }
 
-  emit<T extends OrionEvent["type"]>(
+  emit<T extends EDITHEvent["type"]>(
     eventType: T,
-    data: Extract<OrionEvent, { type: T }>,
+    data: Extract<EDITHEvent, { type: T }>,
   ): boolean {
     log.debug("event emitted", { type: eventType })
     return super.emit(eventType, data)
   }
 
-  on<T extends OrionEvent["type"]>(
+  on<T extends EDITHEvent["type"]>(
     eventType: T,
-    listener: (data: Extract<OrionEvent, { type: T }>) => void | Promise<void>,
+    listener: (data: Extract<EDITHEvent, { type: T }>) => void | Promise<void>,
   ): this {
-    return super.on(eventType, (data: Extract<OrionEvent, { type: T }>) => {
+    return super.on(eventType, (data: Extract<EDITHEvent, { type: T }>) => {
       try {
         const result = listener(data)
         if (result instanceof Promise) {
@@ -92,13 +92,13 @@ class OrionEventBus extends EventEmitter {
     })
   }
 
-  dispatch<T extends OrionEvent["type"]>(
+  dispatch<T extends EDITHEvent["type"]>(
     eventType: T,
-    data: Omit<Extract<OrionEvent, { type: T }>, "type">,
+    data: Omit<Extract<EDITHEvent, { type: T }>, "type">,
   ): void {
-    const fullData = { ...data, type: eventType } as Extract<OrionEvent, { type: T }>
+    const fullData = { ...data, type: eventType } as Extract<EDITHEvent, { type: T }>
     this.emit(eventType, fullData)
   }
 }
 
-export const eventBus = new OrionEventBus()
+export const eventBus = new EDITHEventBus()

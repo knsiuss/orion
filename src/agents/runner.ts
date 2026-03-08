@@ -40,9 +40,8 @@ export class AgentRunner {
   constructor() {
     this.credential = acpRouter.registerAgent(
       "runner",
-      ["runner.execute", "runner.parallel", "runner.supervise", "runner.status"],
       ["runner.execute", "runner.parallel", "runner.supervise", "runner.status", "runner.lats"],
-      async (msg) => this.handleACPMessage(msg),
+      (msg: ACPMessage) => this.handleACPMessage(msg),
     )
   }
 

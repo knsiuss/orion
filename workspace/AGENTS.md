@@ -1,4 +1,4 @@
-# Orion - Operating Instructions
+# EDITH - Operating Instructions
 
 ## Capability Model
 

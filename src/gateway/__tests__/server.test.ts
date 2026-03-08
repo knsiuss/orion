@@ -32,14 +32,14 @@ describe("gateway/server helpers", () => {
 
     const msg = __gatewayTestUtils.normalizeIncomingClientMessage({
       type: "voice_wake_word",
-      keyword: "orion",
+      keyword: "edith",
       windowSeconds: 999,
       requestId: "r1",
     })
 
     expect(msg.type).toBe("voice_wake_word")
     expect(msg.windowSeconds).toBe(30)
-    expect(msg.keyword).toBe("orion")
+    expect(msg.keyword).toBe("edith")
   })
 
   it("exports CSP header policy", () => {

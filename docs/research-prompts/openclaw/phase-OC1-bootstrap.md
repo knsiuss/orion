@@ -43,7 +43,7 @@ Paper ini validate: ada hierarki memory, dan bootstrap layer harus always-presen
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Orion-TS. Implement bootstrap injection engine mengikuti
+Kamu sedang memodifikasi EDITH. Implement bootstrap injection engine mengikuti
 OpenClaw pattern yang sudah terbukti.
 Reference: github.com/openclaw/openclaw/src/agents/system-prompt.ts
 Paper: arXiv 2508.16609
@@ -301,7 +301,7 @@ let _bootstrapLoader: BootstrapLoader | null = null
 
 export function getBootstrapLoader(): BootstrapLoader {
   if (!_bootstrapLoader) {
-    const workspace = process.env.ORION_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
+    const workspace = process.env.EDITH_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
     _bootstrapLoader = new BootstrapLoader(workspace)
   }
   return _bootstrapLoader
@@ -444,7 +444,7 @@ Di app startup (src/main.ts atau src/app.ts):
 import fs from "node:fs/promises"
 import path from "node:path"
 
-const workspace = process.env.ORION_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
+const workspace = process.env.EDITH_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
 
 // Ensure workspace exists
 await fs.mkdir(workspace, { recursive: true })
@@ -469,7 +469,7 @@ ls workspace/
 
 pnpm dev --mode text
 # Input: "siapa kamu?"
-# Orion harusnya respond dengan personality dari SOUL.md
+# EDITH harusnya respond dengan personality dari SOUL.md
 # BUKAN generic "I am an AI assistant"
 
 # Input: "nama gue Budi"
@@ -477,13 +477,13 @@ pnpm dev --mode text
 cat workspace/USER.md | grep -i "nama\|name"
 
 # Check logs untuk bootstrap stats:
-grep "system prompt built" logs/orion*.log
+grep "system prompt built" logs/edith*.log
 # Harusnya ada: bootstrapFiles count, bootstrapChars count
 ```
 
 ## Expected Outcome
-- Setiap turn, Orion menerima context dari semua bootstrap files
-- Karakter Orion consistent setelah restart karena di-load dari file
+- Setiap turn, EDITH menerima context dari semua bootstrap files
+- Karakter EDITH consistent setelah restart karena di-load dari file
 - USER.md update otomatis saat profiler extract facts baru
 - Logs menunjukkan berapa chars di-inject per turn
 - Foundation untuk SaaS: nanti hook `agent:bootstrap` bisa swap SOUL.md per user

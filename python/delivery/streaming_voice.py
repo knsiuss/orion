@@ -1,7 +1,7 @@
 """
 streaming_voice.py
 
-Low-latency streaming voice pipeline for Orion.
+Low-latency streaming voice pipeline for EDITH.
 
 Architecture based on arXiv 2508.04721 (Low-Latency Voice Agents):
   - Concurrent multi-threaded pipeline: ASR → LLM → TTS run in parallel
@@ -20,7 +20,7 @@ Based on:
   - arXiv 2508.04721: concurrent streaming architecture
   - arXiv 2509.15969: VoXtream 102ms first-packet streaming TTS
 
-Part of Orion — Persistent AI Companion System.
+Part of EDITH — Persistent AI Companion System.
 """
 
 import asyncio
@@ -37,7 +37,7 @@ import sys
 sys.path.insert(0, '.')
 import config
 
-_log = logging.getLogger("orion.voice.streaming")
+_log = logging.getLogger("edith.voice.streaming")
 _log.setLevel(getattr(logging, config.LOG_LEVEL, logging.INFO))
 
 # Sentence-ending punctuation for streaming segmentation

@@ -78,7 +78,7 @@ export default function App() {
       <StatusBar barStyle="light-content" />
       
       <View style={s.header}>
-        <Text style={s.headerTitle}>Orion</Text>
+        <Text style={s.headerTitle}>EDITH</Text>
         <View style={[s.dot, 
           { backgroundColor: connected ? "#22c55e" : "#ef4444" }
         ]} />
@@ -102,7 +102,7 @@ export default function App() {
           </View>
         )}
         ListFooterComponent={thinking ? (
-          <Text style={s.thinking}>Orion is thinking...</Text>
+          <Text style={s.thinking}>EDITH is thinking...</Text>
         ) : null}
       />
 
@@ -114,7 +114,7 @@ export default function App() {
             style={s.input}
             value={input}
             onChangeText={setInput}
-            placeholder="Message Orion..."
+            placeholder="Message EDITH..."
             placeholderTextColor="#555"
             multiline
             onSubmitEditing={send}

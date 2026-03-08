@@ -7,7 +7,7 @@ Language: auto-detected
 Timezone: unknown
 
 ## Preferences
-(Updated automatically as Orion learns about you)
+(Updated automatically as EDITH learns about you)
 
 ## Communication Style
 (Detected from conversation patterns)
@@ -16,7 +16,7 @@ Technical level: unknown
 Response length preference: unknown
 
 ## Context
-(What Orion knows about your current situation)
+(What EDITH knows about your current situation)
 
 ## Topics of Interest
 (Updated automatically)

@@ -267,71 +267,71 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
 
 ## Follow-up Notes (pass 18)
 
-- Added Phase-1 global-style `orion` CLI wrapper (`bin/orion.js`) with OpenClaw-like command ergonomics:
-  - `orion link <repo>`
-  - `orion quickstart`
-  - `orion wa scan`
-  - `orion wa cloud`
-  - `orion all`, `orion doctor`, `orion gateway`
-- Wrapper stores linked repo path in `~/.orion/cli.json` and proxies to `pnpm --dir <repo> ...`.
-- Added `package.json` bin entry for npm global install (`orion`).
+- Added Phase-1 global-style `edith` CLI wrapper (`bin/edith.js`) with OpenClaw-like command ergonomics:
+  - `edith link <repo>`
+  - `edith quickstart`
+  - `edith wa scan`
+  - `edith wa cloud`
+  - `edith all`, `edith doctor`, `edith gateway`
+- Wrapper stores linked repo path in `~/.edith/cli.json` and proxies to `pnpm --dir <repo> ...`.
+- Added `package.json` bin entry for npm global install (`edith`).
 - Added helper tests for CLI parsing/repo detection and docs:
-  - `src/cli/__tests__/orion-global.test.ts`
+  - `src/cli/__tests__/edith-global.test.ts`
   - `docs/platform/global-cli.md`
 - Validation:
-  - `node bin/orion.js --help` prints expected OpenClaw-style wrapper commands
-  - `node bin/orion.js repo --repo .` resolves current repo path
+  - `node bin/edith.js --help` prints expected OpenClaw-style wrapper commands
+  - `node bin/edith.js repo --repo .` resolves current repo path
   - `pnpm typecheck` passes
   - `pnpm test:ci` => `21` test files passed / `73` tests passed
 
 ## Follow-up Notes (pass 19)
 
-- Phase-2 global wrapper improvements (`bin/orion.js`):
-  - added profile bootstrap + runtime env forwarding (`ORION_ENV_FILE`, `ORION_WORKSPACE`, `ORION_STATE_DIR`)
-  - new commands: `orion profile`, `orion profile init`, `orion init`
-  - wrapper now auto-bootstraps profile env/workspace/state before running Orion commands
-- `src/config.ts` now honors `ORION_ENV_FILE` so onboarding/runtime can use profile-scoped `.env`.
-- `src/cli/onboard.ts` now writes to `ORION_ENV_FILE` target when provided (global wrapper path).
-- `src/channels/whatsapp.ts` now stores Baileys auth under `ORION_STATE_DIR` (profile-scoped) when set.
+- Phase-2 global wrapper improvements (`bin/edith.js`):
+  - added profile bootstrap + runtime env forwarding (`EDITH_ENV_FILE`, `EDITH_WORKSPACE`, `EDITH_STATE_DIR`)
+  - new commands: `edith profile`, `edith profile init`, `edith init`
+  - wrapper now auto-bootstraps profile env/workspace/state before running EDITH commands
+- `src/config.ts` now honors `EDITH_ENV_FILE` so onboarding/runtime can use profile-scoped `.env`.
+- `src/cli/onboard.ts` now writes to `EDITH_ENV_FILE` target when provided (global wrapper path).
+- `src/channels/whatsapp.ts` now stores Baileys auth under `EDITH_STATE_DIR` (profile-scoped) when set.
 - Added/extended tests/docs:
-  - `src/cli/__tests__/orion-global.test.ts`
+  - `src/cli/__tests__/edith-global.test.ts`
   - `docs/platform/global-cli.md`
 - Validation:
   - `pnpm typecheck` passes
   - `pnpm test:ci` => `21` test files passed / `74` tests passed
-  - `node bin/orion.js profile init --repo .` creates `%USERPROFILE%\\.orion\\profiles\\default` (`.env`, `workspace`, `.orion` state dir)
+  - `node bin/edith.js profile init --repo .` creates `%USERPROFILE%\\.edith\\profiles\\default` (`.env`, `workspace`, `.edith` state dir)
   - sandbox-only smoke with local profile path also validated profile bootstrap logic before global config write (`EPERM` on home write without escalation)
 
 ## Follow-up Notes (pass 20)
 
-- Added `orion self-test` (beginner-friendly readiness report) to global wrapper:
+- Added `edith self-test` (beginner-friendly readiness report) to global wrapper:
   - checks repo/profile bootstrap, profile `.env`, workspace/state dirs
   - checks provider presence + WhatsApp mode readiness
   - checks `pnpm` on PATH and prints reopen-terminal hint for stale PATH (`ENOENT`)
 - Added helper tests for self-test parsing/check logic:
-  - `src/cli/__tests__/orion-global.test.ts`
+  - `src/cli/__tests__/edith-global.test.ts`
 - Validation:
   - `pnpm typecheck` passes
   - `pnpm test:ci` => `21` test files passed / `77` tests passed
-  - `node bin/orion.js self-test --repo . --profile .tmp-orion-profile` prints actionable report (sandbox: `EPERM`; escalated run reports `ENOENT` when `pnpm` is not on PATH in that shell)
+  - `node bin/edith.js self-test --repo . --profile .tmp-edith-profile` prints actionable report (sandbox: `EPERM`; escalated run reports `ENOENT` when `pnpm` is not on PATH in that shell)
 
 ## Follow-up Notes (pass 21)
 
-- Global `orion` CLI Windows hardening + bug fixes from real end-to-end testing:
-  - fixed Windows direct-execution detection for npm shim/symlink/casing edge cases (`orion --help` no longer silently exits)
+- Global `edith` CLI Windows hardening + bug fixes from real end-to-end testing:
+  - fixed Windows direct-execution detection for npm shim/symlink/casing edge cases (`edith --help` no longer silently exits)
   - wrapper now uses `pnpm.cmd` on Windows and plain `pnpm` elsewhere
-  - wrapper/self-test spawn helpers now enable `shell` only for Windows `.cmd/.bat` commands (fixes false `pnpm` failure in `orion self-test`)
-  - `orion profile init --repo ... --profile ...` and `orion init` with overrides no longer force-write `~/.orion/cli.json` (override stays per-command)
+  - wrapper/self-test spawn helpers now enable `shell` only for Windows `.cmd/.bat` commands (fixes false `pnpm` failure in `edith self-test`)
+  - `edith profile init --repo ... --profile ...` and `edith init` with overrides no longer force-write `~/.edith/cli.json` (override stays per-command)
 - Added/extended tests:
-  - `src/cli/__tests__/orion-global.test.ts` (Windows invoke path, `pnpm.cmd`, shell-for-cmd rule)
+  - `src/cli/__tests__/edith-global.test.ts` (Windows invoke path, `pnpm.cmd`, shell-for-cmd rule)
 - Global CLI flow verified on Windows:
   - `npm install -g .`
-  - `orion --help`
-  - `orion repo`
-  - `orion profile init --repo ... --profile .tmp-orion-profile`
-  - `orion self-test --repo ... --profile .tmp-orion-profile` (outside sandbox: `OK pnpm`)
-  - `orion doctor --repo ... --profile .tmp-orion-profile`
-  - `orion wa scan --repo ... --profile .tmp-orion-profile` starts WhatsApp QR wizard and shows provider prompt (interactive smoke)
+  - `edith --help`
+  - `edith repo`
+  - `edith profile init --repo ... --profile .tmp-edith-profile`
+  - `edith self-test --repo ... --profile .tmp-edith-profile` (outside sandbox: `OK pnpm`)
+  - `edith doctor --repo ... --profile .tmp-edith-profile`
+  - `edith wa scan --repo ... --profile .tmp-edith-profile` starts WhatsApp QR wizard and shows provider prompt (interactive smoke)
 - Validation:
   - `pnpm typecheck` passes
   - `pnpm test:ci` => `21` test files passed / `80` tests passed
@@ -339,38 +339,38 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
 ## Follow-up Notes (pass 22)
 
 - Improved beginner/non-interactive WhatsApp QR onboarding for OpenClaw-style global CLI usage:
-  - `orion wa scan --yes --provider groq` is now truly non-interactive (skips optional prompts, uses defaults, writes env directly).
-  - global wrapper now forwards extra args after `orion wa scan` / `orion wa cloud` to underlying onboarding scripts.
-- Fixed onboarding UX mismatch when called from global `orion` wrapper:
-  - next-step instructions now suggest `orion doctor` / `orion all` / `orion onboard` when wrapper env is detected.
+  - `edith wa scan --yes --provider groq` is now truly non-interactive (skips optional prompts, uses defaults, writes env directly).
+  - global wrapper now forwards extra args after `edith wa scan` / `edith wa cloud` to underlying onboarding scripts.
+- Fixed onboarding UX mismatch when called from global `edith` wrapper:
+  - next-step instructions now suggest `edith doctor` / `edith all` / `edith onboard` when wrapper env is detected.
   - removed duplicated/conflicting `pnpm all` QR step wording in WhatsApp QR next steps.
 - Added tests/docs:
   - `src/cli/__tests__/onboard.test.ts` (global-wrapper command hints).
-  - `docs/platform/global-cli.md` (scriptable `orion wa scan --yes --provider groq` example).
+  - `docs/platform/global-cli.md` (scriptable `edith wa scan --yes --provider groq` example).
   - `docs/channels/whatsapp.md` (non-interactive variant + repo vs global wrapper start commands).
 - Validation:
   - `pnpm typecheck` passes
   - `pnpm test:ci` => `21` test files passed / `81` tests passed
-  - real command smoke (outside sandbox): `orion wa scan --yes --provider groq --repo ... --profile .tmp-orion-profile` exits 0 and writes WhatsApp QR config without prompts
+  - real command smoke (outside sandbox): `edith wa scan --yes --provider groq --repo ... --profile .tmp-edith-profile` exits 0 and writes WhatsApp QR config without prompts
 
 ## Follow-up Notes (pass 23)
 
 - OpenClaw-alignment tranche 1 + 2 (CLI surface + flag parity):
   - added wrapper command surface parity aliases:
-    - `orion setup`, `orion configure`, `orion dashboard`, `orion status`, `orion logs`
-  - `orion status` now aliases readiness/self-test flow (OpenClaw-like status entrypoint)
-  - `orion logs` provides a foreground live-log fallback (`all` / `gateway`) and clear guidance when daemon-style log storage is unavailable
-  - `orion dashboard` prints dashboard URL (`http://127.0.0.1:<gateway-port>`) then starts gateway foreground mode
+    - `edith setup`, `edith configure`, `edith dashboard`, `edith status`, `edith logs`
+  - `edith status` now aliases readiness/self-test flow (OpenClaw-like status entrypoint)
+  - `edith logs` provides a foreground live-log fallback (`all` / `gateway`) and clear guidance when daemon-style log storage is unavailable
+  - `edith dashboard` prints dashboard URL (`http://127.0.0.1:<gateway-port>`) then starts gateway foreground mode
 - Added global flag parity primitives:
-  - `--profile <name>` now maps to `~/.orion/profiles/<name>` (while explicit paths still work)
-  - `--dev` uses isolated `~/.orion/profiles/dev` profile
-  - `orion quickstart/setup/configure/init` now forward extra onboarding args (e.g. `--non-interactive`, `--provider`, `--channel`)
+  - `--profile <name>` now maps to `~/.edith/profiles/<name>` (while explicit paths still work)
+  - `--dev` uses isolated `~/.edith/profiles/dev` profile
+  - `edith quickstart/setup/configure/init` now forward extra onboarding args (e.g. `--non-interactive`, `--provider`, `--channel`)
 - Onboarding parser parity:
   - added `--non-interactive` alias for `--yes`
   - accepted `--wizard` as compatibility no-op
   - non-interactive banner now references both `--yes` and `--non-interactive`
 - Added/extended tests:
-  - `src/cli/__tests__/orion-global.test.ts` (`--dev`, profile-name mapping, profile selector path/tilde handling)
+  - `src/cli/__tests__/edith-global.test.ts` (`--dev`, profile-name mapping, profile selector path/tilde handling)
   - `src/cli/__tests__/onboard.test.ts` (`--non-interactive`, `--wizard` compatibility parse path)
 - Documentation updates:
   - `docs/platform/global-cli.md` (command parity, named profiles, `--dev`, scriptable setup examples)
@@ -379,23 +379,23 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
   - `pnpm typecheck` passes
   - `pnpm test:ci` => `21` test files passed / `84` tests passed
   - real command smoke:
-    - `orion --help`
-    - `orion profile --repo ... --profile work` => resolves `~/.orion/profiles/work`
-    - `orion --dev profile --repo ...` => resolves `~/.orion/profiles/dev`
-    - `orion setup --non-interactive --provider groq --channel whatsapp --whatsapp-mode scan --repo ... --profile .tmp-orion-profile`
-    - `orion status --repo ... --profile .tmp-orion-profile`
-    - `orion logs foo --repo ... --profile .tmp-orion-profile` (guidance path)
+    - `edith --help`
+    - `edith profile --repo ... --profile work` => resolves `~/.edith/profiles/work`
+    - `edith --dev profile --repo ...` => resolves `~/.edith/profiles/dev`
+    - `edith setup --non-interactive --provider groq --channel whatsapp --whatsapp-mode scan --repo ... --profile .tmp-edith-profile`
+    - `edith status --repo ... --profile .tmp-edith-profile`
+    - `edith logs foo --repo ... --profile .tmp-edith-profile` (guidance path)
 
 ## Follow-up Notes (pass 24)
 
 - OpenClaw-alignment tranche 3 (channels namespace facade):
-  - added `orion channels help|login|status|logs` namespace commands to global wrapper
-  - `orion channels login --channel whatsapp` maps to existing WhatsApp setup flow (`wa:scan` by default, `--mode cloud` supported)
-  - `orion channels status` currently reuses readiness/self-test (best available status surface today)
-  - `orion channels logs` currently reuses live foreground Orion logs / guidance path (no daemon log store yet)
+  - added `edith channels help|login|status|logs` namespace commands to global wrapper
+  - `edith channels login --channel whatsapp` maps to existing WhatsApp setup flow (`wa:scan` by default, `--mode cloud` supported)
+  - `edith channels status` currently reuses readiness/self-test (best available status surface today)
+  - `edith channels logs` currently reuses live foreground EDITH logs / guidance path (no daemon log store yet)
   - supports positional or flag channel selection (`whatsapp`, `telegram`, `discord`, `webchat`) and login mode normalization (`qr`/`baileys` => `scan`)
 - Added/extended tests:
-  - `src/cli/__tests__/orion-global.test.ts` (`parseChannelsArgs`, channel/mode normalization)
+  - `src/cli/__tests__/edith-global.test.ts` (`parseChannelsArgs`, channel/mode normalization)
 - Documentation updates:
   - `docs/platform/global-cli.md` (channels namespace examples and behavior notes)
   - `docs/channels/whatsapp.md` (namespace equivalents for QR login)
@@ -403,32 +403,32 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
   - `pnpm typecheck` passes
   - `pnpm test:ci` => `21` test files passed / `86` tests passed
   - real command smoke:
-    - `orion channels help`
-    - `orion channels login --channel whatsapp --non-interactive --provider groq --repo ... --profile .tmp-orion-profile`
-    - `orion channels status --channel whatsapp --repo ... --profile .tmp-orion-profile`
-    - `orion channels logs foo --repo ... --profile .tmp-orion-profile` (guidance path)
+    - `edith channels help`
+    - `edith channels login --channel whatsapp --non-interactive --provider groq --repo ... --profile .tmp-edith-profile`
+    - `edith channels status --channel whatsapp --repo ... --profile .tmp-edith-profile`
+    - `edith channels logs foo --repo ... --profile .tmp-edith-profile` (guidance path)
 
 ## Follow-up Notes (pass 25)
 
 - OpenClaw-alignment tranche 4a (readiness polish for global CLI):
-  - added `orion self-test --fix` safe fix mode:
+  - added `edith self-test --fix` safe fix mode:
     - bootstraps active profile directories
     - creates profile `permissions/permissions.yaml` template if missing
     - backfills baseline profile env keys (`DATABASE_URL`, `PERMISSIONS_FILE`, `DEFAULT_USER_ID`, `LOG_LEVEL`)
     - auto-adds `AUTO_START_GATEWAY=true` when WhatsApp Cloud mode is enabled and missing
-  - `orion status --fix` now behaves the same as `orion self-test --fix`
-- Improved `orion channels status`:
-  - `orion channels status --channel <name>` now prints channel-focused readiness checks for:
+  - `edith status --fix` now behaves the same as `edith self-test --fix`
+- Improved `edith channels status`:
+  - `edith channels status --channel <name>` now prints channel-focused readiness checks for:
     - `whatsapp`
     - `telegram`
     - `discord`
     - `webchat`
-  - channel status now exits non-zero when it reports channel errors (matching `orion self-test` exit-code behavior)
-- Improved `orion channels logs` UX:
+  - channel status now exits non-zero when it reports channel errors (matching `edith self-test` exit-code behavior)
+- Improved `edith channels logs` UX:
   - clearer note when channel-specific filtering is not implemented yet
   - safer target forwarding (`all`/`gateway`) without duplicating target args
 - Added/extended tests:
-  - `src/cli/__tests__/orion-global.test.ts` (`parseSelfTestArgs`, Telegram/Discord/WebChat channel checks)
+  - `src/cli/__tests__/edith-global.test.ts` (`parseSelfTestArgs`, Telegram/Discord/WebChat channel checks)
 - Documentation updates:
   - `docs/platform/global-cli.md` (`self-test --fix`, channel-specific status examples)
   - `docs/channels/whatsapp.md` (`self-test --fix`, `channels logs --channel whatsapp`)
@@ -454,55 +454,55 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
 - Validation:
   - `pnpm typecheck` passes
   - `pnpm test:ci` => `21` test files passed / `90` tests passed
-  - local `orion all` smoke remains blocked in sandbox by `tsx/esbuild spawn EPERM` (environment limitation)
+  - local `edith all` smoke remains blocked in sandbox by `tsx/esbuild spawn EPERM` (environment limitation)
 
 ## Follow-up Notes (pass 27)
 
 - OpenClaw-style CLI focus (first-run entrypoint UX):
-  - bare `orion` now acts as a smart entrypoint instead of always printing help
-  - if no linked repo exists but command is run inside/near an Orion repo, wrapper auto-detects and auto-links it
-  - if the active profile is not configured (no provider/channel setup), bare `orion` launches the setup wizard automatically (`quickstart`)
-  - if profile is already configured, bare `orion` prints concise next actions (`dashboard`, `channels login`, `all`, `status`)
+  - bare `edith` now acts as a smart entrypoint instead of always printing help
+  - if no linked repo exists but command is run inside/near an EDITH repo, wrapper auto-detects and auto-links it
+  - if the active profile is not configured (no provider/channel setup), bare `edith` launches the setup wizard automatically (`quickstart`)
+  - if profile is already configured, bare `edith` prints concise next actions (`dashboard`, `channels login`, `all`, `status`)
 - CLI startup hardening for fresh profiles:
-  - `orion all` and `orion gateway` now auto-run profile-scoped `prisma migrate deploy` preflight before starting
+  - `edith all` and `edith gateway` now auto-run profile-scoped `prisma migrate deploy` preflight before starting
   - uses the active profile `DATABASE_URL` so fresh profile DBs do not fail with `P2021` missing-table errors on first run
 - Added/extended tests:
-  - `src/cli/__tests__/orion-global.test.ts` (`isProfileEnvLikelyConfigured` helper for smart entrypoint heuristics)
+  - `src/cli/__tests__/edith-global.test.ts` (`isProfileEnvLikelyConfigured` helper for smart entrypoint heuristics)
 - Documentation updates:
-  - `docs/platform/global-cli.md` (bare `orion` smart entrypoint + auto-migrate preflight notes)
+  - `docs/platform/global-cli.md` (bare `edith` smart entrypoint + auto-migrate preflight notes)
 
 ## Follow-up Notes (pass 28)
 
 - CLI support/automation parity improvements:
   - added `--json` output mode for:
-    - `orion self-test`
-    - `orion status`
-    - `orion channels status --channel <name>`
-  - added `--migrate` option to `orion self-test` / `orion status`
+    - `edith self-test`
+    - `edith status`
+    - `edith channels status --channel <name>`
+  - added `--migrate` option to `edith self-test` / `edith status`
     - runs profile-scoped `prisma migrate deploy` preflight and includes result in output
     - combines cleanly with `--fix` and `--json` (support-friendly repair workflow)
 - Channel status behavior:
-  - `orion channels status --json` now forwards JSON mode to global self-test when no explicit channel is selected
+  - `edith channels status --json` now forwards JSON mode to global self-test when no explicit channel is selected
 - Added/extended tests:
-  - `src/cli/__tests__/orion-global.test.ts` (`parseSelfTestArgs` and `parseChannelsArgs` coverage for `--migrate` / `--json`)
+  - `src/cli/__tests__/edith-global.test.ts` (`parseSelfTestArgs` and `parseChannelsArgs` coverage for `--migrate` / `--json`)
 - Documentation updates:
   - `docs/platform/global-cli.md` (`--json`, `--migrate`, machine-readable status examples)
 
 ## Follow-up Notes (pass 29)
 
 - OpenClaw-style dashboard-first CLI polish:
-  - added `orion dashboard --open` / `--no-open`
+  - added `edith dashboard --open` / `--no-open`
   - `--open` best-effort opens the dashboard URL in the default browser, then starts gateway foreground mode
-  - `orion dashboard --help` now documents dashboard-specific flags
+  - `edith dashboard --help` now documents dashboard-specific flags
 - Added tests:
-  - `src/cli/__tests__/orion-global.test.ts` (`parseDashboardArgs`)
+  - `src/cli/__tests__/edith-global.test.ts` (`parseDashboardArgs`)
 - Documentation updates:
-  - `docs/platform/global-cli.md` (`orion dashboard --open` examples)
+  - `docs/platform/global-cli.md` (`edith dashboard --open` examples)
 
 ## Follow-up Notes (pass 30)
 
 - OpenClaw-style CLI status parity (channel runtime hints):
-  - `orion channels status --channel whatsapp` now augments readiness checks with runtime auth-state inspection for Baileys QR mode:
+  - `edith channels status --channel whatsapp` now augments readiness checks with runtime auth-state inspection for Baileys QR mode:
     - auth dir existence / file count
     - `creds.json` presence + parseability
     - paired-session hint via masked WhatsApp JID (without exposing raw account id)
@@ -512,25 +512,25 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
   - `parseEnvContentLoose()` now strips UTF-8 BOM at file start / line start (common when users edit with PowerShell `Set-Content` or some editors)
   - prevents false negatives in CLI readiness/status checks (e.g. `WHATSAPP_ENABLED=true` being ignored)
 - Help text polish:
-  - `orion channels help` now clarifies `channels status --channel ...` is channel-focused status with runtime hints where supported, while bare `channels status` remains global self-test
+  - `edith channels help` now clarifies `channels status --channel ...` is channel-focused status with runtime hints where supported, while bare `channels status` remains global self-test
 - Added/extended tests:
-  - `src/cli/__tests__/orion-global.test.ts` (WhatsApp auth-state inspection + creds summary helpers)
+  - `src/cli/__tests__/edith-global.test.ts` (WhatsApp auth-state inspection + creds summary helpers)
 
 ## Follow-up Notes (pass 31)
 
 - OpenClaw-style CLI status parity expanded beyond WhatsApp:
-  - `orion channels status --channel telegram` now includes token-format sanity hints + masked preview in runtime JSON (best-effort, no network call)
-  - `orion channels status --channel discord` now includes token-format sanity hints + masked preview in runtime JSON (best-effort, no network call)
-  - `orion channels status --channel webchat` now probes localhost WebChat port reachability and reports runtime probe results (`reachable`, `latencyMs`, error)
+  - `edith channels status --channel telegram` now includes token-format sanity hints + masked preview in runtime JSON (best-effort, no network call)
+  - `edith channels status --channel discord` now includes token-format sanity hints + masked preview in runtime JSON (best-effort, no network call)
+  - `edith channels status --channel webchat` now probes localhost WebChat port reachability and reports runtime probe results (`reachable`, `latencyMs`, error)
 - CLI UX regression guard:
   - added explicit test ensuring global flags like `--repo` / `--profile` still parse correctly after subcommands (OpenClaw-style muscle memory)
 - Added/extended tests:
-  - `src/cli/__tests__/orion-global.test.ts` (Telegram/Discord token summaries + local TCP probe helper)
+  - `src/cli/__tests__/edith-global.test.ts` (Telegram/Discord token summaries + local TCP probe helper)
 
 ## Follow-up Notes (pass 32)
 
 - OpenClaw-style `channels logs` parity improvement:
-  - `orion channels logs --channel <name>` now runs live foreground logs with best-effort line filtering instead of always falling back to unfiltered global logs
+  - `edith channels logs --channel <name>` now runs live foreground logs with best-effort line filtering instead of always falling back to unfiltered global logs
   - supported filters:
     - WhatsApp (`[whatsapp-channel]`, `[channels.whatsapp]`, Baileys JSON `"class":"baileys"`)
     - Telegram (`[channels.telegram]`)
@@ -538,18 +538,18 @@ That directory is intentionally ignored in `.gitignore` so tracked docs stay cle
     - WebChat (`[webchat-channel]`)
   - fatal process/runtime lines (e.g. `ELIFECYCLE`, `TypeError`, Prisma fatal errors) are still passed through even if they don't match channel tags, to avoid hiding startup failures
 - Help/docs polish:
-  - `orion channels help` now describes channel-filtered logs behavior
+  - `edith channels help` now describes channel-filtered logs behavior
   - `docs/platform/global-cli.md` and `docs/channels/whatsapp.md` updated accordingly
 - Added tests:
-  - `src/cli/__tests__/orion-global.test.ts` (`lineMatchesChannelLogFilter` coverage for channel tags + fatal passthrough)
+  - `src/cli/__tests__/edith-global.test.ts` (`lineMatchesChannelLogFilter` coverage for channel tags + fatal passthrough)
 
 ## Follow-up Notes (pass 33)
 
 - `channels logs` UX hardening (user-feedback driven):
-  - `orion logs` and `orion channels logs --channel <name>` now run profile DB migration preflight before starting foreground logs (same safety behavior as `orion all` / `orion gateway`)
+  - `edith logs` and `edith channels logs --channel <name>` now run profile DB migration preflight before starting foreground logs (same safety behavior as `edith all` / `edith gateway`)
   - reduces noisy first-run Prisma `P2021` missing-table errors when users jump straight into log streaming
   - channel-filtered logs now emit one-time actionable hints for common patterns:
-    - Prisma missing-table errors (`P2021`) -> suggest `orion status --fix --migrate`
+    - Prisma missing-table errors (`P2021`) -> suggest `edith status --fix --migrate`
     - WhatsApp Baileys disconnect `statusCode=405` / connection failures during registration -> suggest clock sync, network check, clearing auth state, retry QR pairing
 - Added tests:
-  - `src/cli/__tests__/orion-global.test.ts` (`getChannelLogHints` coverage for `P2021` + WhatsApp 405`)
+  - `src/cli/__tests__/edith-global.test.ts` (`getChannelLogHints` coverage for `P2021` + WhatsApp 405`)

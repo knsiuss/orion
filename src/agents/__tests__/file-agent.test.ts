@@ -4,6 +4,7 @@ import path from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { camelGuard } from "../../security/camel-guard.js"
 import { FileAgent, __fileAgentTestUtils } from "../tools/file-agent.js"
 
 describe("FileAgent", () => {
@@ -55,5 +56,55 @@ describe("FileAgent", () => {
     await expect(
       __fileAgentTestUtils.ensurePathAllowed(sensitivePath, [tempDir]),
     ).rejects.toThrow("Sensitive file access blocked")
+  })
+
+  it("allows delete with a valid capability token", async () => {
+    const filePath = path.join(tempDir, "danger.txt")
+    await fs.writeFile(filePath, "remove me", "utf-8")
+    const capabilityToken = camelGuard.issueCapabilityToken({
+      actorId: "file-agent",
+      toolName: "fileAgent",
+      action: "delete",
+      taintedSources: ["web_content"],
+    })
+
+    const result = await agent.execute({
+      action: "delete",
+      path: filePath,
+      capabilityToken,
+      taintedSources: ["web_content"],
+    })
+
+    expect(JSON.parse(result)).toMatchObject({ deleted: true })
+    await expect(fs.stat(filePath)).rejects.toThrow()
+  })
+
+  it("rejects delete when the capability token scope is invalid", async () => {
+    const filePath = path.join(tempDir, "danger.txt")
+    await fs.writeFile(filePath, "remove me", "utf-8")
+    const capabilityToken = camelGuard.issueCapabilityToken({
+      actorId: "file-agent",
+      toolName: "fileAgent",
+      action: "move",
+      taintedSources: ["web_content"],
+    })
+
+    await expect(agent.execute({
+      action: "delete",
+      path: filePath,
+      capabilityToken,
+      taintedSources: ["web_content"],
+    })).rejects.toThrow("Capability token scope mismatch")
+  })
+
+  it("blocks tainted write without a capability token", async () => {
+    const filePath = path.join(tempDir, "generated.txt")
+
+    await expect(agent.execute({
+      action: "write",
+      path: filePath,
+      content: "unsafe",
+      taintedSources: ["web_content"],
+    })).rejects.toThrow("CaMeL guard blocked tainted fileAgent.write")
   })
 })

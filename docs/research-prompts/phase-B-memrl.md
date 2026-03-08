@@ -5,7 +5,7 @@
 arXiv: 2601.03192 | Jan 2026 | Shanghai Jiao Tong University + NUS
 
 ## Core Idea dari Paper
-Memory sekarang di Orion itu passive — simpan lalu retrieve by similarity.
+Memory sekarang di EDITH itu passive — simpan lalu retrieve by similarity.
 MemRL ubah ini jadi active: setiap memory entry punya utility score (Q-value).
 Setelah setiap task selesai, utility di-update berdasarkan apakah task berhasil.
 Next time retrieve, rank by utility bukan hanya similarity.
@@ -21,7 +21,7 @@ Two-Phase Retrieval:
 1. Phase 1: filter by cosine similarity > threshold (sparsity threshold δ)
 2. Phase 2: rank filtered candidates by Q-value, ambil top-k
 
-## Gap di Orion Sekarang
+## Gap di EDITH Sekarang
 `memory/store.ts` — semua entry diperlakukan sama.
 Tidak ada mekanisme untuk tahu memory mana yang sering berguna.
 Search hanya by vector similarity, tidak ada utility weighting.
@@ -29,7 +29,7 @@ Search hanya by vector similarity, tidak ada utility weighting.
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Orion-TS. Implementasi MemRL pattern ke memory system.
+Kamu sedang memodifikasi EDITH. Implementasi MemRL pattern ke memory system.
 Paper referensi: arXiv 2601.03192
 
 ### TASK: Phase B — MemRL Memory Upgrade
@@ -145,7 +145,7 @@ export interface BuildContextResult {
 pnpm dev --mode text
 # Kirim beberapa pesan yang sama
 # Check database: utility score memory yang sering dipakai harusnya naik
-sqlite3 .orion/orion.db "SELECT content, utilityScore FROM MemoryNode ORDER BY utilityScore DESC LIMIT 10"
+sqlite3 .edith/edith.db "SELECT content, utilityScore FROM MemoryNode ORDER BY utilityScore DESC LIMIT 10"
 ```
 
 ## Expected Outcome

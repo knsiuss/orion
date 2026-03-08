@@ -67,7 +67,7 @@ Per-user workspace:
 ```
 
 Hook `agent:bootstrap` → swap workspace path per request/session.
-Ini yang bikin satu Orion instance serve banyak users.
+Ini yang bikin satu EDITH instance serve banyak users.
 
 ## Paper Backing
 
@@ -82,7 +82,7 @@ Lesson: Token JANGAN exposed ke browser, validation HARUS server-side.
 ## Prompt untuk AI Coding Assistant
 
 ```
-Kamu sedang memodifikasi Orion-TS. Implement auth hardening dan SaaS foundation.
+Kamu sedang memodifikasi EDITH. Implement auth hardening dan SaaS foundation.
 Reference: docs.openclaw.ai/concepts/security, vallettasoftware.com/blog/post/openclaw-2026-guide
 Paper: arXiv 2508.06124
 
@@ -91,7 +91,7 @@ Paper: arXiv 2508.06124
 Target files:
 - src/pairing/device-store.ts (buat baru — production auth)
 - src/pairing/manager.ts (upgrade existing)
-- src/config/orion-config.ts (buat baru — schema-validated config)
+- src/config/edith-config.ts (buat baru — schema-validated config)
 - prisma/schema.prisma (tambah DeviceToken model)
 - src/core/workspace-resolver.ts (buat baru — untuk SaaS multi-tenant)
 
@@ -287,7 +287,7 @@ export const deviceStore = {
 }
 ```
 
-#### Step 3: Buat src/config/orion-config.ts
+#### Step 3: Buat src/config/edith-config.ts
 
 Config schema-validated, mirip OpenClaw's openclaw.json:
 
@@ -297,7 +297,7 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { createLogger } from "../logger.js"
 
-const log = createLogger("config.orion-config")
+const log = createLogger("config.edith-config")
 
 const ChannelPolicySchema = z.enum(["pairing", "allowlist", "open"])
 
@@ -309,7 +309,7 @@ const ChannelConfigSchema = z.object({
 }).partial()
 
 const AgentIdentitySchema = z.object({
-  name: z.string().default("Orion"),
+  name: z.string().default("EDITH"),
   emoji: z.string().default("✦"),
   theme: z.string().default("dark minimal"),
 })
@@ -320,7 +320,7 @@ const SkillConfigSchema = z.object({
   env: z.record(z.string()).default({}),
 }).partial()
 
-const OrionConfigSchema = z.object({
+const EDITHConfigSchema = z.object({
   identity: AgentIdentitySchema.default({}),
 
   agents: z.object({
@@ -353,34 +353,34 @@ const OrionConfigSchema = z.object({
   }).default({}),
 })
 
-export type OrionConfig = z.infer<typeof OrionConfigSchema>
+export type EDITHConfig = z.infer<typeof EDITHConfigSchema>
 
-let _config: OrionConfig | null = null
+let _config: EDITHConfig | null = null
 
-export async function loadOrionConfig(): Promise<OrionConfig> {
+export async function loadEDITHConfig(): Promise<EDITHConfig> {
   if (_config) return _config
 
-  const configPath = path.resolve(process.cwd(), "orion.json")
+  const configPath = path.resolve(process.cwd(), "edith.json")
 
   try {
     const raw = await fs.readFile(configPath, "utf-8")
     const parsed = JSON.parse(raw)
-    _config = OrionConfigSchema.parse(parsed)
-    log.info("orion.json loaded", { workspace: _config.agents.defaults.workspace })
+    _config = EDITHConfigSchema.parse(parsed)
+    log.info("edith.json loaded", { workspace: _config.agents.defaults.workspace })
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      log.info("orion.json not found, using defaults")
+      log.info("edith.json not found, using defaults")
     } else {
-      log.warn("orion.json parse error, using defaults", error)
+      log.warn("edith.json parse error, using defaults", error)
     }
-    _config = OrionConfigSchema.parse({})
+    _config = EDITHConfigSchema.parse({})
   }
 
   return _config
 }
 
-export function getOrionConfig(): OrionConfig {
-  if (!_config) throw new Error("Config not loaded — call loadOrionConfig() first")
+export function getEDITHConfig(): EDITHConfig {
+  if (!_config) throw new Error("Config not loaded — call loadEDITHConfig() first")
   return _config
 }
 ```
@@ -390,7 +390,7 @@ export function getOrionConfig(): OrionConfig {
 ```typescript
 import path from "node:path"
 import fs from "node:fs/promises"
-import { getOrionConfig } from "../config/orion-config.js"
+import { getEDITHConfig } from "../config/edith-config.js"
 
 // Resolves workspace path per user/tenant
 // Single-user mode: all users share default workspace
@@ -400,8 +400,8 @@ export class WorkspaceResolver {
   private readonly saasDataDir: string
 
   constructor() {
-    this.saasMode = process.env.ORION_SAAS_MODE === "true"
-    this.saasDataDir = process.env.ORION_SAAS_DATA_DIR ?? path.resolve(process.cwd(), "data/users")
+    this.saasMode = process.env.EDITH_SAAS_MODE === "true"
+    this.saasDataDir = process.env.EDITH_SAAS_DATA_DIR ?? path.resolve(process.cwd(), "data/users")
   }
 
   /** Get workspace path for a user */
@@ -430,7 +430,7 @@ export class WorkspaceResolver {
     }
 
     // Single-user mode: use default workspace from config
-    const config = getOrionConfig()
+    const config = getEDITHConfig()
     const workspace = path.resolve(process.cwd(), config.agents.defaults.workspace)
     await fs.mkdir(workspace, { recursive: true })
     return workspace
@@ -468,11 +468,11 @@ pnpm dev --mode text
 
 # Simulate confirm (dari authorized interface):
 # Check database untuk verify token hash tersimpan, bukan raw token
-sqlite3 .orion/orion.db "SELECT tokenHash, userId, channel FROM DeviceToken LIMIT 5"
+sqlite3 .edith/edith.db "SELECT tokenHash, userId, channel FROM DeviceToken LIMIT 5"
 # tokenHash harusnya 64-char hex, bukan token asli
 
 # SaaS test:
-ORION_SAAS_MODE=true pnpm dev --mode text
+EDITH_SAAS_MODE=true pnpm dev --mode text
 # Harusnya buat per-user workspace di data/users/{userId}/workspace/
 ls data/users/
 ```
@@ -481,6 +481,6 @@ ls data/users/
 - Auth yang tidak bisa di-bypass via prompt injection (architectural, bukan prompt)
 - Device tokens tersimpan hashed — breach database tidak expose raw tokens
 - Pairing codes single-use + TTL 5 menit
-- Config schema-validated dengan orion.json (mirip OpenClaw's openclaw.json)
+- Config schema-validated dengan edith.json (mirip OpenClaw's openclaw.json)
 - Foundation untuk SaaS: per-user workspace isolation siap
 - Per-channel dmPolicy support (pairing/allowlist/open)

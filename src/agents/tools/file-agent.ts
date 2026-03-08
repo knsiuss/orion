@@ -11,6 +11,7 @@ import { z } from "zod"
 
 import { loadEDITHConfig } from "../../config/edith-config.js"
 import { createLogger } from "../../logger.js"
+import { camelGuard, type TaintSource } from "../../security/camel-guard.js"
 
 const log = createLogger("tools.file-agent")
 
@@ -91,9 +92,25 @@ export class FileAgent {
     content?: string
     destination?: string
     capabilityToken?: string
+    actorId?: string
+    taintedSources?: TaintSource[]
   }): Promise<string> {
     const allowedRoots = await resolveAllowedRoots(this.options.allowedRoots)
     const targetPath = await ensurePathAllowed(input.path, allowedRoots)
+    const actorId = input.actorId ?? "file-agent"
+    const taintedSources = input.taintedSources ?? []
+
+    const camelResult = camelGuard.check({
+      actorId,
+      toolName: "fileAgent",
+      action: input.action,
+      taintedSources,
+      capabilityToken: input.capabilityToken,
+    })
+
+    if (!camelResult.allowed) {
+      throw new Error(camelResult.reason ?? "CaMeL guard blocked file action")
+    }
 
     if (input.action === "read") {
       const stat = await fs.stat(targetPath)

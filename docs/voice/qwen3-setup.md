@@ -1,4 +1,4 @@
-﻿# Qwen3 Setup
+# Qwen3 Setup
 
 ## Install
 ```bash
@@ -18,7 +18,7 @@ QWEN3_MODE=latency
 
 ## Verification
 1. Run Python import check.
-2. Run Orion voice test call.
+2. Run EDITH voice test call.
 3. Confirm logs show selected backend.
 
 ## Notes

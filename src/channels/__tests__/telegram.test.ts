@@ -10,10 +10,10 @@ describe("telegram channel helpers", () => {
   })
 
   it("normalizes commands and respects bot username mention", () => {
-    expect(__telegramTestUtils.normalizeTelegramCommand("/start", "orion_bot")).toBe("start")
-    expect(__telegramTestUtils.normalizeTelegramCommand("/help@orion_bot", "orion_bot")).toBe("help")
-    expect(__telegramTestUtils.normalizeTelegramCommand("/help@other_bot", "orion_bot")).toBeNull()
-    expect(__telegramTestUtils.normalizeTelegramCommand("hello", "orion_bot")).toBeNull()
+    expect(__telegramTestUtils.normalizeTelegramCommand("/start", "edith_bot")).toBe("start")
+    expect(__telegramTestUtils.normalizeTelegramCommand("/help@edith_bot", "edith_bot")).toBe("help")
+    expect(__telegramTestUtils.normalizeTelegramCommand("/help@other_bot", "edith_bot")).toBeNull()
+    expect(__telegramTestUtils.normalizeTelegramCommand("hello", "edith_bot")).toBeNull()
   })
 
   it("extracts inbound text messages and ignores non-text updates", () => {
@@ -40,7 +40,7 @@ describe("telegram channel helpers", () => {
     })).toBeNull()
   })
 
-  it("maps Orion user ids to telegram chat ids and back", () => {
+  it("maps EDITH user ids to telegram chat ids and back", () => {
     const userId = __telegramTestUtils.toTelegramChannelUserId("12345")
     expect(userId).toBe("telegram:12345")
     expect(__telegramTestUtils.toTelegramChatId(userId)).toBe("12345")

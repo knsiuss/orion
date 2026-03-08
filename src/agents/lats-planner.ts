@@ -1,6 +1,7 @@
 import crypto from "node:crypto"
 
 import { createLogger } from "../logger.js"
+import { camelGuard, type TaintSource } from "../security/camel-guard.js"
 import {
   executeToolByName,
   getCurrentToolObservation,
@@ -22,6 +23,7 @@ const DEFAULT_TERMINAL_THRESHOLD = 0.95
 export interface ObservationSnapshot {
   summary: string
   timestamp: number
+  taintedSources: TaintSource[]
   url?: string
   title?: string
   elements?: Array<{
@@ -34,7 +36,7 @@ export interface AgentAction {
   toolName: ToolName
   params: Record<string, unknown>
   reasoning: string
-  taintedSources: string[]
+  taintedSources: TaintSource[]
 }
 
 export interface LATSNode {
@@ -145,6 +147,29 @@ function buildPath(node: LATSNode): LATSNode[] {
   return path.reverse()
 }
 
+function mergeTaintSources(...taintLists: TaintSource[][]): TaintSource[] {
+  return Array.from(new Set(taintLists.flat()))
+}
+
+function summarizeBrowserObservation(observation: {
+  title: string
+  url: string
+  content: string
+  elements: Array<{ id: string; text: string; role: string; tag: string }>
+}): string {
+  const elementSummary = observation.elements
+    .slice(0, 10)
+    .map((element) => `${element.id}:${element.tag}:${element.text || element.role || "untitled"}`)
+    .join(", ")
+
+  return clipText([
+    `Title: ${observation.title}`,
+    `URL: ${observation.url}`,
+    `Content: ${observation.content}`,
+    elementSummary ? `Elements: ${elementSummary}` : "",
+  ].filter(Boolean).join("\n"))
+}
+
 export function computeLatsUct(node: LATSNode, explorationConstant: number): number {
   if (node.visitCount === 0) {
     return Number.POSITIVE_INFINITY
@@ -208,10 +233,16 @@ export class LATSPlanner {
       }
 
       const node = this.selectNode(root)
-      const children = node.children.length > 0 ? node.children : await this.expandNode(node, goal)
-      const candidate = children
-        .filter((child) => !child.isPruned)
-        .sort((left, right) => right.score - left.score)[0]
+      let candidate: LATSNode | undefined
+
+      if (node.action && node.visitCount === 0) {
+        candidate = node
+      } else {
+        const children = node.children.length > 0 ? node.children : await this.expandNode(node, goal)
+        candidate = children
+          .filter((child) => !child.isPruned)
+          .sort((left, right) => right.score - left.score)[0]
+      }
 
       if (!candidate) {
         node.isPruned = true
@@ -326,14 +357,25 @@ export class LATSPlanner {
         success: false,
         output: "",
         error: "Root node does not have an action",
+        taintSources: [],
       }
     }
 
     if (this.isTaintedActionBlocked(node.action)) {
+      const actionName = typeof node.action.params.action === "string" ? node.action.params.action : "execute"
+      const guardResult = camelGuard.check({
+        actorId: this.deps.actorId ?? "lats",
+        toolName: node.action.toolName,
+        action: actionName,
+        taintedSources: node.action.taintedSources,
+        capabilityToken:
+          typeof node.action.params.capabilityToken === "string" ? node.action.params.capabilityToken : undefined,
+      })
       return {
         success: false,
         output: "",
-        error: "CaMeL-style guard blocked tainted action without capability token",
+        error: guardResult.reason ?? "CaMeL-style guard blocked tainted action without capability token",
+        taintSources: [],
       }
     }
 
@@ -374,7 +416,7 @@ export class LATSPlanner {
   }
 
   private async evaluateState(node: LATSNode, goal: string): Promise<number> {
-    const result = node.executionResult ?? { success: false, output: "" }
+    const result = node.executionResult ?? { success: false, output: "", taintSources: [] }
 
     if (this.deps.evaluateState) {
       return normalizeCandidateScore(await this.deps.evaluateState({ goal, node, result }))
@@ -399,13 +441,18 @@ export class LATSPlanner {
 
   private async proposeActions(goal: string, node: LATSNode): Promise<AgentAction[]> {
     if (this.deps.proposeActions) {
-      return this.deps.proposeActions({
+      const proposedActions = await this.deps.proposeActions({
         goal,
         state: node.state,
         reflection: node.reflection,
         branchCount: this.config.expansionBranches,
         toolDescriptions: getToolDescriptions(),
       })
+
+      return proposedActions.map((action) => ({
+        ...action,
+        taintedSources: mergeTaintSources(node.state.taintedSources, action.taintedSources ?? []),
+      }))
     }
 
     const prompt = [
@@ -429,9 +476,12 @@ export class LATSPlanner {
         toolName: action.toolName,
         params: action.params ?? {},
         reasoning: clipText(action.reasoning ?? "", 240),
-        taintedSources: Array.isArray(action.taintedSources)
-          ? action.taintedSources.filter((item): item is string => typeof item === "string")
-          : [],
+        taintedSources: mergeTaintSources(
+          node.state.taintedSources,
+          Array.isArray(action.taintedSources)
+            ? action.taintedSources.filter((item): item is TaintSource => typeof item === "string")
+            : [],
+        ),
       }))
   }
 
@@ -461,14 +511,25 @@ export class LATSPlanner {
       return this.deps.captureSnapshot()
     }
 
-    const observation = await getCurrentToolObservation("browser")
+    const observation = result?.observation ?? await getCurrentToolObservation("browser")
     if (observation) {
-      return observation
+      return {
+        summary: summarizeBrowserObservation(observation),
+        timestamp: observation.timestamp,
+        url: observation.url,
+        title: observation.title,
+        elements: observation.elements.map((element) => ({
+          id: element.id,
+          description: clipText(`${element.tag} ${element.text || element.ariaLabel || element.role || "untitled"}`, 120),
+        })),
+        taintedSources: result?.taintSources ?? ["web_content"],
+      }
     }
 
     return {
       summary: clipText(result?.output || result?.error || "No external observation available."),
       timestamp: Date.now(),
+      taintedSources: result?.taintSources ?? [],
     }
   }
 
@@ -496,21 +557,14 @@ export class LATSPlanner {
       return false
     }
 
-    const capabilityToken = action.params.capabilityToken
-    if (typeof capabilityToken === "string" && capabilityToken.trim().length > 0) {
-      return false
-    }
-
-    if (action.toolName === "browser") {
-      return false
-    }
-
-    if (action.toolName === "fileAgent") {
-      const operation = typeof action.params.action === "string" ? action.params.action : "read"
-      return operation !== "read" && operation !== "info" && operation !== "list"
-    }
-
-    return true
+    const actionName = typeof action.params.action === "string" ? action.params.action : "execute"
+    return !camelGuard.check({
+      actorId: this.deps.actorId ?? "lats",
+      toolName: action.toolName,
+      action: actionName,
+      taintedSources: action.taintedSources,
+      capabilityToken: typeof action.params.capabilityToken === "string" ? action.params.capabilityToken : undefined,
+    }).allowed
   }
 }
 

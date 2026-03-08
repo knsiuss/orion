@@ -1,16 +1,17 @@
 version: "3.9"
 services:
-  orion:
+  edith:
     build: .
     ports:
       - "18789:18789"
       - "8080:8080"
     volumes:
-      - orion_data:/data
+      - edith_data:/data
       - ./.env:/app/.env:ro
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      - DATABASE_URL=file:/data/edith.db
 
 volumes:
-  orion_data:
+  edith_data:

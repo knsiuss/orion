@@ -2,14 +2,13 @@ import type { Message } from "@prisma/client"
 
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
-import { memory } from "./store.js"
 
 const log = createLogger("memory.promem")
 
 const MAX_ROUNDS = 3
 
 export class ProMemExtractor {
-  async extract(userId: string, messages: Message[]): Promise<string[]> {
+  async extract(_userId: string, messages: Message[]): Promise<string[]> {
     if (messages.length === 0) {
       return []
     }

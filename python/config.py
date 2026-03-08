@@ -4,7 +4,7 @@ config.py
 Loads all environment variables from .env using python-dotenv.
 Exposes them as typed constants grouped by section.
 Validates required keys on import — raises clear errors if missing.
-Part of Orion — Persistent AI Companion System.
+Part of EDITH — Persistent AI Companion System.
 """
 
 import os
@@ -35,7 +35,7 @@ def _get_required(key: str) -> str:
     value = os.getenv(key, "").strip()
     if not value:
         print(
-            f"[Orion Config Error] Required environment variable '{key}' is missing or empty.\n"
+            f"[EDITH Config Error] Required environment variable '{key}' is missing or empty.\n"
             f"  → Add it to your .env file. See .env.example for reference.",
             file=sys.stderr,
         )
@@ -141,7 +141,7 @@ OLLAMA_BASE_URL: str = _get_optional("OLLAMA_BASE_URL", "http://localhost:11434"
 # ===========================================================================
 
 DATABASE_URL: str = _get_optional(
-    "DATABASE_URL", "postgresql://user:password@localhost:5432/orion"
+    "DATABASE_URL", "postgresql://user:password@localhost:5432/edith"
 )
 SUPABASE_URL: str = _get_optional("SUPABASE_URL")
 SUPABASE_KEY: str = _get_optional("SUPABASE_KEY")
@@ -246,7 +246,7 @@ def validate_required_for_engine(engine: str) -> None:
     for value, name in required:
         if not value:
             print(
-                f"[Orion Config Error] Engine '{engine}' requires '{name}' but it is missing.\n"
+                f"[EDITH Config Error] Engine '{engine}' requires '{name}' but it is missing.\n"
                 f"  → Add it to your .env file. See .env.example for reference.",
                 file=sys.stderr,
             )
@@ -265,7 +265,7 @@ def validate_delivery() -> None:
     """
     if not TELEGRAM_BOT_TOKEN:
         print(
-            "[Orion Config Error] Delivery requires 'TELEGRAM_BOT_TOKEN' but it is missing.\n"
+            "[EDITH Config Error] Delivery requires 'TELEGRAM_BOT_TOKEN' but it is missing.\n"
             "  → Add it to your .env file. See .env.example for reference.",
             file=sys.stderr,
         )

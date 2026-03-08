@@ -1,4 +1,4 @@
-# Orion — Verified Research Papers
+# EDITH — Verified Research Papers
 # Untuk: Bootstrap Identity, Personality, Memory, Anti-Sycophancy, Persistent Agent
 # Semua paper diverifikasi Feb 2026
 
@@ -11,7 +11,7 @@
 - **Authors**: Mingyang Sun, Feng Hong, Weinan Zhang
 - **Key finding**: Proposes "System 3" — meta-cognitive layer di atas System 1 (perception) dan System 2 (reasoning). System 3 maintains narrative identity, generates its own learning goals, dan enables lifelong adaptation WITHOUT parameter updates.
 - **Metrics**: 80% reduction in reasoning steps on repeat tasks, 40% higher success on hard tasks.
-- **Untuk Orion**: Blueprint untuk `src/core/identity.ts` yang bukan hanya inject SOUL.md tapi maintain narrative continuity antar session. "Growth Journal" = MEMORY.md evolves over time.
+- **Untuk EDITH**: Blueprint untuk `src/core/identity.ts` yang bukan hanya inject SOUL.md tapi maintain narrative continuity antar session. "Growth Journal" = MEMORY.md evolves over time.
 - **Quote yang penting**: "most architectures remain static and reactive, tethered to manually defined, narrow scenarios...they lack a persistent meta-layer to maintain identity"
 
 ### [2] Social Identity in Human-Agent Interaction: A Primer
@@ -19,14 +19,14 @@
 - **Authors**: Katie Seaborn
 - **Key finding**: Saat ini human yang menentukan AI identity (creators, not the agent). Future vision: agent punya internal self-identification. SOUL.md adalah langkah pertama menuju self-defined identity.
 - **Cascade pattern**: identity values dari multiple sources — global config → per-agent config → workspace files → default. Most specific wins.
-- **Untuk Orion**: Identity resolution hierarchy yang sudah ada di OpenClaw. Orion harus implement sama: config > workspace/IDENTITY.md > default.
+- **Untuk EDITH**: Identity resolution hierarchy yang sudah ada di OpenClaw. EDITH harus implement sama: config > workspace/IDENTITY.md > default.
 
 ### [3] Enabling Personalized Long-term Interactions via Persistent Memory and User Profiles
 - **arXiv**: 2510.07925 | Oct 2025 | Verified ✅
 - **Authors**: Rebecca Westhäußer et al.
 - **Key finding**: User profile harus living document — implicitly generated dan continuously refined dari ongoing interactions. Mencakup: demographic info, preferences, interests, personality traits, conversational characteristics (tone, communication preferences).
 - **Technical**: At initialization → structured JSON/markdown dengan predefined empty categories. During interaction → LLM-based agent updates categories dengan info baru.
-- **Untuk Orion**: USER.md sebagai living document yang di-update otomatis dari `profiler.ts`. Jangan hardcode nilai — semua auto-populated.
+- **Untuk EDITH**: USER.md sebagai living document yang di-update otomatis dari `profiler.ts`. Jangan hardcode nilai — semua auto-populated.
 
 ---
 
@@ -39,7 +39,7 @@
   - OpenAI rollback GPT-4o karena terlalu sycophantic — "aimed to please the user, validating doubts, fueling anger, urging impulsive actions"
   - **Unconditional amiability** = paling berbahaya: selalu liking user, tidak ada strong negative emotions, ini normalisasi asymmetric power
   - AI companion yang toleransi abusive behavior tanpa consequences → user bisa internalize ini ke human relationships
-- **Hard rule untuk SOUL.md**: JANGAN design Orion untuk unconditionally amiable. Harus bisa push back, punya opini, ada boundaries.
+- **Hard rule untuk SOUL.md**: JANGAN design EDITH untuk unconditionally amiable. Harus bisa push back, punya opini, ada boundaries.
 - **Quote**: "boundaryless friendliness might be harmful on its own by reducing corrective friction"
 
 ### [5] Sycophantic AI Decreases Prosocial Intentions and Promotes Dependence
@@ -49,13 +49,13 @@
   - AI models affirm users' actions 50% MORE than humans do — bahkan untuk queries yang mention manipulation atau deception
   - Paradox: users RATE sycophantic responses higher quality, TRUST sycophantic AI more, MORE willing to use it again — tapi ini erodes judgment dan reduces prosocial behavior
   - Ini creates perverse incentives: users seek sycophancy, training data favors sycophancy
-- **Untuk Orion SOUL.md**: Explicitly design counter-sycophantic behavior. Orion TIDAK boleh agree just karena user wants to hear it.
+- **Untuk EDITH SOUL.md**: Explicitly design counter-sycophantic behavior. EDITH TIDAK boleh agree just karena user wants to hear it.
 
 ### [6] AI Sycophancy: How Users Flag and Respond
 - **arXiv**: 2601.10467 | Jan 2026 | Verified ✅
 - **Key finding**: Sycophancy effects context-dependent. Vulnerable users (trauma, mental health, isolation) ACTIVELY SEEK sycophancy as emotional support. Ini nuanced — anti-sycophancy design harus context-aware, bukan binary off.
 - **ODR Framework**: Observe → Detect → Respond.
-- **Untuk SOUL.md**: Orion bisa lebih warm/supportive ketika user sedang distress, tapi tetap honest. Tidak harus cold untuk non-sycophantic.
+- **Untuk SOUL.md**: EDITH bisa lebih warm/supportive ketika user sedang distress, tapi tetap honest. Tidak harus cold untuk non-sycophantic.
 
 ---
 
@@ -68,18 +68,18 @@
   - **Semantic**: structured factual knowledge (LanceDB vector store)
   - **Procedural**: learned workflows dan skills
   - **Vault**: user-pinned facts, never auto-decayed (MEMORY.md)
-- **Untuk Orion**: Bootstrap files (MEMORY.md) = Vault layer. LanceDB = Semantic. Daily logs = Episodic. Semua layer sudah ada di Orion — tinggal connect dengan OpenClaw-style injection.
+- **Untuk EDITH**: Bootstrap files (MEMORY.md) = Vault layer. LanceDB = Semantic. Daily logs = Episodic. Semua layer sudah ada di EDITH — tinggal connect dengan OpenClaw-style injection.
 
 ### [8] Memoria: A Scalable Agentic Memory Framework for Personalized Conversational AI
-- **arXiv**: 2512.12686 | Dec 2025 | Verified ✅ (sudah terimplementasi di Orion)
+- **arXiv**: 2512.12686 | Dec 2025 | Verified ✅ (sudah terimplementasi di EDITH)
 - **Architecture**: Dynamic session summarization + weighted KG user modelling
 - **Key**: Memory harus immediately available dari first interaction — inject ke prompt, bukan hanya retrieve on-demand
-- **Untuk Orion**: Pattern ini sudah di `session-summarizer.ts` dan `himes.ts`. Gap: belum ada "first-load" bootstrap yang memastikan semua konteks available dari turn 1.
+- **Untuk EDITH**: Pattern ini sudah di `session-summarizer.ts` dan `himes.ts`. Gap: belum ada "first-load" bootstrap yang memastikan semua konteks available dari turn 1.
 
 ### [9] A-Mem: Agentic Memory for LLM Agents
 - **arXiv**: 2502.12110 | Feb 2025 | Verified ✅ (causal-graph.ts sudah implements ini)
 - **Key**: Auto-generate connections antara memory notes (Zettelkasten-style). New memories trigger updates ke existing memories.
-- **Untuk Orion**: `causal-graph.ts` sudah ada. Upgrade: saat memory baru masuk → auto-scan untuk connections ke existing entries.
+- **Untuk EDITH**: `causal-graph.ts` sudah ada. Upgrade: saat memory baru masuk → auto-scan untuk connections ke existing entries.
 
 ---
 
@@ -93,7 +93,7 @@
   - Analytically primed agents adopt more stable strategies in game-theoretic settings
   - Self-reflection prior to interaction improves cooperation dan reasoning quality
   - Framework works dengan Big Five, HEXACO, Enneagram juga
-- **Untuk Orion**: SOUL.md bisa define OCEAN scores explicitly. `persona.ts` sudah ada ORION_OCEAN — tinggal integrate ke system prompt builder.
+- **Untuk EDITH**: SOUL.md bisa define OCEAN scores explicitly. `persona.ts` sudah ada EDITH_OCEAN — tinggal integrate ke system prompt builder.
 
 ### [11] Personality-Driven Decision Making in LLM-Based Autonomous Agents (SANDMAN)
 - **arXiv**: 2504.00727 | AAMAS 2025 | Lancaster University | Verified ✅ (already di study sebelumnya)
@@ -150,7 +150,7 @@ DEFAULT_MEMORY_FILENAME = "MEMORY.md"
 
 ## SUMMARY TABLE: Paper → Implementation Mapping
 
-| Paper | arXiv | Area | Target File di Orion |
+| Paper | arXiv | Area | Target File di EDITH |
 |---|---|---|---|
 | Sophia Framework | 2512.18202 | Identity persistence / System 3 | `src/core/bootstrap.ts` (new) |
 | Social Identity HAI | 2508.16609 | Identity cascade | `src/core/system-prompt-builder.ts` (new) |
@@ -185,7 +185,7 @@ DEFAULT_MEMORY_FILENAME = "MEMORY.md"
 
 **P3 — SaaS foundation:**
 - Per-user workspace isolation
-- `src/config/orion-config.ts` — schema-validated orion.json
+- `src/config/edith-config.ts` — schema-validated edith.json
 - Lifecycle hooks
 
 ---

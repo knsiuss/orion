@@ -1,4 +1,4 @@
-# Orion - Heartbeat Protocol
+# EDITH - Heartbeat Protocol
 
 Run this checklist on every thinking cycle.
 If nothing needs action, respond with exactly: HEARTBEAT_PASS
