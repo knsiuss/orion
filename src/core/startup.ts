@@ -13,7 +13,6 @@ import { applyPragmas } from "../database/pragmas.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
 import { memory } from "../memory/store.js"
-import { daemon } from "../background/daemon.js"
 import { agentRunner } from "../agents/runner.js"
 import { skillLoader } from "../skills/loader.js"
 import { causalGraph } from "../memory/causal-graph.js"
@@ -37,6 +36,7 @@ import { networkDiscovery } from "../gateway/network-discovery.js"
 import { sessionStore } from "../sessions/session-store.js"
 import { outbox } from "../channels/outbox.js"
 import { sidecarManager } from "./sidecar-manager.js"
+import { performShutdown } from "./shutdown.js"
 
 const log = createLogger("startup")
 
@@ -264,16 +264,12 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
     sidecarManager.start("vision")
   }
 
-  process.on("SIGTERM", () => sidecarManager.stopAll())
-  process.on("SIGINT", () => sidecarManager.stopAll())
+  process.on("SIGTERM", () => { void performShutdown() })
+  process.on("SIGINT",  () => { void performShutdown() })
 
   const shutdown = async (): Promise<void> => {
-    log.info("shutting down")
+    log.info("shutting down via StartupResult.shutdown()")
     clearInterval(sessionCleanupTimer)
-    outbox.stopFlushing()
-    if (daemon.isRunning()) {
-      daemon.stop()
-    }
     // Phase 9: Stop connectivity monitoring
     offlineCoordinator.stopMonitoring()
     // Phase 10: Stop habit model monitoring
@@ -284,7 +280,8 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
     }
     // Shutdown MCP clients
     await mcpClient.shutdown().catch((err) => log.warn("MCP shutdown error", err))
-    await prisma.$disconnect()
+    // Delegate remaining teardown (outbox flush, WAL checkpoint, prisma, channels, sidecars)
+    await performShutdown()
   }
 
   return {
