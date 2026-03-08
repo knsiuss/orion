@@ -1,4 +1,24 @@
-﻿import config from "../config.js"
+﻿/**
+ * @file teams.ts
+ * @description Microsoft Teams Bot Framework channel adapter for EDITH.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Implements BaseChannel (src/channels/base.ts). Outbound messages use the
+ *   Bot Framework REST API (`/v3/conversations/{conversationId}/activities`)
+ *   with an OAuth2 client-credentials token from login.microsoftonline.com.
+ *
+ *   INBOUND: NOT IMPLEMENTED. This channel has no inbound message polling or
+ *   webhook handler. Until inbound is wired up (Bot Framework activity endpoint
+ *   registered in Azure portal + gateway route calling an ingest method), this
+ *   channel must remain disabled in production.
+ *
+ *   Required env vars: TEAMS_APP_ID, TEAMS_APP_PASSWORD, TEAMS_SERVICE_URL
+ *
+ * @status STUB — send() is outbound-only; inbound messages are not received.
+ *   Do not enable in production until inbound handling is implemented.
+ */
+
+import config from "../config.js"
 import { createLogger } from "../logger.js"
 import { markdownProcessor } from "../markdown/processor.js"
 import type { BaseChannel } from "./base.js"
@@ -10,6 +30,10 @@ export class TeamsChannel implements BaseChannel {
   readonly name = "teams"
   private running = false
   private readonly replies = new Map<string, Array<{ content: string; ts: number }>>()
+
+  constructor() {
+    log.warn("channel not implemented — messages will be dropped", { channel: "teams" })
+  }
 
   async start(): Promise<void> {
     if (!config.TEAMS_APP_ID.trim() || !config.TEAMS_APP_PASSWORD.trim() || !config.TEAMS_SERVICE_URL.trim()) {
@@ -26,7 +50,8 @@ export class TeamsChannel implements BaseChannel {
   }
 
   isConnected(): boolean {
-    return this.running
+    // Inbound handling is not implemented — channel must not be used for delivery.
+    return false
   }
 
   async send(userId: string, message: string): Promise<boolean> {

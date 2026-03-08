@@ -6,12 +6,14 @@ import { discordChannel } from "./discord.js"
 import { signalChannel } from "./signal.js"
 import { lineChannel } from "./line.js"
 import { matrixChannel } from "./matrix.js"
-import { teamsChannel } from "./teams.js"
+// import { teamsChannel } from "./teams.js" // TODO: implement inbound before enabling
 import { iMessageChannel } from "./imessage.js"
 import { emailChannel } from "./email.js"
 import { smsChannel } from "./sms.js"
 import { phoneChannel } from "./phone.js"
 import { channelCircuitBreaker } from "./circuit-breaker.js"
+import { channelRateLimiter } from "./channel-rate-limiter.js"
+import { userChannelPrefs } from "./user-channel-prefs.js"
 import { createLogger } from "../logger.js"
 import config from "../config.js"
 import { channelHealthMonitor } from "../gateway/channel-health-monitor.js"
@@ -37,7 +39,7 @@ export class ChannelManager {
     this.channels.set("signal", signalChannel)
     this.channels.set("line", lineChannel)
     this.channels.set("matrix", matrixChannel)
-    this.channels.set("teams", teamsChannel)
+    // this.channels.set("teams", teamsChannel) // TODO: implement inbound before enabling
     this.channels.set("imessage", iMessageChannel)
 
     // Phase 8 channels
@@ -86,22 +88,34 @@ export class ChannelManager {
     }
     const safeMessage = scan.sanitized
 
-    const priorityOrder = [
+    /** System-default delivery priority — user preferences override the front. */
+    const globalOrder = [
       "telegram",
       "discord",
       "whatsapp",
-      "sms", // Phase 8: SMS before email (more immediate)
+      "sms",
       "webchat",
       "signal",
       "line",
       "matrix",
-      "teams",
+      // "teams" — not registered (stub, inbound unimplemented) // TODO: implement before enabling
       "imessage",
-      "email", // Phase 8: Email last (async medium, not phone - phone requires explicit call)
+      "email",
     ]
-    for (const name of priorityOrder) {
+
+    // Per-user preference: resolveChannelOrder() moves the user's active channel
+    // to the front. Falls back to globalOrder if no preference is stored.
+    const sendOrder = await userChannelPrefs.resolveChannelOrder(userId, globalOrder)
+
+    for (const name of sendOrder) {
       const channel = this.channels.get(name)
       if (!channel || !channel.isConnected()) {
+        continue
+      }
+
+      // Rate limit: skip this channel if its token budget is exhausted this tick
+      if (!channelRateLimiter.tryAcquire(name)) {
+        log.debug("channel rate limited — trying next", { channel: name, userId })
         continue
       }
 
