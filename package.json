@@ -14,7 +14,10 @@
     "build": "tsup src/main.ts --format esm --dts --external playwright",
     "start": "node dist/main.js",
     "test": "vitest run",
+    "test:unit": "vitest run -c vitest.unit.config.ts",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
     "test:ci": "vitest run",
+    "knip": "knip",
     "typecheck": "tsc --noEmit",
     "doctor": "tsx src/cli/doctor.ts",
     "onboard": "tsx src/cli/onboard.ts",
@@ -22,9 +25,13 @@
     "setup": "tsx src/cli/onboard.ts --flow quickstart",
     "wa:scan": "tsx src/cli/onboard.ts --flow quickstart --channel whatsapp --whatsapp-mode scan",
     "wa:cloud": "tsx src/cli/onboard.ts --flow quickstart --channel whatsapp --whatsapp-mode cloud",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
     "dedupe:causal-graph": "tsx src/cli/causal-graph-dedupe.ts --apply",
     "dedupe:causal-graph:dry-run": "tsx src/cli/causal-graph-dedupe.ts --dry-run",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "prepare": "husky"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.46",
