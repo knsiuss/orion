@@ -956,6 +956,15 @@ export class GatewayServer {
           }
         },
       )
+
+      // OpenAI-compatible API routes (Phase 42)
+      if (config.OPENAI_COMPAT_API_ENABLED === 'true') {
+        const { registerChatCompletions } = await import("../api/openai-compat/chat-completions.js")
+        const { registerEmbeddings } = await import("../api/openai-compat/embeddings.js")
+        registerChatCompletions(app)
+        registerEmbeddings(app)
+        logger.info("openai-compat API routes registered")
+      }
     })
   }
 
