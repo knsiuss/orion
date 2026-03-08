@@ -33,6 +33,7 @@ import { wellnessDetector } from "../emotion/wellness-detector.js"
 import { missionManager } from "../mission/mission-manager.js"
 import { learningReport } from "../self-improve/learning-report.js"
 import { databaseBackup } from "../database/backup.js"
+import { alertingService } from "../observability/alerting.js"
 
 const logger = createLogger("daemon")
 const TRIGGERS_FILE = "permissions/triggers.yaml"
@@ -193,6 +194,8 @@ export class EDITHDaemon {
       await this.checkWellness(userId) // Phase 21: Emotional wellness monitoring
       await missionManager.checkpointAll() // Phase 22: Mission health monitoring
       await this.maybeGenerateLearningReport() // Phase 24: Weekly self-improvement report
+      void alertingService.check()
+        .catch((err) => logger.warn("alerting check failed", { err: String(err) }))
 
       const now = new Date()
       const blockedByQuietHours = isWithinHardQuietHours(now)
