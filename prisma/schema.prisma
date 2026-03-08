@@ -456,3 +456,22 @@ model ActivityRecord {
   @@index([userId, timestamp])
   @@index([userId, hour])
 }
+
+/**
+ * Phase 16 — Expo push tokens for mobile notification delivery.
+ *
+ * One user can have multiple devices (phone + tablet + etc.).
+ * Tokens are automatically deregistered when Expo returns DeviceNotRegistered.
+ * Token lifecycle: app startup → register → push notification delivery → deregister on error.
+ */
+model PushToken {
+  id         String   @id @default(cuid())
+  userId     String
+  token      String   @unique          // Expo push token: ExponentPushToken[...]
+  platform   String                    // "ios" | "android"
+  appVersion String   @default("")
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
