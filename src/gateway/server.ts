@@ -38,6 +38,7 @@ import {
   type AuthContext,
 } from "./auth-middleware.js"
 import { checkApiToken, isLocalhostBinding, warnIfInsecure } from "./api-auth.js"
+import { verifyWebhook } from "./webhook-verifier.js"
 import { channelHealthMonitor } from "./channel-health-monitor.js"
 import { buildHealthPayload } from "./health.js"
 import { createRateLimiter } from "./rate-limiter.js"
@@ -697,6 +698,13 @@ export class GatewayServer {
       app.post<{ Body?: unknown }>(
         "/webhooks/whatsapp",
         async (req, reply) => {
+          const body = JSON.stringify(req.body)
+          const channel = "whatsapp"
+          if (!verifyWebhook(channel, body, req.headers as Record<string, string>)) {
+            logger.warn("webhook signature verification failed", { channel })
+            return reply.status(401).send({ error: "Invalid webhook signature" })
+          }
+
           if (!whatsAppChannel.isCloudWebhookEnabled()) {
             return reply.code(503).send({ error: "WhatsApp Cloud webhook is not configured" })
           }

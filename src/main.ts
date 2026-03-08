@@ -19,6 +19,7 @@ import { createLogger } from "./logger.js"
 import { memrlUpdater } from "./memory/memrl.js"
 import { gateway } from "./gateway/server.js"
 import { channelManager } from "./channels/manager.js"
+import { outbox } from "./channels/outbox.js"
 import { daemon } from "./background/daemon.js"
 import { initialize } from "./core/startup.js"
 import { eventBus } from "./core/event-bus.js"
@@ -146,6 +147,8 @@ async function start(): Promise<void> {
 
   if (mode === "gateway" || mode === "all") {
     await channelManager.init()
+    // Start outbox retry flusher now that channelManager is ready to send
+    outbox.startFlushing(channelManager.send.bind(channelManager))
     await daemon.start()
     await gateway.start()
   }

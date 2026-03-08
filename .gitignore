@@ -73,3 +73,10 @@ edith.json
 workbenches/
 apps/desktop/dist/
 .pnpm-store/
+
+# Claude worktrees / clones
+.clone/
+.claude/worktrees/
+tsc_out.txt
+prisma/*.db-shm
+prisma/*.db-wal
