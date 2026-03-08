@@ -7,7 +7,7 @@
  *   - rolling engine performance (when ENGINE_STATS_ENABLED=true)
  *   - fallback attempts when an engine errors or returns an empty response
  *
- * Supported providers: Anthropic, OpenAI, Gemini, Groq, OpenRouter, Ollama
+ * Supported providers: Anthropic, OpenAI, Gemini, Groq, OpenRouter, Ollama, DeepSeek, Mistral, Together, Fireworks, Cohere, GitHub Copilot
  *
  * After every successful generation, lastUsedEngine is updated. Callers (pipeline)
  * read this to record accurate telemetry. Never hardcode provider names in callers.
@@ -24,6 +24,12 @@ import { groqEngine } from "./groq.js"
 import { ollamaEngine } from "./ollama.js"
 import { openAIEngine } from "./openai.js"
 import { openRouterEngine } from "./openrouter.js"
+import { deepSeekEngine } from "./deepseek.js"
+import { mistralEngine } from "./mistral.js"
+import { togetherEngine } from "./together.js"
+import { fireworksEngine } from "./fireworks.js"
+import { cohereEngine } from "./cohere.js"
+import { githubCopilotEngine } from "./github-copilot.js"
 import { modelPreferences } from "./model-preferences.js"
 import type { Engine, GenerateOptions, TaskType } from "./types.js"
 
@@ -42,12 +48,18 @@ const DEFAULT_ENGINE_CANDIDATES: readonly Engine[] = [
   groqEngine,
   openRouterEngine,
   ollamaEngine,
+  deepSeekEngine,
+  mistralEngine,
+  togetherEngine,
+  fireworksEngine,
+  cohereEngine,
+  githubCopilotEngine,
 ]
 
 const PRIORITY_MAP: Record<TaskType, readonly string[]> = {
-  reasoning: ["gemini", "groq", "anthropic", "openai", "openrouter", "ollama"],
-  code: ["groq", "gemini", "anthropic", "openai", "openrouter", "ollama"],
-  fast: ["groq", "gemini", "openrouter", "ollama", "openai", "anthropic"],
+  reasoning: ["gemini", "groq", "anthropic", "openai", "deepseek", "mistral", "openrouter", "ollama"],
+  code: ["groq", "gemini", "anthropic", "openai", "deepseek", "fireworks", "openrouter", "ollama"],
+  fast: ["groq", "gemini", "fireworks", "together", "openrouter", "ollama", "openai", "anthropic"],
   multimodal: ["gemini", "openai", "anthropic", "openrouter"],
   local: ["ollama"],
 }
