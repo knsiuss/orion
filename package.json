@@ -28,6 +28,7 @@
     "onboard": "tsx src/cli/onboard.ts",
     "quickstart": "tsx src/cli/onboard.ts --flow quickstart",
     "setup": "tsx src/cli/onboard.ts --flow quickstart",
+    "setup:autostart": "node scripts/setup-autostart.mjs",
     "wa:scan": "tsx src/cli/onboard.ts --flow quickstart --channel whatsapp --whatsapp-mode scan",
     "wa:cloud": "tsx src/cli/onboard.ts --flow quickstart --channel whatsapp --whatsapp-mode cloud",
     "db:push": "prisma db push",

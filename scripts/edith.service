@@ -1,0 +1,18 @@
+[Unit]
+Description=EDITH AI Companion
+Documentation=https://github.com/edith-ai/edith
+After=network.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__INSTALL_DIR__
+ExecStart=/usr/bin/node --import tsx/esm src/main.ts
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:__INSTALL_DIR__/.edith/logs/edith.stdout.log
+StandardError=append:__INSTALL_DIR__/.edith/logs/edith.stderr.log
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

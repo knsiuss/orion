@@ -1,54 +1,25 @@
-version: "3.9"
-
 services:
   edith:
-    build: .
-    ports:
-      - "18789:18789"
-      - "8080:8080"
-    volumes:
-      - edith_data:/data
-      - ./.env:/app/.env:ro
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: edith
     restart: unless-stopped
+    volumes:
+      - ./prisma:/app/prisma          # SQLite database persistence
+      - ./.edith:/app/.edith          # backups + outbox.json
+      - ./.env:/app/.env:ro           # secrets (read-only mount)
+      - ./workspace:/app/workspace    # SOUL.md, USER.md, AGENTS.md
+    ports:
+      - "${GATEWAY_PORT:-18789}:18789"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=file:/data/edith.db
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - DATABASE_URL=file:/app/prisma/edith.db
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:18789/health', r => process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      test: ["CMD", "curl", "-f", "http://localhost:18789/health"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
-      start_period: 40s
-    depends_on:
-      ollama:
-        condition: service_healthy
-
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  # Optional voice sidecar (uncomment to enable)
-  # voice-sidecar:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.voice
-  #   ports:
-  #     - "8765:8765"
-  #   volumes:
-  #     - voice_models:/app/models
-  #   restart: unless-stopped
-
-volumes:
-  edith_data:
-  ollama_data:
+      start_period: 20s
