@@ -8,6 +8,9 @@ import { lineChannel } from "./line.js"
 import { matrixChannel } from "./matrix.js"
 import { teamsChannel } from "./teams.js"
 import { iMessageChannel } from "./imessage.js"
+import { emailChannel } from "./email.js"
+import { smsChannel } from "./sms.js"
+import { phoneChannel } from "./phone.js"
 import { createLogger } from "../logger.js"
 import config from "../config.js"
 import { sandbox } from "../permissions/sandbox.js"
@@ -34,6 +37,11 @@ export class ChannelManager {
     this.channels.set("matrix", matrixChannel)
     this.channels.set("teams", teamsChannel)
     this.channels.set("imessage", iMessageChannel)
+
+    // Phase 8 channels
+    this.channels.set("email", emailChannel)
+    this.channels.set("sms", smsChannel)
+    this.channels.set("phone", phoneChannel)
 
     for (const [name, channel] of this.channels) {
       try {
@@ -68,7 +76,19 @@ export class ChannelManager {
     }
     const safeMessage = scan.sanitized
 
-    const priorityOrder = ["telegram", "discord", "whatsapp", "webchat", "signal", "line", "matrix", "teams", "imessage"]
+    const priorityOrder = [
+      "telegram",
+      "discord",
+      "whatsapp",
+      "sms", // Phase 8: SMS before email (more immediate)
+      "webchat",
+      "signal",
+      "line",
+      "matrix",
+      "teams",
+      "imessage",
+      "email", // Phase 8: Email last (async medium, not phone - phone requires explicit call)
+    ]
     for (const name of priorityOrder) {
       const channel = this.channels.get(name)
       if (!channel || !channel.isConnected()) {
