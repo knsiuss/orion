@@ -37,6 +37,7 @@ import {
   getAuthFailure,
   type AuthContext,
 } from "./auth-middleware.js"
+import { checkApiToken, isLocalhostBinding, warnIfInsecure } from "./api-auth.js"
 import { channelHealthMonitor } from "./channel-health-monitor.js"
 import { buildHealthPayload } from "./health.js"
 import { createRateLimiter } from "./rate-limiter.js"
@@ -539,6 +540,23 @@ export class GatewayServer {
       reply.header("X-RateLimit-Remaining", String(decision.remaining))
     })
 
+    // ── API Token Auth (non-localhost only) ────────────────────────
+    // When GATEWAY_HOST is a loopback address this hook is a no-op.
+    // For LAN / VPS bindings every request must carry:
+    //   Authorization: Bearer <EDITH_API_TOKEN>
+    // Exempt paths: /health, /ws, /webhooks/*
+    this.app.addHook("onRequest", async (req, reply) => {
+      if (isLocalhostBinding(config.GATEWAY_HOST)) return
+
+      const path = normalizeRequestPath(req.url)
+      if (path === "/health" || path === "/ws" || path.startsWith("/webhooks/")) return
+
+      if (!checkApiToken(req.headers.authorization)) {
+        logger.warn("api token auth failed", { ip: req.ip, url: req.url })
+        return reply.code(401).send({ error: "Unauthorized: valid Bearer token required" })
+      }
+    })
+
     // ── Global Error Handler ───────────────────────────────────────
     this.app.setErrorHandler(async (error: Error, _req, reply) => {
       logger.error("unhandled route error", { error: error.message, stack: error.stack })
@@ -1023,6 +1041,7 @@ export class GatewayServer {
   }
 
   async start(): Promise<void> {
+    warnIfInsecure()
     await this.app.listen({ port: this.port, host: config.GATEWAY_HOST })
     logger.info(`gateway running at ws://${config.GATEWAY_HOST}:${this.port}`)
   }
