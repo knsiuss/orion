@@ -23,15 +23,67 @@
 import { tool } from "ai"
 import { z } from "zod"
 import { filterToolResult } from "../../security/prompt-filter.js"
+import { guardUrl } from "../../security/tool-guard.js"
 import { createLogger } from "../../logger.js"
 
 const log = createLogger("tools.browser")
 
-// One browser instance per Orion session — reused across tool calls
+// One browser instance per EDITH session — reused across tool calls
 let browserInstance: any = null
 let currentPage: any = null
 const MAX_CONTENT_CHARS = 8_000
 const PAGE_TIMEOUT_MS = 15_000
+const MAX_ELEMENTS = 50
+
+/**
+ * SeeAct grounding: textual choice > visual annotation.
+ * Tag interactable elements so the planner can act by stable IDs instead of brittle pixels.
+ */
+const SOM_INJECTION_SCRIPT = `(() => {
+  const selectors = [
+    "button",
+    "a[href]",
+    "input",
+    "select",
+    "textarea",
+    "[role='button']",
+    "[role='link']",
+    "[tabindex]"
+  ];
+
+  let counter = 0;
+  const seen = new WeakSet();
+  document.querySelectorAll(selectors.join(",")).forEach((element) => {
+    if (!(element instanceof HTMLElement) || seen.has(element)) {
+      return;
+    }
+    seen.add(element);
+    if (!element.dataset.edithId) {
+      element.dataset.edithId = "e" + String(counter).padStart(2, "0");
+      counter += 1;
+    }
+  });
+  return counter;
+})()`
+
+export interface BrowserInteractableElement {
+  id: string
+  tag: string
+  text: string
+  role: string
+  ariaLabel: string
+  placeholder: string
+  href: string
+  isVisible: boolean
+}
+
+export interface BrowserObservation {
+  title: string
+  url: string
+  content: string
+  elements: BrowserInteractableElement[]
+  timestamp: number
+}
 
 async function getPlaywright() {
   try {
@@ -63,11 +115,67 @@ async function getPage() {
   if (!currentPage || currentPage.isClosed()) {
     currentPage = await browser.newPage()
     await currentPage.setExtraHTTPHeaders({
-      "User-Agent": "Mozilla/5.0 (compatible; Orion/1.0)",
+      "User-Agent": "Mozilla/5.0 (compatible; EDITH/1.0)",
     })
     log.info("new browser page created")
   }
   return currentPage
+}
+
+export async function injectSetOfMark(page: any): Promise<number> {
+  return page.evaluate(SOM_INJECTION_SCRIPT)
+}
+
+function normalizeInteractableElements(elements: BrowserInteractableElement[]): BrowserInteractableElement[] {
+  return elements
+    .filter((element) => element.isVisible)
+    // Filter ke MAX_ELEMENTS: context window budget.
+    .slice(0, MAX_ELEMENTS)
+}
+
+export async function extractInteractableElements(page: any): Promise<BrowserInteractableElement[]> {
+  const rawElements = await page.evaluate(() => {
+    return Array.from(document.querySelectorAll("[data-edith-id]"))
+      .map((element) => {
+        const htmlElement = element as HTMLElement
+        const rect = htmlElement.getBoundingClientRect()
+        return {
+          id: htmlElement.dataset.edithId ?? "",
+          tag: htmlElement.tagName.toLowerCase(),
+          text: htmlElement.innerText?.trim().slice(0, 80) ?? "",
+          role: htmlElement.getAttribute("role") ?? "",
+          ariaLabel: htmlElement.getAttribute("aria-label") ?? "",
+          placeholder: (htmlElement as HTMLInputElement).placeholder ?? "",
+          href: (htmlElement as HTMLAnchorElement).href ?? "",
+          isVisible: rect.height > 0 && rect.width > 0,
+        }
+      })
+      .filter((element) => element.id)
+  })
+
+  return normalizeInteractableElements(rawElements)
+}
+
+function buildEdithSelector(edithId: string): string {
+  return `[data-edith-id="${edithId}"]`
+}
+
+export async function getCurrentBrowserObservation(): Promise<BrowserObservation | null> {
+  if (!currentPage || currentPage.isClosed()) {
+    return null
+  }
+
+  const title = await currentPage.title().catch(() => "")
+  const content = await extractPageContent(currentPage)
+  const elements = await extractInteractableElements(currentPage).catch(() => [])
+
+  return {
+    title,
+    url: currentPage.url(),
+    content,
+    elements,
+    timestamp: Date.now(),
+  }
 }
 
 /**
@@ -98,17 +206,18 @@ async function extractPageContent(page: any): Promise<string> {
 
 export const browserTool = tool({
   description: `Navigate and interact with websites. 
-Actions: navigate(url), click(selector|text), fill(selector, value), screenshot, extract(type), back.
+Actions: navigate(url), click(selector|text), fill(selector, value), click_element(edithId), fill_element(edithId, value), screenshot, extract(type), back.
 Returns page content as accessibility tree text.
 Use for: reading live websites, filling forms, extracting data, web research.`,
   inputSchema: z.object({
-    action: z.enum(["navigate", "click", "fill", "screenshot", "extract", "back"]),
+    action: z.enum(["navigate", "click", "fill", "click_element", "fill_element", "screenshot", "extract", "back"]),
     url: z.string().optional().describe("URL to navigate to (for navigate action)"),
     selector: z.string().optional().describe("CSS selector or text to target"),
     value: z.string().optional().describe("Value to fill (for fill action)"),
+    edithId: z.string().optional().describe("data-edith-id assigned by the Set-of-Mark injector"),
     extractType: z.enum(["text", "links", "tables", "all"]).optional().default("all"),
   }),
-  execute: async ({ action, url, selector, value, extractType }) => {
+  execute: async ({ action, url, selector, value, edithId, extractType }) => {
     const playwright = await getPlaywright()
     if (!playwright) {
       return "Browser tool requires Playwright. Install with: pnpm add playwright && npx playwright install chromium"
@@ -119,24 +228,48 @@ Use for: reading live websites, filling forms, extracting data, web research.`,
 
       if (action === "navigate") {
         if (!url) return "Error: url required for navigate action"
+        const guard = guardUrl(url)
+        if (!guard.allowed) {
+          return `Browser action failed: ${guard.reason ?? "URL blocked"}`
+        }
         await page.goto(url, { timeout: PAGE_TIMEOUT_MS, waitUntil: "domcontentloaded" })
+        await injectSetOfMark(page)
         const title = await page.title()
-        const content = await extractPageContent(page)
+        const observation = await getCurrentBrowserObservation()
         log.info("browser navigated", { url, title })
-        return `Page: ${title}\nURL: ${page.url()}\n\n${content}`
+        return JSON.stringify(observation)
       }
 
       if (action === "click") {
         if (!selector) return "Error: selector required for click action"
         await page.click(selector, { timeout: 5_000 })
         await page.waitForLoadState("domcontentloaded", { timeout: 5_000 }).catch(() => {})
-        return await extractPageContent(page)
+        await injectSetOfMark(page)
+        const observation = await getCurrentBrowserObservation()
+        return JSON.stringify(observation)
       }
 
       if (action === "fill") {
         if (!selector || value === undefined) return "Error: selector and value required for fill"
         await page.fill(selector, value)
         return `Filled '${selector}' with '${value.slice(0, 50)}'`
+      }
+
+      if (action === "click_element") {
+        if (!edithId) return "Error: edithId required for click_element"
+        // data-edith-id grounding: no pixel coordinates needed.
+        await page.click(buildEdithSelector(edithId), { timeout: 5_000 })
+        await page.waitForLoadState("domcontentloaded", { timeout: 5_000 }).catch(() => {})
+        await injectSetOfMark(page)
+        const observation = await getCurrentBrowserObservation()
+        return JSON.stringify(observation)
+      }
+
+      if (action === "fill_element") {
+        if (!edithId || value === undefined) return "Error: edithId and value required for fill_element"
+        await page.fill(buildEdithSelector(edithId), value)
+        const observation = await getCurrentBrowserObservation()
+        return JSON.stringify(observation)
       }
 
       if (action === "screenshot") {
@@ -162,7 +295,9 @@ Use for: reading live websites, filling forms, extracting data, web research.`,
 
       if (action === "back") {
         await page.goBack({ timeout: PAGE_TIMEOUT_MS })
-        return await extractPageContent(page)
+        await injectSetOfMark(page)
+        const observation = await getCurrentBrowserObservation()
+        return JSON.stringify(observation)
       }
 
       return "Unknown action"
@@ -175,7 +310,7 @@ Use for: reading live websites, filling forms, extracting data, web research.`,
 
 /**
  * Clean up browser resources.
- * Call this on Orion shutdown.
+ * Call this on EDITH shutdown.
  */
 export async function shutdownBrowser(): Promise<void> {
   if (browserInstance) {
@@ -184,4 +319,10 @@ export async function shutdownBrowser(): Promise<void> {
     currentPage = null
     log.info("browser instance closed")
   }
+}
+
+export const __browserTestUtils = {
+  SOM_INJECTION_SCRIPT,
+  normalizeInteractableElements,
+  buildEdithSelector,
 }

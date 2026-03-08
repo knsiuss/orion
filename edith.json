@@ -1,0 +1,32 @@
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "groq/llama-3.3-70b-versatile",
+        "fallbacks": []
+      },
+      "workspace": "./workspace"
+    }
+  },
+  "computerUse": {
+    "enabled": true,
+    "planner": "lats",
+    "fallbackPlanner": "dag",
+    "maxEpisodes": 30,
+    "maxStepsPerEpisode": 20,
+    "explorationConstant": 1.4142135623730951,
+    "expansionBranches": 3,
+    "taskTimeoutMs": 120000,
+    "browser": {
+      "injectSetOfMark": true,
+      "maxElements": 50,
+      "pageTimeoutMs": 15000,
+      "headless": true
+    },
+    "fileAgent": {
+      "allowedPaths": ["./workspace", "./workbenches"],
+      "maxFileSizeMb": 10,
+      "allowWrite": true
+    }
+  }
+}

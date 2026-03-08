@@ -20,6 +20,7 @@ import { channelSendTool, channelStatusTool } from "./tools/channel.js"
 import { screenshotAnalyzeTool } from "./tools/screenshot.js"
 import { codeRunnerTool } from "./tools/code-runner.js"
 import { weatherTimeTool } from "./tools/weather-time.js"
+import { fileAgentTool } from "./tools/file-agent.js"
 // Phase T-2: MCP Tools
 import { mcpCallTool, mcpListTool } from "./tools/mcp.js"
 
@@ -89,7 +90,7 @@ export const searchTool = tool({
 })
 
 export const memoryQueryTool = tool({
-  description: "Search Orion memory for past conversations",
+  description: "Search EDITH memory for past conversations",
   inputSchema: z.object({
     query: z.string(),
     userId: z.string().default("owner"),
@@ -214,7 +215,7 @@ export const calendarTool = tool({
     time: z.string().optional(),
   }),
   execute: async ({ action, title, date, time }) => {
-    const icsPath = ".orion/calendar.ics"
+    const icsPath = ".edith/calendar.ics"
 
     if (action === "get") {
       try {
@@ -242,7 +243,7 @@ export const calendarTool = tool({
   },
 })
 
-export const orionTools = {
+export const edithTools = {
   // Existing tools
   searchTool,
   memoryQueryTool,
@@ -263,6 +264,7 @@ export const orionTools = {
   screenshotAnalyzeTool,
   codeRunnerTool,
   weatherTimeTool,
+  fileAgentTool,
   // Phase T-2: MCP Tools
   mcpCallTool,
   mcpListTool,

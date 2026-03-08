@@ -5,7 +5,7 @@ import { z } from "zod"
 
 import { createLogger } from "../logger.js"
 
-const log = createLogger("config.orion-config")
+const log = createLogger("config.edith-config")
 
 const ChannelPolicySchema = z.enum(["pairing", "allowlist", "open"])
 
@@ -19,7 +19,7 @@ const ChannelConfigSchema = z
   .partial()
 
 const AgentIdentitySchema = z.object({
-  name: z.string().default("Orion"),
+  name: z.string().default("EDITH"),
   emoji: z.string().default("✦"),
   theme: z.string().default("dark minimal"),
 })
@@ -32,9 +32,60 @@ const SkillConfigSchema = z
   })
   .partial()
 
-const OrionConfigSchema = z.object({
+const ComputerUseSchema = z.object({
+  enabled: z.boolean().default(true),
+  planner: z.enum(["lats", "dag"]).default("lats"),
+  fallbackPlanner: z.enum(["dag"]).default("dag"),
+  maxEpisodes: z.number().int().positive().default(30),
+  maxStepsPerEpisode: z.number().int().positive().default(20),
+  explorationConstant: z.number().positive().default(Math.SQRT2),
+  expansionBranches: z.number().int().positive().default(3),
+  taskTimeoutMs: z.number().int().positive().default(120000),
+  browser: z.object({
+    injectSetOfMark: z.boolean().default(true),
+    maxElements: z.number().int().positive().default(50),
+    pageTimeoutMs: z.number().int().positive().default(15000),
+    headless: z.boolean().default(true),
+  }).default({
+    injectSetOfMark: true,
+    maxElements: 50,
+    pageTimeoutMs: 15000,
+    headless: true,
+  }),
+  fileAgent: z.object({
+    allowedPaths: z.array(z.string()).default(["./workspace", "./workbenches"]),
+    maxFileSizeMb: z.number().positive().default(10),
+    allowWrite: z.boolean().default(true),
+  }).default({
+    allowedPaths: ["./workspace", "./workbenches"],
+    maxFileSizeMb: 10,
+    allowWrite: true,
+  }),
+}).default({
+  enabled: true,
+  planner: "lats",
+  fallbackPlanner: "dag",
+  maxEpisodes: 30,
+  maxStepsPerEpisode: 20,
+  explorationConstant: Math.SQRT2,
+  expansionBranches: 3,
+  taskTimeoutMs: 120000,
+  browser: {
+    injectSetOfMark: true,
+    maxElements: 50,
+    pageTimeoutMs: 15000,
+    headless: true,
+  },
+  fileAgent: {
+    allowedPaths: ["./workspace", "./workbenches"],
+    maxFileSizeMb: 10,
+    allowWrite: true,
+  },
+})
+
+const EDITHConfigSchema = z.object({
   identity: AgentIdentitySchema.default({
-    name: "Orion",
+    name: "EDITH",
     emoji: "✦",
     theme: "dark minimal",
   }),
@@ -116,39 +167,40 @@ const OrionConfigSchema = z.object({
       },
       entries: {},
     }),
+  computerUse: ComputerUseSchema,
 })
 
-export type OrionConfig = z.infer<typeof OrionConfigSchema>
+export type EDITHConfig = z.infer<typeof EDITHConfigSchema>
 
-let cachedConfig: OrionConfig | null = null
+let cachedConfig: EDITHConfig | null = null
 
-export async function loadOrionConfig(): Promise<OrionConfig> {
+export async function loadEDITHConfig(): Promise<EDITHConfig> {
   if (cachedConfig) {
     return cachedConfig
   }
 
-  const configPath = path.resolve(process.cwd(), "orion.json")
+  const configPath = path.resolve(process.cwd(), "edith.json")
 
   try {
     const raw = await fs.readFile(configPath, "utf-8")
     const parsed = JSON.parse(raw)
-    cachedConfig = OrionConfigSchema.parse(parsed)
-    log.info("orion.json loaded", { workspace: cachedConfig.agents.defaults.workspace })
+    cachedConfig = EDITHConfigSchema.parse(parsed)
+    log.info("edith.json loaded", { workspace: cachedConfig.agents.defaults.workspace })
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      log.info("orion.json not found, using defaults")
+      log.info("edith.json not found, using defaults")
     } else {
-      log.warn("orion.json parse error, using defaults", error)
+      log.warn("edith.json parse error, using defaults", error)
     }
-    cachedConfig = OrionConfigSchema.parse({})
+    cachedConfig = EDITHConfigSchema.parse({})
   }
 
   return cachedConfig
 }
 
-export function getOrionConfig(): OrionConfig {
+export function getEDITHConfig(): EDITHConfig {
   if (!cachedConfig) {
-    throw new Error("Config not loaded - call loadOrionConfig() first")
+    throw new Error("Config not loaded - call loadEDITHConfig() first")
   }
 
   return cachedConfig
