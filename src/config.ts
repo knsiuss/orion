@@ -234,6 +234,12 @@ const ConfigSchema = z.object({
   HARDWARE_MONITOR_DDC_BUS: intFromEnv.default(0),
   OCTOPRINT_URL: z.string().default(""),
   OCTOPRINT_API_KEY: z.string().default(""),
+  /** Telegram bot token used to verify webhook signatures (HMAC-SHA256). */
+  TELEGRAM_WEBHOOK_SECRET: z.string().default(""),
+  /** WhatsApp Cloud API app secret for X-Hub-Signature-256 verification. */
+  WHATSAPP_APP_SECRET: z.string().default(""),
+  /** Discord application public key for Ed25519 webhook verification. */
+  DISCORD_PUBLIC_KEY: z.string().default(""),
   // Security: pipeline rate limiter
   PIPELINE_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(60),
   /** Number of daily log files to retain before pruning. */
@@ -298,6 +304,16 @@ const ConfigSchema = z.object({
   MESSAGE_RETENTION_DAYS: z.coerce.number().int().positive().default(365),
   /** Number of days to retain AuditRecord rows before deletion. */
   AUDIT_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
+  /** Run prisma migrate deploy on startup to ensure DB schema is up-to-date. */
+  RUN_MIGRATIONS_ON_STARTUP: z.coerce.boolean().default(true),
+  /** Heap usage ratio (0-1) above which session eviction is triggered. */
+  MEMORY_WARN_THRESHOLD: z.coerce.number().min(0.1).max(1).default(0.8),
+  /** Heap usage ratio (0-1) above which graceful shutdown is triggered. */
+  MEMORY_CRITICAL_THRESHOLD: z.coerce.number().min(0.1).max(1).default(0.95),
+  /** Enable session persistence to disk across restarts. */
+  SESSION_PERSIST_ENABLED: z.coerce.boolean().default(true),
+  /** Maximum number of sessions to persist on shutdown. */
+  SESSION_PERSIST_MAX: z.coerce.number().int().positive().default(50),
 })
 
 const parsed = ConfigSchema.safeParse(process.env)
