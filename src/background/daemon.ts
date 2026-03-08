@@ -34,6 +34,7 @@ import { missionManager } from "../mission/mission-manager.js"
 import { learningReport } from "../self-improve/learning-report.js"
 import { databaseBackup } from "../database/backup.js"
 import { alertingService } from "../observability/alerting.js"
+import { retentionService } from "../database/retention.js"
 
 const logger = createLogger("daemon")
 const TRIGGERS_FILE = "permissions/triggers.yaml"
@@ -66,6 +67,7 @@ export class EDITHDaemon {
     heartbeat.recordActivity(this.lastActivityTime)
     this.initializeEventSubscriptions()
     databaseBackup.start()
+    retentionService.start()
     logger.info("Daemon started (heartbeat mode)")
     await this.runCycle()
     heartbeat.start()
@@ -111,6 +113,7 @@ export class EDITHDaemon {
   stop(): void {
     heartbeat.stop()
     databaseBackup.stop()
+    retentionService.stop()
     this.cycleInProgress = false
     this.running = false
     logger.info("Daemon stopped")

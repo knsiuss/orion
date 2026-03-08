@@ -294,6 +294,10 @@ const ConfigSchema = z.object({
   ALERT_DEAD_LETTER_THRESHOLD: z.coerce.number().int().positive().default(5),
   /** Error rate per minute threshold that triggers an alert. */
   ALERT_ERROR_RATE_THRESHOLD: z.coerce.number().int().positive().default(10),
+  /** Number of days to retain Message rows before deletion. */
+  MESSAGE_RETENTION_DAYS: z.coerce.number().int().positive().default(365),
+  /** Number of days to retain AuditRecord rows before deletion. */
+  AUDIT_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
 })
 
 const parsed = ConfigSchema.safeParse(process.env)
