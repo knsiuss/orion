@@ -1,2 +1,14 @@
 packages:
-  - 'apps/*'
+  - apps/*
+
+ignoredBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - baileys
+  - electron
+  - esbuild
+  - msedge-tts
+  - onnxruntime-node
+  - prisma
+  - protobufjs
+  - sharp

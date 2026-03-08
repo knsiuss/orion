@@ -12,7 +12,13 @@
       "Bash(node -e:*)",
       "Bash(test:*)",
       "Skill(edith-dev)",
-      "Bash(pnpm prisma:*)"
+      "Bash(pnpm prisma:*)",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"DO IT ALL\" pnpm prisma:*)",
+      "Bash(node:*)",
+      "Bash(pnpm approve-builds:*)",
+      "Read(//c/Users/test/OneDrive/Desktop/EDITH/src/config//**)",
+      "Read(//c/Users/test/OneDrive/Desktop/EDITH/src//**)",
+      "Bash(git checkout:*)"
     ]
   }
 }
