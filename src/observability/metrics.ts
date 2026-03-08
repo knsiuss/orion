@@ -402,4 +402,12 @@ export const edithMetrics = {
     "edith_process_uptime_seconds",
     "EDITH process uptime in seconds.",
   ),
+
+  // ── Rate limiting ──────────────────────────────────────────────────
+  /** Total messages rate-limited by the channel rate limiter. */
+  channelRateLimitedTotal: registry.counter(
+    "edith_channel_rate_limited_total",
+    "Total messages dropped by the per-channel rate limiter.",
+    ["channel"],
+  ),
 }

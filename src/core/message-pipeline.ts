@@ -378,7 +378,7 @@ export async function processMessage(
   log.info("pipeline start", { requestId, userId, channel })
 
   // Stage 0a: DM access policy
-  if (!dmPolicy.check(userId).allowed) {
+  if (!dmPolicy.isAllowed(userId)) {
     log.warn("message blocked by DM policy", { userId, requestId })
     return blockedResult(requestId)
   }

@@ -38,6 +38,23 @@ vi.mock("../../config.js", () => ({
     SKILL_MARKETPLACE_ENABLED: false,
     LOCAL_EMBEDDER_ENABLED: false,
     HARDWARE_ENABLED: false,
+    DM_POLICY_MODE: "open",
+    ADMIN_USER_ID: "",
+    ALLOWED_USER_IDS: "",
+    BLOCKED_USER_IDS: "",
+  },
+  config: {
+    PERSONA_ENABLED: true,
+    KNOWLEDGE_BASE_ENABLED: false,
+    SESSION_COMPACTION_ENABLED: false,
+    SESSION_CONTEXT_WINDOW_TOKENS: 32_000,
+    SKILL_MARKETPLACE_ENABLED: false,
+    LOCAL_EMBEDDER_ENABLED: false,
+    HARDWARE_ENABLED: false,
+    DM_POLICY_MODE: "open",
+    ADMIN_USER_ID: "",
+    ALLOWED_USER_IDS: "",
+    BLOCKED_USER_IDS: "",
   },
 }))
 
