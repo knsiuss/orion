@@ -37,6 +37,7 @@ import { sessionStore } from "../sessions/session-store.js"
 import { outbox } from "../channels/outbox.js"
 import { sidecarManager } from "./sidecar-manager.js"
 import { performShutdown } from "./shutdown.js"
+import { registerErrorBoundaries } from "./error-boundaries.js"
 
 const log = createLogger("startup")
 
@@ -111,6 +112,7 @@ function validateRequiredEnv(): void {
 }
 
 export async function initialize(workspaceDir: string): Promise<StartupResult> {
+  registerErrorBoundaries()
   validateRequiredEnv()
   log.info("starting EDITH")
 
