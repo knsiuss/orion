@@ -1,484 +1,228 @@
-# Phase 1 — Voice Input Pipeline (Full-Duplex EDITH Voice)
+# Phase 1 - Voice Input Pipeline
 
-**Durasi Estimasi:** 2–3 minggu  
-**Prioritas:** 🔴 CRITICAL — Ini adalah fondasi interaksi EDITH  
-**Status Saat Ini:** TTS via EdgeEngine ✅ | VAD ❌ | Wake Word ❌ | STT ❌  
+Status: Complete with operational caveats
+Milestone scope: Voice milestone only
+Canonical runtime: Gateway-first push-to-talk plus desktop host always-on reusing the same voice configuration and response pipeline
 
----
+## Summary
 
-## 1. Tujuan
+Phase 1 is closed for the voice milestone.
 
-Membangun pipeline voice end-to-end sehingga user bisa berbicara ke EDITH seperti EDITH:
-1. Selalu mendengarkan (always-on VAD)
-2. Deteksi wake word ("Hey EDITH")  
-3. Speech-to-Text real-time
-4. Proses melalui EDITH pipeline
-5. Text-to-Speech response
-6. Bisa diinterupsi mid-speech (barge-in / full-duplex)
+- `Phase 1A` ships one canonical push-to-talk path through the gateway.
+- `Phase 1B` ships desktop host always-on voice with wake word, turn detection, and barge-in on top of the same runtime voice config.
+- Voice provider credentials are user-managed in top-level `voice` config inside `edith.json`, not in `env`.
+- Desktop and mobile are thin clients for capture, transport, and playback. The gateway remains the canonical runtime for STT -> chat pipeline -> TTS.
+- Repo-wide TypeScript and non-voice test failures are explicitly out of scope for this milestone.
 
-**Harus jalan di:**  
-- 🖥️ Windows/macOS/Linux (desktop daemon — native mic)
-- 📱 Android/iOS (React Native Expo — `expo-av` mic → WebSocket streaming ke server)
+## Shipped Architecture
 
----
+### Phase 1A: Gateway-first buffered push-to-talk
 
-## 2. Arsitektur Sistem
+The canonical request path is:
 
-### 2.1 Desktop Architecture (Server-Side Voice)
+`capture audio -> voice_start / voice_chunk / voice_stop -> VoiceSessionManager -> STT -> existing chat pipeline -> Edge TTS -> voice_audio playback`
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    DESKTOP (Node.js Daemon)                  │
-│                                                              │
-│  ┌──────────┐   ┌───────────┐   ┌───────────────┐          │
-│  │ Mic Input │──▶│ Silero VAD │──▶│ Wake Word     │          │
-│  │ (portaudio│   │ (ONNX RT)  │   │ (Porcupine/   │          │
-│  │  16kHz    │   │ 30ms chunk │   │  OpenWakeWord) │          │
-│  │  mono)    │   └─────┬─────┘   └───────┬───────┘          │
-│  └──────────┘         │                  │                    │
-│                       │ isSpeech         │ wakeWordDetected   │
-│                       ▼                  ▼                    │
-│              ┌────────────────────────────────┐              │
-│              │    STT Engine (streaming)       │              │
-│              │  ┌─────────────────────────┐   │              │
-│              │  │ Option A: whisper.cpp    │   │              │
-│              │  │   (local, via binding)   │   │              │
-│              │  ├─────────────────────────┤   │              │
-│              │  │ Option B: Deepgram WS   │   │              │
-│              │  │   (cloud, ~100ms lat.)   │   │              │
-│              │  └─────────────────────────┘   │              │
-│              └──────────────┬─────────────────┘              │
-│                             │ transcription text              │
-│                             ▼                                 │
-│  ┌──────────────────────────────────────────────────┐        │
-│  │              EDITH Core Pipeline                    │        │
-│  │  context build → MemRL → engine call → feedback   │        │
-│  └──────────────────────┬───────────────────────────┘        │
-│                         │ response text                       │
-│                         ▼                                     │
-│  ┌──────────────────────────────────┐                        │
-│  │       TTS (Edge Engine)          │──▶ 🔊 Speaker          │
-│  │   - msedge-tts (free, offline)   │                        │
-│  │   - voice: en-US-GuyNeural       │                        │
-│  │   - streaming MP3 → play         │                        │
-│  └──────────────────────────────────┘                        │
-│                                                              │
-│  ┌──────────────────────────────────┐                        │
-│  │     Barge-In Controller          │                        │
-│  │  - VAD detects speech during TTS │                        │
-│  │  - AbortController cancels TTS   │                        │
-│  │  - New STT session starts        │                        │
-│  └──────────────────────────────────┘                        │
-└─────────────────────────────────────────────────────────────┘
-```
+Current behavior:
 
-### 2.2 Mobile Architecture (Android/iOS via Expo)
+- Desktop and mobile can start a voice session with `voice_start`.
+- Clients may stream repeated `voice_chunk` messages or send the full buffered recording on `voice_stop`.
+- The gateway owns session lifecycle through `VoiceSessionManager`.
+- STT runs first, then the existing response pipeline runs unchanged, then TTS streams audio chunks back to the client.
+- Text chat contracts remain unchanged. Voice adds a parallel `voice_*` contract for turn events and playback.
 
-```
-┌──────────────────────────────────────────┐
-│         MOBILE (React Native Expo)        │
-│                                           │
-│  ┌───────────────┐   ┌───────────────┐   │
-│  │  expo-av       │   │  UI: Push-to- │   │
-│  │  Audio.Record  │   │  Talk / Always │   │
-│  │  (16kHz PCM)   │   │  Listen toggle │   │
-│  └───────┬───────┘   └───────────────┘   │
-│          │ audio chunks (base64)          │
-│          ▼                                │
-│  ┌───────────────────────────┐           │
-│  │  WebSocket to Gateway     │           │
-│  │  ws://IP:18789/ws         │           │
-│  │                           │           │
-│  │  → { type: "voice_start" }│           │
-│  │  → { type: "voice_chunk", │           │
-│  │      data: base64PCM }    │           │
-│  │  → { type: "voice_stop" } │           │
-│  │                           │           │
-│  │  ← { type:                │           │
-│  │    "voice_transcript",    │           │
-│  │    text: "..." }          │           │
-│  │  ← { type:                │           │
-│  │    "voice_audio",         │           │
-│  │    data: base64MP3 }      │           │
-│  └───────────────────────────┘           │
-│          │                                │
-│          ▼                                │
-│  ┌───────────────────────────┐           │
-│  │  expo-av Audio.Sound      │           │
-│  │  Play TTS response MP3    │           │
-│  └───────────────────────────┘           │
-│                                           │
-│  ┌───────────────────────────┐           │
-│  │  Local VAD (optional)     │           │
-│  │  WebRTC VAD in JS or      │           │
-│  │  expo-speech for on-device│           │
-│  └───────────────────────────┘           │
-└──────────────────────────────────────────┘
-          │
-          │  WebSocket
-          ▼
-┌──────────────────────────────────────────┐
-│           SERVER (EDITH Gateway)          │
-│                                           │
-│  voice_chunk → Accumulate → STT          │
-│  STT text → EDITH Pipeline                 │
-│  Response → TTS → voice_audio chunks     │
-│                                           │
-└──────────────────────────────────────────┘
-```
+Implementation anchors:
 
-### 2.3 Message Protocol (WebSocket)
+- `EDITH-ts/src/gateway/server.ts`
+- `EDITH-ts/src/voice/session-manager.ts`
+- `EDITH-ts/src/voice/providers.ts`
 
-| Direction | Message Type | Payload | Description |
-|-----------|-------------|---------|-------------|
-| Client→Server | `voice_start` | `{ sampleRate?: 16000, encoding?: "pcm16" }` | Mulai voice session |
-| Client→Server | `voice_chunk` | `{ data: string (base64 PCM) }` | Audio chunk (~100ms) |
-| Client→Server | `voice_stop` | `{}` | Akhiri recording |
-| Server→Client | `voice_transcript` | `{ text: string, isFinal: boolean }` | STT result (streaming) |
-| Server→Client | `assistant_transcript` | `{ text: string }` | LLM response text |
-| Server→Client | `voice_audio` | `{ data: string (base64 MP3), index: number }` | TTS audio chunk |
-| Server→Client | `voice_started` | `{ sessionId: string }` | Konfirmasi session dimulai |
-| Server→Client | `voice_stopped` | `{ sessionId: string }` | Konfirmasi session selesai |
+### Phase 1B: Desktop host always-on voice
 
----
+The host-side always-on path is:
 
-## 3. Komponen yang Harus Dibangun
+`host mic capture -> Python streaming VAD/segmentation -> native wake word when available -> STT turn -> existing message pipeline -> Edge TTS playback`
 
-### 3.1 VAD — Voice Activity Detection
+Current behavior:
 
-**File:** `EDITH-ts/src/os-agent/voice-io.ts` → `initializeVAD()` + `startVADLoop()`
+- Startup enables the OS-Agent voice loop when top-level `voice.mode` is `always-on`.
+- `VoiceIO` handles mic capture, turn segmentation, wake handling, speech events, and TTS interruption.
+- Barge-in cancels active TTS when full-duplex mode is enabled.
+- Wake-word execution prefers native engine paths when dependencies and model assets are available.
+- If native wake-word requirements are not met, the runtime falls back to transcript-keyword behavior instead of failing startup.
 
-**Status:** ❌ Placeholder (hanya log)
+Implementation anchors:
 
-**Implementasi:**
-```
-Dependencies:
-  - onnxruntime-node (untuk Silero VAD ONNX model)
-  - node-portaudio ATAU mic (npm) untuk audio capture
+- `EDITH-ts/src/core/startup.ts`
+- `EDITH-ts/src/os-agent/voice-io.ts`
+- `EDITH-ts/src/os-agent/voice-plan.ts`
+- `EDITH-ts/src/voice/wake-model-assets.ts`
 
-Langkah:
-  1. Download Silero VAD v5 model: silero_vad.onnx (~2MB)
-  2. Load model via onnxruntime-node InferenceSession
-  3. Capture mic audio: 16kHz mono PCM16
-  4. Feed 30ms chunks (480 samples) ke model
-  5. Output: isSpeech probability (0.0 - 1.0)
-  6. Threshold: 0.5 → speech detected
-  7. Emit event: "speechStart" / "speechEnd"
-```
+## Runtime Decisions
 
-**Alternatif untuk resource-constrained:**
-- WebRTC VAD (`@aspect-build/re-audio-vad`) — lebih ringan tapi kurang akurat
-- Threshold-based energy detection — paling ringan tapi unreliable
+These are the locked Phase 1 runtime decisions.
 
-### 3.2 Wake Word Detection
+- The gateway is the canonical voice runtime for push-to-talk.
+- Desktop and mobile do not own separate voice response pipelines.
+- Top-level `voice` config in `edith.json` is the source of truth.
+- Legacy `osAgent.voice` values are still read as compatibility fallback, but new setup flows should write top-level `voice`.
+- Voice credentials are stored under `voice.*`, not injected into `process.env`.
+- Deepgram is optional. If Deepgram is configured and the requested language is `en` or `id`, the runtime may use Deepgram; otherwise it falls back to local Python Whisper.
+- TTS is Edge-only in Phase 1.
+- OpenWakeWord is the recommended native wake-word path for default setup.
+- Porcupine is supported when the user provides both a Picovoice access key and a custom `.ppn` keyword model.
 
-**File:** `EDITH-ts/src/os-agent/voice-io.ts` → `initializeWakeWord()`
+## Public Contracts
 
-**Status:** ❌ Placeholder
+### `edith.json`
 
-**Opsi A — Picovoice Porcupine (Recommended):**
-```
-Package: @picovoice/porcupine-node
-Pros:
-  - Pre-trained "Hey EDITH" model (atau custom via console.picovoice.ai)
-  - Free tier: 3 custom keywords
-  - Ultra-low CPU usage (~1% core)
-  - Cross-platform (Windows, Mac, Linux, Android, iOS)
-Cons:  
-  - Requires API key (free-tier ada limit)
-  - Binary blob (closed source)
+Phase 1 documents the following top-level `voice` structure:
 
-Setup:
-  1. npm install @picovoice/porcupine-node
-  2. Create "Hey EDITH" keyword at console.picovoice.ai
-  3. Download .ppn file → config/hey-edith.ppn
-  4. Process 512-sample frames (16kHz) → returns keyword index
-```
-
-**Opsi B — OpenWakeWord (Open Source):**
-```
-Python bridge: spawn Python process + socket
-Package: pip install openwakeword
-Pros:
-  - Fully open source
-  - Train custom keywords
-  - No API key needed
-Cons:
-  - Requires Python runtime
-  - ~50ms latency per inference
-  - More setup complexity
-
-Setup:
-  1. pip install openwakeword onnxruntime
-  2. Train custom "hey edith" model (or use pre-trained)  
-  3. Bridge: Node spawns Python subprocess
-  4. Communication via stdin/stdout JSON
-```
-
-### 3.3 Speech-to-Text (STT)
-
-**File:** `EDITH-ts/src/os-agent/voice-io.ts` → `initializeSTT()`
-
-**Status:** ❌ Placeholder
-
-**Opsi A — Whisper.cpp Local (Recommended for Privacy):**
-```
-Package: whisper-node (bindings ke whisper.cpp)
-Models: tiny (39MB) → base (74MB) → small (244MB)
-Latency: ~1-3s untuk utterance 5s (GPU accelerated: ~200ms)
-Languages: 99 bahasa termasuk Bahasa Indonesia
-
-Setup:
-  1. npm install whisper-node
-  2. Download model: npx whisper-node download base
-  3. Feed accumulated PCM audio setelah silence detected
-  4. Returns: { text: string, language: string }
-```
-
-**Opsi B — Deepgram Streaming (Recommended for Quality):**
-```
-Package: @deepgram/sdk
-Latency: ~100ms (real-time streaming)
-Quality: Superior untuk conversational speech
-Cost: Free tier 200 minutes/month
-
-Setup:
-  1. npm install @deepgram/sdk  
-  2. Open WebSocket to api.deepgram.com
-  3. Stream raw PCM chunks in real-time
-  4. Receive partial + final transcriptions
-  5. Support interim results (show typing indicator)
-```
-
-**Opsi C — Google Cloud Speech (Fallback):**
-```
-Package: @google-cloud/speech
-Setup: Service account key
-Streaming: yes, ~200ms latency
-```
-
-### 3.4 Gateway Voice Protocol Extension
-
-**File:** `EDITH-ts/src/gateway/server.ts`
-
-**Status:** ⚠️ Has `voice_start`/`voice_stop` handlers but no streaming audio support
-
-**Yang perlu ditambah:**
-```typescript
-// Handle voice audio chunks dari mobile client
-case "voice_chunk": {
-  const { data } = payload  // base64 PCM audio
-  const pcmBuffer = Buffer.from(data, "base64")
-  
-  // Accumulate in voice session buffer
-  activeVoiceSessions.get(clientId)?.pushAudio(pcmBuffer)
-  
-  // If using streaming STT (Deepgram), forward chunk immediately
-  activeVoiceSessions.get(clientId)?.sttStream?.write(pcmBuffer)
-  break
+```json
+{
+  "voice": {
+    "enabled": true,
+    "mode": "push-to-talk",
+    "stt": {
+      "engine": "auto",
+      "language": "auto",
+      "whisperModel": "base",
+      "providers": {
+        "deepgram": {
+          "apiKey": ""
+        }
+      }
+    },
+    "tts": {
+      "engine": "edge",
+      "voice": "en-US-GuyNeural"
+    },
+    "wake": {
+      "engine": "openwakeword",
+      "keyword": "hey-edith",
+      "modelPath": "",
+      "providers": {
+        "picovoice": {
+          "accessKey": ""
+        }
+      }
+    },
+    "vad": {
+      "engine": "silero"
+    }
+  }
 }
 ```
 
-### 3.5 Mobile Voice UI (Android/iOS)
+### Gateway and setup APIs
 
-**File:** `apps/mobile/App.tsx` + new `apps/mobile/components/VoiceButton.tsx`
+- `GET /api/config`
+  - returns current config with nested secrets redacted, including `voice.stt.providers.deepgram.apiKey` and `voice.wake.providers.picovoice.accessKey`
+- `PUT /api/config`
+  - full config replace
+- `PATCH /api/config`
+  - partial config merge
+- `POST /api/config/test-provider`
+  - supports provider tests including Deepgram using request credentials, not env injection
+- `POST /api/config/prepare-wake-model`
+  - prepares the recommended host OpenWakeWord preset and returns keyword plus asset paths
 
-**Status:** ❌ Belum ada voice feature di mobile
+### WebSocket voice protocol
 
-**Implementasi:**
-```typescript
-// VoiceButton.tsx — Push-to-talk + always-listen toggle
-import { Audio } from "expo-av"
+Client -> server:
 
-// 1. Request mic permission
-await Audio.requestPermissionsAsync()
+- `voice_start`
+  - includes `requestId`, `encoding`, `mimeType`, `sampleRate`, `channelCount`, and optional `language`
+- `voice_chunk`
+  - includes `requestId`, `data`, and optional `sequence`
+- `voice_stop`
+  - includes `requestId` and may include full buffered `data`
 
-// 2. Configure recording
-await Audio.setAudioModeAsync({
-  allowsRecordingIOS: true,
-  playsInSilentModeIOS: true,
-})
+Server -> client:
 
-// 3. Start recording
-const recording = new Audio.Recording()
-await recording.prepareToRecordAsync({
-  android: {
-    extension: '.wav',
-    outputFormat: Audio.AndroidOutputFormat.DEFAULT, 
-    audioEncoder: Audio.AndroidAudioEncoder.DEFAULT,
-    sampleRate: 16000,
-    numberOfChannels: 1,
-    bitRate: 256000,
-  },
-  ios: { ... },
-  web: { ... },
-})
+- `voice_started`
+- `voice_transcript`
+- `assistant_transcript`
+- `voice_audio`
+- `voice_stopped`
+- `error`
 
-// 4. Send chunks via WebSocket
-// Option A: Send full recording on stop
-// Option B: Use expo-av onRecordingStatusUpdate untuk periodic send
-```
+## Setup Flows
 
----
+Desktop and mobile setup now write voice settings through config surfaces instead of env-only setup.
 
-## 4. Dependency Tree
+- Desktop onboarding writes the chat provider into `env` when needed and writes voice settings under top-level `voice`.
+- Desktop onboarding can browse a local wake model path and can prepare the recommended OpenWakeWord preset on the gateway host.
+- Mobile setup writes the same top-level `voice` structure through `PATCH /api/config`.
+- Mobile setup can also call `POST /api/config/prepare-wake-model` for the recommended OpenWakeWord host preset.
 
-```
-Production Dependencies:
-├── onnxruntime-node         # Silero VAD ONNX runtime
-├── @picovoice/porcupine-node # Wake word (atau openwakeword via Python)
-├── whisper-node             # Local STT (atau @deepgram/sdk untuk cloud)
-├── node-portaudio           # Mic input (atau mic / node-record-lpcm16)  
-└── msedge-tts              # TTS (sudah installed ✅)
+Phase 1 recommended path:
 
-Mobile (Expo):
-├── expo-av                 # ✅ Sudah installed (~13.10.0)
-└── (tidak perlu tambahan — semua processing di server)
+- Use `openwakeword`
+- prepare the recommended preset on the host
+- accept the returned keyword and `modelPath`
 
-Dev/Test Dependencies:
-├── @types/node             # Type definitions
-└── vitest                  # ✅ Sudah installed
-```
+## Operational Readiness
 
----
+Phase 1 voice is ready for use.
 
-## 5. Implementation Roadmap
+Important caveats:
 
-### Week 1: VAD + Wake Word
+- The recommended managed wake-model flow currently prepares the official OpenWakeWord preset `hey mycroft`, not a custom `hey edith` model.
+- If you want an exact custom wake phrase such as `hey edith`, you still need a custom wake-word asset:
+  - Porcupine: custom `.ppn`
+  - OpenWakeWord: custom `.onnx` or `.tflite`
+- Native wake-word mode only activates when required dependencies and model assets are available.
+- Full repo health is not part of Phase 1 closure.
 
-| Task | File | Detail |
-|------|------|--------|
-| Install onnxruntime-node | package.json | `pnpm add onnxruntime-node` |
-| Download Silero VAD model | scripts/ | Download `silero_vad.onnx` ke `models/` |
-| Implement VAD class | voice-io.ts | Load ONNX, process 30ms chunks, emit events |
-| Install mic capture | package.json | `pnpm add mic` atau `node-portaudio` |
-| Audio capture loop | voice-io.ts | 16kHz mono, feed chunks ke VAD |
-| Install Porcupine | package.json | `pnpm add @picovoice/porcupine-node` |
-| Create "Hey EDITH" keyword | Picovoice console | Download .ppn file |
-| Integrate wake word | voice-io.ts | Process frames → detect "Hey EDITH" |
-| Tests: VAD + Wake Word | `__tests__/` | Mock audio, verify detections |
+## Closeout Verification
 
-### Week 2: STT + Pipeline Integration
+The following are the official Phase 1 closeout gates.
 
-| Task | File | Detail |
-|------|------|--------|
-| Install whisper-node | package.json | `pnpm add whisper-node` + download model |
-| Implement STT | voice-io.ts | Accumulate audio post-wake → transcribe |
-| Wire STT → Pipeline | voice-io.ts | `handleIncomingUserMessage(userId, text, "voice")` |
-| TTS response streaming | voice-io.ts | Generate audio → chunk → stream |
-| Barge-in support | voice-io.ts | VAD during TTS → cancel → new STT |
-| Gateway voice_chunk | server.ts | Handle streaming audio dari mobile |
-| Voice session manager | gateway/ | Track active sessions, buffer management |
-| Tests: full pipeline | `__tests__/` | End-to-end voice flow test |
+### Automated gates
 
-### Week 3: Mobile Integration + Polish
+Latest local verification was rerun on March 8, 2026.
 
-| Task | File | Detail |
-|------|------|--------|
-| VoiceButton component | apps/mobile/ | Push-to-talk UI |
-| Mic recording | VoiceButton.tsx | expo-av recording, send base64 chunks |
-| TTS playback | VoiceButton.tsx | Receive voice_audio, play via expo-av |
-| Always-listen mode | VoiceButton.tsx | Toggle persistent recording |
-| Visual feedback | App.tsx | Waveform animation, status indicator |
-| Latency optimization | voice-io.ts | Pre-buffer, warm model, parallel TTS |
-| Error handling | All | Timeout, reconnect, graceful degradation |
-| Integration tests | `__tests__/` | Mobile simulator → gateway → voice flow |
+- `pnpm voice:deps:check`
+  - pass
+  - verified `.venv-voice` plus `sounddevice`, `soundfile`, `whisper`, `pvporcupine`, `openwakeword`, and `onnxruntime`
+- targeted voice test suite
+  - pass
+  - `6` files / `40` tests
+  - files:
+    - `src/voice/__tests__/session-manager.test.ts`
+    - `src/voice/__tests__/wake-word.test.ts`
+    - `src/voice/__tests__/wake-model-assets.test.ts`
+    - `src/os-agent/__tests__/voice-plan.test.ts`
+    - `src/os-agent/__tests__/voice-io.test.ts`
+    - `src/gateway/__tests__/server.test.ts`
 
----
+### Manual milestone gates
 
-## 6. Keputusan yang Perlu Diambil
+These remain part of the Phase 1 closeout definition and were already validated during the implementation milestone:
 
-| # | Keputusan | Opsi | Rekomendasi |
-|---|-----------|------|-------------|
-| 1 | Wake Word Engine | Porcupine vs OpenWakeWord | **Porcupine** — lebih mudah setup, lower CPU, free tier cukup |
-| 2 | STT Engine (Primary) | Whisper.cpp vs Deepgram | **Deepgram** untuk real-time streaming, **Whisper** sebagai offline fallback |
-| 3 | Audio Capture Library | node-portaudio vs mic (npm) | **mic** — lebih mudah install, cross-platform |
-| 4 | Mobile Voice Mode | Push-to-talk vs Always-listen | **Push-to-talk** dulu (hemat baterai), always-listen sebagai toggle option |
-| 5 | STT Language | English-only vs Multilingual | **Multilingual** — user pakai Bahasa Indonesia + English |
+- desktop onboarding smoke
+  - voice config save works
+  - wake-model prepare flow works
+- real host acceptance
+  - desktop always-on startup works with the prepared recommended model path
 
----
+## Known Non-Blocking Exceptions
 
-## 7. Testing Strategy
+These do not block Phase 1 closure.
 
-```
-Unit Tests (8 tests):
-├── VAD: process known speech/silence samples → correct detection
-├── Wake Word: process "Hey EDITH" audio → triggers
-├── Wake Word: process non-keyword audio → no false trigger
-├── STT: short utterance → correct transcription  
-├── STT: empty audio → empty string (no crash)
-├── TTS: generate & play → completes without error
-├── Barge-in: speech during TTS → cancels playback
-└── Pipeline: voice input → text → response → audio output
+- Full-repo `pnpm typecheck` is currently red in unrelated areas such as:
+  - `src/engines/openai.ts`
+  - `src/os-agent/vision-cortex.ts`
+  - multiple non-voice test typing and mocking failures under `src/os-agent/__tests__`
+- Full-suite test execution outside the targeted Phase 1 voice gates is not required for this milestone.
 
-Integration Tests (5 tests):
-├── Full voice loop: mic → VAD → wake → STT → pipeline → TTS
-├── Gateway voice_chunk streaming → STT → response
-├── Mobile WS voice protocol → server processing → audio response
-├── Concurrent voice sessions (multi-user)
-└── Graceful degradation: STT provider down → fallback
+## Done Definition
 
-Performance Benchmarks:
-├── VAD latency: < 5ms per 30ms chunk  
-├── Wake word latency: < 10ms per frame
-├── STT latency: < 2s (local) / < 500ms (cloud)
-├── TTS generation: < 1s for typical response
-└── End-to-end: wake word → response audio < 4s
-```
+For this repository, "Phase 1 done" means:
 
----
+- the shipped voice runtime matches the documented gateway-first and host always-on design
+- setup flows write voice credentials and wake-model configuration to top-level `voice`
+- official voice closeout gates are green
+- unrelated repo-wide failures are documented as out of scope
 
-## 8. Risiko & Mitigasi
-
-| Risiko | Impact | Mitigasi |
-|--------|--------|---------|
-| `onnxruntime-node` build gagal di Windows | Block VAD | Fallback ke WebRTC VAD (JS pure) |
-| `node-portaudio` binary compatibility | Block mic input | Fallback ke `mic` package yang shell ke sox/arecord |
-| Porcupine free tier limit | Block wake word | Switch ke OpenWakeWord via Python bridge |
-| Whisper.cpp slow tanpa GPU | Slow STT | Use Deepgram cloud as primary, Whisper as offline fb |
-| High latency pada mobile | Poor UX | Pre-buffer audio, parallel STT+TTS, WebSocket keep-alive |
-| Battery drain (always-listen mobile) | User complaint | Default push-to-talk, optimize VAD duty cycle |
-
----
-
-## 9. Android-Specific Considerations
-
-### Permissions
-```xml
-<!-- AndroidManifest.xml (auto-configured by Expo) -->
-<uses-permission android:name="android.permission.RECORD_AUDIO" />
-<uses-permission android:name="android.permission.INTERNET" />
-```
-
-### Audio Configuration
-- `expo-av` handles Android AudioRecord automatically
-- Sample rate: 16kHz mono (optimal untuk speech)
-- Format: PCM16 → convert ke base64 untuk WebSocket
-- Background recording: memerlukan foreground service notification
-
-### Battery Optimization
-- Push-to-talk mode: recording hanya saat button held
-- Always-listen mode: 
-  - Local WebRTC VAD di device (JS-based, sangat ringan)
-  - Hanya kirim audio chunk saat speech detected
-  - Duty cycle: check setiap 100ms, bukan continuous streaming
-
-### Network
-- WebSocket persistent connection with auto-reconnect (sudah ada di App.tsx ✅)
-- Audio chunk size: ~3.2KB per 100ms (16kHz × 16bit × 100ms)
-- Bandwidth: ~256kbps saat streaming (acceptable untuk 4G)
-
----
-
-## 10. File Changes Summary
-
-| File | Action | Lines Est. |
-|------|--------|-----------|
-| `EDITH-ts/src/os-agent/voice-io.ts` | Major rewrite: real VAD, wake word, STT | +400 |
-| `EDITH-ts/src/gateway/server.ts` | Add voice_chunk handler, session manager | +80 |
-| `EDITH-ts/src/gateway/voice-session.ts` | NEW: Voice session manager class | +150 |
-| `apps/mobile/components/VoiceButton.tsx` | NEW: Push-to-talk + always-listen UI | +200 |
-| `apps/mobile/App.tsx` | Wire VoiceButton into chat screen | +30 |
-| `EDITH-ts/src/os-agent/__tests__/voice.test.ts` | NEW: Voice pipeline tests | +150 |
-| `EDITH-ts/package.json` | Add dependencies | +5 |
-| **Total** | | **~1015 lines** |
+It does not mean the entire repository is fully green.

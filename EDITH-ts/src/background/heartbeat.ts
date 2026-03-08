@@ -1,19 +1,19 @@
 import fs from "node:fs/promises"
-import path from "node:path"
 
-import { channelManager } from "../channels/manager.js"
 import config from "../config.js"
+import { resolveConfiguredWorkspaceDir } from "../config/edith-config.js"
 import { contextPredictor } from "../core/context-predictor.js"
 import { eventBus } from "../core/event-bus.js"
+import { DEFAULT_HEARTBEAT_FILENAME } from "../core/bootstrap.js"
+import { resolveWorkspaceFile } from "../core/workbench.js"
 import { voiCalculator } from "../core/voi.js"
 import { getHistory } from "../database/index.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
+import { notificationDispatcher } from "../os-agent/notification.js"
 import { sandbox, PermissionAction } from "../permissions/sandbox.js"
 
 const log = createLogger("background.heartbeat")
-
-const HEARTBEAT_MD = path.resolve(process.cwd(), "workspace", "HEARTBEAT.md")
 const HEARTBEAT_PASS_MARKER = "HEARTBEAT_PASS"
 const LEGACY_HEARTBEAT_OK_MARKER = "HEARTBEAT_OK"
 
@@ -47,6 +47,13 @@ function cleanHeartbeatResponse(response: string): string {
   }
 
   return withoutMarker
+}
+
+function getHeartbeatPath(): string {
+  return resolveWorkspaceFile(
+    resolveConfiguredWorkspaceDir(),
+    DEFAULT_HEARTBEAT_FILENAME,
+  )
 }
 
 export class HeartbeatEngine {
@@ -160,7 +167,7 @@ export class HeartbeatEngine {
 
       let heartbeatInstructions = ""
       try {
-        heartbeatInstructions = await fs.readFile(HEARTBEAT_MD, "utf-8")
+        heartbeatInstructions = await fs.readFile(getHeartbeatPath(), "utf-8")
       } catch {
         this.noteSkip("HEARTBEAT.md not found")
         return
@@ -218,9 +225,18 @@ export class HeartbeatEngine {
         return
       }
 
-      const sent = await channelManager.send(userId, proactiveMessage)
-      if (!sent) {
-        this.noteSkip("no connected channel available")
+      await notificationDispatcher.reloadConfig()
+      const dispatchResult = await notificationDispatcher.dispatch({
+        userId,
+        title: "EDITH",
+        message: proactiveMessage,
+        priority: "medium",
+        source: "heartbeat",
+      })
+      if (!dispatchResult.ok) {
+        this.noteSkip("notification dispatcher suppressed heartbeat", {
+          reason: dispatchResult.suppressedReason,
+        })
         return
       }
 

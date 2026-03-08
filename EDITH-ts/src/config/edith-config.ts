@@ -7,6 +7,13 @@ import { z } from "zod"
 import { createLogger } from "../logger.js"
 
 const log = createLogger("config.edith-config")
+export const DEFAULT_WORKBENCH_NAME = "testing"
+export const DEFAULT_WORKBENCHS_DIR = "workbenches"
+export const DEFAULT_WORKSPACE_PATH = `./${DEFAULT_WORKBENCHS_DIR}/${DEFAULT_WORKBENCH_NAME}`
+export const RECOMMENDED_WORKBENCH_PATHS = {
+  testing: `./${DEFAULT_WORKBENCHS_DIR}/testing`,
+  edith: `./${DEFAULT_WORKBENCHS_DIR}/edith`,
+} as const
 
 const ChannelPolicySchema = z.enum(["pairing", "allowlist", "open"])
 
@@ -88,20 +95,35 @@ const GUIConfigSchema = z
     maxActionsPerMinute: 30,
   })
 
+const VisionProfileSchema = z
+  .enum(["minimum-spec", "balanced", "lite-1gb"])
+  .default("minimum-spec")
+  .transform((profile): "minimum-spec" | "balanced" => (
+    profile === "balanced" ? "balanced" : "minimum-spec"
+  ))
+
 const VisionConfigSchema = z
   .object({
     enabled: z.boolean().default(false),
+    profile: VisionProfileSchema,
     ocrEngine: z.enum(["tesseract", "cloud"]).default("tesseract"),
     elementDetection: z.enum(["accessibility", "yolo", "omniparser"]).default("accessibility"),
-    multimodalEngine: z.enum(["gemini", "openai", "anthropic", "ollama"]).default("gemini"),
-    monitorIntervalMs: z.number().default(5000),
+    multimodalEngine: z.enum(["auto", "gemini", "openai", "anthropic", "ollama"]).default("auto"),
+    monitorIntervalMs: z.number().default(8_000),
+    rateLimitMs: z.number().default(12_000),
+    maxImageBytesMb: z.number().default(8),
+    maxImageEdgePx: z.number().default(1_280),
   })
   .default({
     enabled: false,
+    profile: "minimum-spec",
     ocrEngine: "tesseract",
     elementDetection: "accessibility",
-    multimodalEngine: "gemini",
-    monitorIntervalMs: 5000,
+    multimodalEngine: "auto",
+    monitorIntervalMs: 8_000,
+    rateLimitMs: 12_000,
+    maxImageBytesMb: 8,
+    maxImageEdgePx: 1_280,
   })
 
 const VoiceIOConfigSchema = z
@@ -226,6 +248,80 @@ const VoiceConfigSchema = z
     },
   })
 
+const QuietHoursSchema = z
+  .object({
+    start: z.string().default("22:00"),
+    end: z.string().default("07:00"),
+  })
+  .default({
+    start: "22:00",
+    end: "07:00",
+  })
+
+const ProactiveConfigSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    quietHours: QuietHoursSchema,
+    channels: z
+      .object({
+        desktop: z.boolean().default(true),
+        mobile: z.boolean().default(true),
+        voice: z.boolean().default(false),
+      })
+      .default({
+        desktop: true,
+        mobile: true,
+        voice: false,
+      }),
+    fileWatcher: z
+      .object({
+        enabled: z.boolean().default(false),
+        paths: z.array(z.string()).default([]),
+        debounceMs: z.number().default(500),
+        summaryWindowMs: z.number().default(300_000),
+      })
+      .default({
+        enabled: false,
+        paths: [],
+        debounceMs: 500,
+        summaryWindowMs: 300_000,
+      }),
+    schedulerIntervalMs: z.number().default(10_000),
+    maxWatchedPaths: z.number().default(5),
+  })
+  .default({
+    enabled: true,
+    quietHours: {
+      start: "22:00",
+      end: "07:00",
+    },
+    channels: {
+      desktop: true,
+      mobile: true,
+      voice: false,
+    },
+    fileWatcher: {
+      enabled: false,
+      paths: [],
+      debounceMs: 500,
+      summaryWindowMs: 300_000,
+    },
+    schedulerIntervalMs: 10_000,
+    maxWatchedPaths: 5,
+  })
+
+const MacrosConfigSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    yamlPath: z.string().default("macros.yaml"),
+    maxConcurrent: z.number().default(1),
+  })
+  .default({
+    enabled: true,
+    yamlPath: "macros.yaml",
+    maxConcurrent: 1,
+  })
+
 const SystemConfigSchema = z
   .object({
     enabled: z.boolean().default(true),
@@ -284,10 +380,14 @@ const OSAgentConfigSchema = z
     },
     vision: {
       enabled: false,
+      profile: "minimum-spec",
       ocrEngine: "tesseract",
       elementDetection: "accessibility",
-      multimodalEngine: "gemini",
-      monitorIntervalMs: 5000,
+      multimodalEngine: "auto",
+      monitorIntervalMs: 8_000,
+      rateLimitMs: 12_000,
+      maxImageBytesMb: 8,
+      maxImageEdgePx: 1_280,
     },
     voice: {
       enabled: false,
@@ -322,6 +422,12 @@ const EdithConfigSchema = z.object({
 
   voice: VoiceConfigSchema,
 
+  vision: VisionConfigSchema,
+
+  proactive: ProactiveConfigSchema,
+
+  macros: MacrosConfigSchema,
+
   identity: AgentIdentitySchema.default({
     name: "EDITH",
     emoji: "✦",
@@ -341,7 +447,7 @@ const EdithConfigSchema = z.object({
               primary: "groq/llama-3.3-70b-versatile",
               fallbacks: [],
             }),
-          workspace: z.string().default("./workspace"),
+          workspace: z.string().default(DEFAULT_WORKSPACE_PATH),
           bootstrapMaxChars: z.number().default(65536),
           bootstrapTotalMaxChars: z.number().default(100000),
         })
@@ -350,7 +456,7 @@ const EdithConfigSchema = z.object({
             primary: "groq/llama-3.3-70b-versatile",
             fallbacks: [],
           },
-          workspace: "./workspace",
+          workspace: DEFAULT_WORKSPACE_PATH,
           bootstrapMaxChars: 65536,
           bootstrapTotalMaxChars: 100000,
         }),
@@ -361,7 +467,7 @@ const EdithConfigSchema = z.object({
           primary: "groq/llama-3.3-70b-versatile",
           fallbacks: [],
         },
-        workspace: "./workspace",
+        workspace: DEFAULT_WORKSPACE_PATH,
         bootstrapMaxChars: 65536,
         bootstrapTotalMaxChars: 100000,
       },
@@ -428,26 +534,98 @@ const EdithConfigSchema = z.object({
 export type EdithConfig = z.infer<typeof EdithConfigSchema>
 
 let cachedConfig: EdithConfig | null = null
+const SECRET_KEY_PATTERN = /(key|token|secret|password)$/i
+
+export interface ConfigBootstrapState {
+  hasConfigFile: boolean
+  hasSecretState: boolean
+  reasons: string[]
+}
+
+function readConfiguredWorkspaceValue(payload: unknown): string | null {
+  const workspace = (
+    payload as {
+      agents?: {
+        defaults?: {
+          workspace?: unknown
+        }
+      }
+    } | null
+  )?.agents?.defaults?.workspace
+
+  return typeof workspace === "string" && workspace.trim().length > 0
+    ? workspace.trim()
+    : null
+}
+
+function resolveWorkspacePath(rawWorkspace: string, cwd: string): string {
+  return path.isAbsolute(rawWorkspace)
+    ? path.normalize(rawWorkspace)
+    : path.resolve(cwd, rawWorkspace)
+}
 
 /**
  * Resolve the path to the active config file.
  * Priority: EDITH_CONFIG_PATH -> EDITH_CONFIG_PATH -> edith.json -> edith.json
  */
-function resolveConfigPath(): string {
-  if (process.env.EDITH_CONFIG_PATH?.trim()) {
-    return path.resolve(process.env.EDITH_CONFIG_PATH.trim())
+export function resolveEdithConfigPath(
+  options: {
+    cwd?: string
+    env?: NodeJS.ProcessEnv
+  } = {},
+): string {
+  const cwd = options.cwd ?? process.cwd()
+  const env = options.env ?? process.env
+
+  if (env.EDITH_CONFIG_PATH?.trim()) {
+    return path.resolve(cwd, env.EDITH_CONFIG_PATH.trim())
   }
-  if (process.env.EDITH_CONFIG_PATH?.trim()) {
-    return path.resolve(process.env.EDITH_CONFIG_PATH.trim())
+  if (env.EDITH_CONFIG_PATH?.trim()) {
+    return path.resolve(cwd, env.EDITH_CONFIG_PATH.trim())
   }
-  const edithConfigPath = path.resolve(process.cwd(), "edith.json")
+  const edithConfigPath = path.resolve(cwd, "edith.json")
   try {
     readFileSync(edithConfigPath, "utf-8")
     return edithConfigPath
   } catch {
     // Fall through to legacy edith.json path.
   }
-  return path.resolve(process.cwd(), "edith.json")
+  return path.resolve(cwd, "edith.json")
+}
+
+export function resolveConfiguredWorkspaceDir(
+  options: {
+    cwd?: string
+    env?: NodeJS.ProcessEnv
+    config?: unknown
+  } = {},
+): string {
+  const cwd = options.cwd ?? process.cwd()
+  const env = options.env ?? process.env
+  const envWorkspace = env.EDITH_WORKSPACE?.trim()
+
+  if (envWorkspace) {
+    return resolveWorkspacePath(envWorkspace, cwd)
+  }
+
+  const configuredWorkspace = readConfiguredWorkspaceValue(options.config)
+  if (configuredWorkspace) {
+    return resolveWorkspacePath(configuredWorkspace, cwd)
+  }
+
+  try {
+    const configPath = resolveEdithConfigPath({ cwd, env })
+    const raw = readFileSync(configPath, "utf-8")
+    const parsed = JSON.parse(raw) as unknown
+    const persistedWorkspace = readConfiguredWorkspaceValue(parsed)
+    if (persistedWorkspace) {
+      return resolveWorkspacePath(persistedWorkspace, cwd)
+    }
+  } catch {
+    // Missing or invalid config falls back to the default testing workbench.
+  }
+
+  return resolveWorkspacePath(DEFAULT_WORKSPACE_PATH, cwd)
 }
 
 /**
@@ -458,7 +636,7 @@ function resolveConfigPath(): string {
  * Call this ONCE at the very top of your entry point before importing config.ts.
  */
 export function injectEdithJsonEnv(): void {
-  const configPath = resolveConfigPath()
+  const configPath = resolveEdithConfigPath()
   let raw: string
   try {
     raw = readFileSync(configPath, "utf-8")
@@ -527,7 +705,7 @@ export async function loadEdithConfig(): Promise<EdithConfig> {
     return cachedConfig
   }
 
-  const configPath = resolveConfigPath()
+  const configPath = resolveEdithConfigPath()
 
   try {
     const raw = await fs.readFile(configPath, "utf-8")
@@ -554,12 +732,81 @@ export function getEdithConfig(): EdithConfig {
   return cachedConfig
 }
 
+function collectSecretPaths(value: unknown, pathParts: string[] = []): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry, index) => collectSecretPaths(entry, [...pathParts, String(index)]))
+  }
+
+  if (!value || typeof value !== "object") {
+    return []
+  }
+
+  const secrets: string[] = []
+
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    const nextPath = [...pathParts, key]
+    if (typeof entry === "string" && entry.trim().length > 0 && SECRET_KEY_PATTERN.test(key)) {
+      secrets.push(nextPath.join("."))
+      continue
+    }
+
+    secrets.push(...collectSecretPaths(entry, nextPath))
+  }
+
+  return secrets
+}
+
+/**
+ * Inspect the persisted config file to determine whether authless bootstrap is
+ * still safe. A host is bootstrap-safe only when the config file is missing or
+ * contains no persisted secret-bearing state.
+ */
+export async function getConfigBootstrapState(configPath?: string): Promise<ConfigBootstrapState> {
+  const target = configPath ?? resolveEdithConfigPath()
+
+  try {
+    const raw = await fs.readFile(target, "utf-8")
+    let parsed: unknown
+
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return {
+        hasConfigFile: true,
+        hasSecretState: true,
+        reasons: ["config.parse_error"],
+      }
+    }
+
+    const secretPaths = collectSecretPaths(parsed)
+    return {
+      hasConfigFile: true,
+      hasSecretState: secretPaths.length > 0,
+      reasons: secretPaths,
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return {
+        hasConfigFile: false,
+        hasSecretState: false,
+        reasons: [],
+      }
+    }
+
+    return {
+      hasConfigFile: true,
+      hasSecretState: true,
+      reasons: ["config.read_error"],
+    }
+  }
+}
+
 /**
  * Write the full EdithConfig back to edith.json.
  * Used by the onboard wizard to persist config changes.
  */
 export async function writeEdithConfig(cfg: Record<string, unknown>, configPath?: string): Promise<string> {
-  const target = configPath ?? resolveConfigPath()
+  const target = configPath ?? resolveEdithConfigPath()
   const dir = path.dirname(target)
   await fs.mkdir(dir, { recursive: true })
   await fs.writeFile(target, JSON.stringify(cfg, null, 2) + "\n", "utf-8")

@@ -41,6 +41,24 @@ const mockExecuteCommand = vi.fn().mockResolvedValue({ success: true, data: { st
 const mockSpeak = vi.fn().mockResolvedValue({ success: true })
 const mockIoTExecute = vi.fn().mockResolvedValue({ success: true })
 const mockCaptureAndAnalyze = vi.fn().mockResolvedValue({ success: true, data: {} })
+const mockFindElement = vi.fn().mockResolvedValue({
+  type: "button",
+  text: "Save",
+  bounds: { x: 80, y: 90, width: 40, height: 20 },
+  interactable: true,
+})
+const mockReflectOnGuiAction = vi.fn().mockResolvedValue({
+  action: "click",
+  success: true,
+  verificationStatus: "confirmed",
+  summary: "click completed and visual reflection confirmed the change",
+  signals: ["window changed"],
+})
+const mockRecallVisualMemories = vi.fn().mockResolvedValue({
+  query: "save",
+  matches: [{ id: "m1", kind: "visual_reflection", source: "episodic-memory", content: "save reflection", score: 0.9 }],
+  summary: ["1. [visual_reflection/episodic-memory] save reflection"],
+})
 const mockListWindows = vi.fn().mockResolvedValue([])
 
 const systemState = { cpuUsage: 10, ramUsage: 50, diskUsage: 30, topProcesses: [], networkConnected: true, idleTimeSeconds: 0 }
@@ -78,6 +96,9 @@ vi.mock("../vision-cortex.js", () => ({
     shutdown: mockShutdown,
     setGUIAgent: mockSetGUIAgent,
     captureAndAnalyze: mockCaptureAndAnalyze,
+    findElement: mockFindElement,
+    reflectOnGuiAction: mockReflectOnGuiAction,
+    recallVisualMemories: mockRecallVisualMemories,
     isInitialized: true,
     }
   }),
@@ -156,6 +177,24 @@ describe("OSAgent", () => {
     mockSpeak.mockResolvedValue({ success: true })
     mockIoTExecute.mockResolvedValue({ success: true })
     mockCaptureAndAnalyze.mockResolvedValue({ success: true, data: {} })
+    mockFindElement.mockResolvedValue({
+      type: "button",
+      text: "Save",
+      bounds: { x: 80, y: 90, width: 40, height: 20 },
+      interactable: true,
+    })
+    mockReflectOnGuiAction.mockResolvedValue({
+      action: "click",
+      success: true,
+      verificationStatus: "confirmed",
+      summary: "click completed and visual reflection confirmed the change",
+      signals: ["window changed"],
+    })
+    mockRecallVisualMemories.mockResolvedValue({
+      query: "save",
+      matches: [{ id: "m1", kind: "visual_reflection", source: "episodic-memory", content: "save reflection", score: 0.9 }],
+      summary: ["1. [visual_reflection/episodic-memory] save reflection"],
+    })
     mockListWindows.mockResolvedValue([])
     mockSetGUIAgent.mockImplementation(function () {})
     mockStartMonitoring.mockImplementation(function () {})
@@ -172,7 +211,12 @@ describe("OSAgent", () => {
     MockVisionCortex.mockImplementation(function () {
       return {
         initialize: mockInitialize, shutdown: mockShutdown,
-        setGUIAgent: mockSetGUIAgent, captureAndAnalyze: mockCaptureAndAnalyze, isInitialized: true,
+        setGUIAgent: mockSetGUIAgent,
+        captureAndAnalyze: mockCaptureAndAnalyze,
+        findElement: mockFindElement,
+        reflectOnGuiAction: mockReflectOnGuiAction,
+        recallVisualMemories: mockRecallVisualMemories,
+        isInitialized: true,
       } as any
     })
 
@@ -318,6 +362,24 @@ describe("OSAgent", () => {
         expect.objectContaining({ action: "click" }),
       )
       expect(result.success).toBe(true)
+      expect(mockReflectOnGuiAction).toHaveBeenCalledOnce()
+    })
+
+    it("execute('gui') grounds targetQuery before clicking", async () => {
+      const config = createMockOSAgentConfig()
+      const agent = new OSAgent(config)
+      await agent.initialize()
+
+      const result = await agent.execute({
+        type: "gui",
+        payload: { action: "click", targetQuery: "Save button" },
+      })
+
+      expect(mockFindElement).toHaveBeenCalledWith("Save button")
+      expect(mockExecuteGUI).toHaveBeenCalledWith(
+        expect.objectContaining({ action: "click", coordinates: { x: 100, y: 100 } }),
+      )
+      expect(result.success).toBe(true)
     })
 
     it("execute('shell') delegates to system.executeCommand()", async () => {
@@ -362,6 +424,17 @@ describe("OSAgent", () => {
       await agent.execute({ type: "screenshot" })
 
       expect(mockCaptureAndAnalyze).toHaveBeenCalledOnce()
+    })
+
+    it("recallVisualMemory() delegates to the vision memory recall layer", async () => {
+      const config = createMockOSAgentConfig()
+      const agent = new OSAgent(config)
+      await agent.initialize()
+
+      const recall = await agent.recallVisualMemory("save")
+
+      expect(mockRecallVisualMemories).toHaveBeenCalledWith("save", expect.any(Object))
+      expect(recall.summary[0]).toContain("save reflection")
     })
   })
 

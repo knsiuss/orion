@@ -129,6 +129,16 @@ describe("PerceptionFusion", () => {
 
       expect(snapshot.audio?.isSpeaking).toBe(true)
     })
+
+    it("omits IoT state when getStates() fails", async () => {
+      const deps = buildMockDeps()
+      deps.iot.getStates.mockRejectedValue(new Error("HA unavailable"))
+
+      const fusion = new PerceptionFusion(deps as any)
+      const snapshot = await fusion.getSnapshot()
+
+      expect(snapshot.iot).toBeUndefined()
+    })
   })
 
   // ── [Activity Detection] ─────────────────────────────────────────────────
@@ -198,6 +208,28 @@ describe("PerceptionFusion", () => {
       expect(snapshot.activeContext.userActivity).toBe("idle")
       expect(snapshot.activeContext.activityConfidence).toBeGreaterThanOrEqual(0.9)
     })
+
+    it("extracts VS Code project name from the window title", async () => {
+      const deps = buildMockDeps()
+      deps.vision.getScreenState.mockResolvedValue(
+        buildScreenState("index.ts - edith-core - Visual Studio Code", "code"),
+      )
+
+      const fusion = new PerceptionFusion(deps as any)
+      const snapshot = await fusion.getSnapshot()
+
+      expect(snapshot.activeContext.currentProject).toBe("edith-core")
+    })
+
+    it("extracts JetBrains project name from the window title", async () => {
+      const deps = buildMockDeps()
+      deps.vision.getScreenState.mockResolvedValue(buildScreenState("my-project – src/Main.java", "idea64"))
+
+      const fusion = new PerceptionFusion(deps as any)
+      const snapshot = await fusion.getSnapshot()
+
+      expect(snapshot.activeContext.currentProject).toBe("my-project")
+    })
   })
 
   // ── [Summary] ────────────────────────────────────────────────────────────
@@ -232,6 +264,23 @@ describe("PerceptionFusion", () => {
 
       expect(summary).toBe("No perception data available.")
     })
+
+    it("summarize() includes battery and idle duration when present", async () => {
+      const deps = buildMockDeps()
+      ;(deps.system as any).state = createMockSystemState({
+        batteryLevel: 25,
+        isCharging: true,
+        idleTimeSeconds: 300,
+      })
+
+      const fusion = new PerceptionFusion(deps as any)
+      await fusion.getSnapshot()
+
+      const summary = fusion.summarize()
+
+      expect(summary).toContain("Battery: 25% (charging)")
+      expect(summary).toContain("Idle: 5 minutes")
+    })
   })
 
   // ── [Staleness] ──────────────────────────────────────────────────────────
@@ -260,6 +309,22 @@ describe("PerceptionFusion", () => {
       expect(deps.vision.getScreenState).toHaveBeenCalledTimes(2)
 
       vi.spyOn(Date, "now").mockRestore()
+    })
+
+    it("startLoop() starts monitoring and stopLoop() stops it", async () => {
+      vi.useFakeTimers()
+      const deps = buildMockDeps()
+      const fusion = new PerceptionFusion(deps as any)
+
+      await fusion.startLoop(100)
+      expect(deps.system.startMonitoring).toHaveBeenCalledOnce()
+
+      await vi.advanceTimersByTimeAsync(120)
+      expect(deps.vision.getScreenState).toHaveBeenCalledTimes(2)
+
+      await fusion.stopLoop()
+      expect(deps.system.stopMonitoring).toHaveBeenCalledOnce()
+      vi.useRealTimers()
     })
   })
 })

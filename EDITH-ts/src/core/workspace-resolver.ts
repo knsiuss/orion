@@ -13,8 +13,9 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 
-import { getEdithConfig } from "../config/edith-config.js"
+import { getEdithConfig, resolveConfiguredWorkspaceDir } from "../config/edith-config.js"
 import { createLogger } from "../logger.js"
+import { ensureWorkbenchReady } from "./workbench.js"
 
 const log = createLogger("core.workspace-resolver")
 
@@ -162,9 +163,8 @@ export class WorkspaceResolver {
 
   private async resolveSharedWorkspace(): Promise<string> {
     const config = getEdithConfig()
-    const workspace = path.resolve(process.cwd(), config.agents.defaults.workspace)
-    await fs.mkdir(workspace, { recursive: true })
-    return workspace
+    const workspace = resolveConfiguredWorkspaceDir({ config })
+    return ensureWorkbenchReady(workspace)
   }
 
   private getTenantRootDir(userId: string): string {

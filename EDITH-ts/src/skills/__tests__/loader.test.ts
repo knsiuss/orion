@@ -32,4 +32,9 @@ requires:
     expect(parsed?.requiresEnv).toEqual(["OPENAI_API_KEY"])
     expect(parsed?.requiresBins).toEqual(["python"])
   })
+
+  it("resolves workspace skills from the testing workbench by default", () => {
+    const [workspaceDir] = __skillLoaderTestUtils.getSkillDirsByPrecedence()
+    expect(workspaceDir.replace(/\\/g, "/")).toContain("/workbenches/testing/skills")
+  })
 })

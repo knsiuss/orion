@@ -15,13 +15,17 @@ interface SetupProps {
   onComplete: () => void
 }
 
-type Provider = "groq" | "ollama" | "anthropic" | "openai"
+type Provider = "groq" | "ollama" | "anthropic" | "openai" | "gemini"
 type VoiceMode = "push-to-talk" | "always-on"
 type VoiceSttEngine = "auto" | "python-whisper" | "deepgram"
 type VoiceLanguage = "auto" | "id" | "en" | "multi"
 type VoiceWhisperModel = "tiny" | "base" | "small" | "medium" | "large"
 type VoiceWakeEngine = "porcupine" | "openwakeword"
 type VoiceVadEngine = "cobra" | "silero" | "webrtc"
+type VisionProfile = "minimum-spec" | "balanced"
+type VisionMultimodalEngine = "auto" | "gemini" | "openai" | "anthropic"
+type NotificationChannel = "desktop" | "mobile" | "voice"
+type WorkbenchPreset = "testing" | "edith"
 
 interface VoiceConfigInput {
   enabled: boolean
@@ -38,6 +42,26 @@ interface VoiceConfigInput {
   picovoiceAccessKey: string
 }
 
+interface VisionConfigInput {
+  enabled: boolean
+  profile: VisionProfile
+  multimodalEngine: VisionMultimodalEngine
+}
+
+interface ProactiveConfigInput {
+  enabled: boolean
+  quietStart: string
+  quietEnd: string
+  channels: NotificationChannel[]
+  fileWatcherEnabled: boolean
+  watchPathsText: string
+}
+
+interface MacroConfigInput {
+  enabled: boolean
+  yamlPath: string
+}
+
 interface ChoiceOption {
   label: string
   value: string
@@ -45,6 +69,7 @@ interface ChoiceOption {
 
 const PROVIDERS: { id: Provider; name: string; desc: string; badge?: string }[] = [
   { id: "groq", name: "Groq", desc: "Free, fast inference with Llama models", badge: "Recommended" },
+  { id: "gemini", name: "Gemini", desc: "Best multimodal path for Phase 3 vision" },
   { id: "ollama", name: "Ollama", desc: "Local, private, free - runs on your machine" },
   { id: "anthropic", name: "Anthropic", desc: "Claude - best quality reasoning" },
   { id: "openai", name: "OpenAI", desc: "GPT-4 - excellent for code and tasks" },
@@ -52,6 +77,7 @@ const PROVIDERS: { id: Provider; name: string; desc: string; badge?: string }[] 
 
 const MODEL_MAP: Record<Provider, string> = {
   groq: "groq/llama-3.3-70b-versatile",
+  gemini: "gemini/gemini-2.0-flash",
   ollama: "ollama/llama3.2",
   anthropic: "anthropic/claude-sonnet-4-20250514",
   openai: "openai/gpt-4o",
@@ -59,6 +85,7 @@ const MODEL_MAP: Record<Provider, string> = {
 
 const KEY_FIELD: Record<Provider, { label: string; placeholder: string; envKey: string } | null> = {
   groq: { label: "GROQ_API_KEY", placeholder: "gsk_...", envKey: "GROQ_API_KEY" },
+  gemini: { label: "GEMINI_API_KEY", placeholder: "AIza...", envKey: "GEMINI_API_KEY" },
   ollama: null,
   anthropic: { label: "ANTHROPIC_API_KEY", placeholder: "sk-ant-...", envKey: "ANTHROPIC_API_KEY" },
   openai: { label: "OPENAI_API_KEY", placeholder: "sk-...", envKey: "OPENAI_API_KEY" },
@@ -101,8 +128,61 @@ const VAD_ENGINE_OPTIONS: ChoiceOption[] = [
   { label: "webrtc", value: "webrtc" },
 ]
 
+const VISION_PROFILE_OPTIONS: ChoiceOption[] = [
+  { label: "Minimum Spec", value: "minimum-spec" },
+  { label: "Balanced", value: "balanced" },
+]
+
+const VISION_MULTIMODAL_OPTIONS: ChoiceOption[] = [
+  { label: "Auto", value: "auto" },
+  { label: "Gemini", value: "gemini" },
+  { label: "OpenAI", value: "openai" },
+  { label: "Anthropic", value: "anthropic" },
+]
+
+const WORKBENCH_OPTIONS: ChoiceOption[] = [
+  { label: "Testing", value: "testing" },
+  { label: "Edith", value: "edith" },
+]
+
 const DEFAULT_TTS_VOICE = "en-US-GuyNeural"
 const DEFAULT_WAKE_WORD = "hey-edith"
+const DEFAULT_VISION_PROFILE: VisionProfile = "minimum-spec"
+const DEFAULT_QUIET_START = "22:00"
+const DEFAULT_QUIET_END = "07:00"
+
+function buildWorkbenchPath(preset: WorkbenchPreset): string {
+  return preset === "edith" ? "./workbenches/edith" : "./workbenches/testing"
+}
+
+const VISION_PROFILE_PRESETS: Record<VisionProfile, {
+  ocrEngine: "tesseract"
+  elementDetection: "accessibility"
+  monitorIntervalMs: number
+  rateLimitMs: number
+  maxImageBytesMb: number
+  maxImageEdgePx: number
+  summary: string
+}> = {
+  "minimum-spec": {
+    ocrEngine: "tesseract",
+    elementDetection: "accessibility",
+    monitorIntervalMs: 8_000,
+    rateLimitMs: 12_000,
+    maxImageBytesMb: 8,
+    maxImageEdgePx: 1_280,
+    summary: "Accessibility + Tesseract + on-demand multimodal, tuned for EDITH's 1 GB minimum system requirement.",
+  },
+  balanced: {
+    ocrEngine: "tesseract",
+    elementDetection: "accessibility",
+    monitorIntervalMs: 4_000,
+    rateLimitMs: 10_000,
+    maxImageBytesMb: 20,
+    maxImageEdgePx: 2_048,
+    summary: "Larger screenshots and faster refresh for a roomier desktop host.",
+  },
+}
 
 function buildVoiceConfig(input: VoiceConfigInput) {
   return {
@@ -138,6 +218,60 @@ function buildVoiceConfig(input: VoiceConfigInput) {
   }
 }
 
+function buildVisionConfig(input: VisionConfigInput) {
+  const preset = VISION_PROFILE_PRESETS[input.profile]
+
+  return {
+    enabled: input.enabled,
+    profile: input.profile,
+    ocrEngine: preset.ocrEngine,
+    elementDetection: preset.elementDetection,
+    multimodalEngine: input.multimodalEngine,
+    monitorIntervalMs: preset.monitorIntervalMs,
+    rateLimitMs: preset.rateLimitMs,
+    maxImageBytesMb: preset.maxImageBytesMb,
+    maxImageEdgePx: preset.maxImageEdgePx,
+  }
+}
+
+function parseWatchPaths(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+function buildProactiveConfig(input: ProactiveConfigInput) {
+  return {
+    enabled: input.enabled,
+    quietHours: {
+      start: input.quietStart.trim() || DEFAULT_QUIET_START,
+      end: input.quietEnd.trim() || DEFAULT_QUIET_END,
+    },
+    channels: {
+      desktop: input.channels.includes("desktop"),
+      mobile: input.channels.includes("mobile"),
+      voice: input.channels.includes("voice"),
+    },
+    fileWatcher: {
+      enabled: input.fileWatcherEnabled,
+      paths: parseWatchPaths(input.watchPathsText),
+      debounceMs: 500,
+      summaryWindowMs: 300_000,
+    },
+    schedulerIntervalMs: 10_000,
+    maxWatchedPaths: 5,
+  }
+}
+
+function buildMacroConfig(input: MacroConfigInput) {
+  return {
+    enabled: input.enabled,
+    yamlPath: input.yamlPath.trim() || "macros.yaml",
+    maxConcurrent: 1,
+  }
+}
+
 export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [provider, setProvider] = useState<Provider | null>(null)
@@ -159,6 +293,18 @@ export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
   const [voiceVadEngine, setVoiceVadEngine] = useState<VoiceVadEngine>("silero")
   const [voiceDeepgramApiKey, setVoiceDeepgramApiKey] = useState("")
   const [voicePicovoiceAccessKey, setVoicePicovoiceAccessKey] = useState("")
+  const [visionEnabled, setVisionEnabled] = useState(true)
+  const [visionProfile, setVisionProfile] = useState<VisionProfile>(DEFAULT_VISION_PROFILE)
+  const [visionMultimodalEngine, setVisionMultimodalEngine] = useState<VisionMultimodalEngine>("auto")
+  const [proactiveEnabled, setProactiveEnabled] = useState(true)
+  const [quietStart, setQuietStart] = useState(DEFAULT_QUIET_START)
+  const [quietEnd, setQuietEnd] = useState(DEFAULT_QUIET_END)
+  const [proactiveChannels, setProactiveChannels] = useState<NotificationChannel[]>(["desktop", "mobile"])
+  const [fileWatcherEnabled, setFileWatcherEnabled] = useState(false)
+  const [watchPathsText, setWatchPathsText] = useState("")
+  const [macrosEnabled, setMacrosEnabled] = useState(true)
+  const [macroYamlPath, setMacroYamlPath] = useState("macros.yaml")
+  const [workbenchPreset, setWorkbenchPreset] = useState<WorkbenchPreset>("testing")
 
   const httpBase = gatewayUrl
     .replace("ws://", "http://")
@@ -197,6 +343,40 @@ export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
       deepgramApiKey: voiceDeepgramApiKey,
       picovoiceAccessKey: voicePicovoiceAccessKey,
     }
+  }
+
+  function getVisionInput(): VisionConfigInput {
+    return {
+      enabled: visionEnabled,
+      profile: visionProfile,
+      multimodalEngine: visionMultimodalEngine,
+    }
+  }
+
+  function getProactiveInput(): ProactiveConfigInput {
+    return {
+      enabled: proactiveEnabled,
+      quietStart,
+      quietEnd,
+      channels: proactiveChannels,
+      fileWatcherEnabled,
+      watchPathsText,
+    }
+  }
+
+  function getMacroInput(): MacroConfigInput {
+    return {
+      enabled: macrosEnabled,
+      yamlPath: macroYamlPath,
+    }
+  }
+
+  function toggleProactiveChannel(channel: NotificationChannel) {
+    setProactiveChannels((current) => (
+      current.includes(channel)
+        ? current.filter((entry) => entry !== channel)
+        : [...current, channel]
+    ))
   }
 
   function renderChoiceRow(
@@ -282,6 +462,22 @@ export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
     }
   }
 
+  function renderWorkbenchSection() {
+    return (
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Workbench</Text>
+        <Text style={s.sectionCopy}>
+          `testing` is the safe default for setup and experiments. Promote a stable configuration later by
+          switching the gateway host to `edith`.
+        </Text>
+        {renderChoiceRow("Setup Target", workbenchPreset, WORKBENCH_OPTIONS, (value) => setWorkbenchPreset(value as WorkbenchPreset))}
+        <Text style={s.inlineHint}>
+          Selected workspace: {buildWorkbenchPath(workbenchPreset)}. EDITH provisions the workbench from the shared template on first start.
+        </Text>
+      </View>
+    )
+  }
+
   function renderVoiceSection() {
     return (
       <View style={s.section}>
@@ -328,6 +524,141 @@ export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
         {renderTextField("Wake Model Path (optional, on gateway host)", voiceWakeModelPath, setVoiceWakeModelPath, "C:\\models\\hey-edith.onnx")}
         {renderTextField("Deepgram API Key (optional)", voiceDeepgramApiKey, setVoiceDeepgramApiKey, "dg_...", true)}
         {renderTextField("Picovoice Access Key (optional)", voicePicovoiceAccessKey, setVoicePicovoiceAccessKey, "pv_...", true)}
+      </View>
+    )
+  }
+
+  function renderVisionSection() {
+    const profilePreset = VISION_PROFILE_PRESETS[visionProfile]
+
+    return (
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Vision Setup</Text>
+        <Text style={s.sectionCopy}>
+          Phase 3 uses the gateway as the canonical vision runtime. The minimum-spec profile keeps the path
+          realistic for EDITH's 1 GB minimum system requirement: Accessibility first, Tesseract OCR, then on-demand multimodal analysis.
+        </Text>
+
+        <TouchableOpacity
+          style={[s.toggleCard, visionEnabled && s.toggleCardActive]}
+          onPress={() => setVisionEnabled((value) => !value)}
+        >
+          <Text style={s.toggleTitle}>{visionEnabled ? "Vision enabled" : "Vision disabled"}</Text>
+          <Text style={s.toggleCopy}>
+            {visionEnabled
+              ? "Screen describe/find stays available from the gateway and desktop host."
+              : "Vision config is still saved, but the runtime stays off until you enable it."}
+          </Text>
+        </TouchableOpacity>
+
+        {renderChoiceRow("Vision Profile", visionProfile, VISION_PROFILE_OPTIONS, (value) => setVisionProfile(value as VisionProfile))}
+        <Text style={s.inlineHint}>{profilePreset.summary}</Text>
+        {renderChoiceRow(
+          "Multimodal Engine",
+          visionMultimodalEngine,
+          VISION_MULTIMODAL_OPTIONS,
+          (value) => setVisionMultimodalEngine(value as VisionMultimodalEngine),
+        )}
+        <Text style={s.inlineHint}>
+          `auto` uses the best configured multimodal provider. For screenshot description and grounding,
+          Gemini, OpenAI, or Anthropic should be configured in onboarding.
+        </Text>
+      </View>
+    )
+  }
+
+  function renderProactiveSection() {
+    return (
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Proactive Setup</Text>
+        <Text style={s.sectionCopy}>
+          Phase 6 foundation routes proactive output through one dispatcher. Quiet hours, channel choices,
+          and watch paths are stored in top-level proactive config on the gateway host.
+        </Text>
+
+        <TouchableOpacity
+          style={[s.toggleCard, proactiveEnabled && s.toggleCardActive]}
+          onPress={() => setProactiveEnabled((value) => !value)}
+        >
+          <Text style={s.toggleTitle}>{proactiveEnabled ? "Proactive enabled" : "Proactive disabled"}</Text>
+          <Text style={s.toggleCopy}>
+            {proactiveEnabled
+              ? "Daemon and heartbeat notifications stay active with quiet-hours and watcher routing applied."
+              : "Triggers still evaluate, but proactive delivery stays suppressed until you enable it."}
+          </Text>
+        </TouchableOpacity>
+
+        {renderTextField("Quiet Hours Start", quietStart, setQuietStart, DEFAULT_QUIET_START)}
+        {renderTextField("Quiet Hours End", quietEnd, setQuietEnd, DEFAULT_QUIET_END)}
+        <View style={s.fieldBlock}>
+          <Text style={s.label}>Channels</Text>
+          <View style={s.choiceGroup}>
+            {(["desktop", "mobile", "voice"] as NotificationChannel[]).map((channel) => {
+              const enabled = proactiveChannels.includes(channel)
+              return (
+                <TouchableOpacity
+                  key={channel}
+                  style={[s.choiceChip, enabled && s.choiceChipActive]}
+                  onPress={() => toggleProactiveChannel(channel)}
+                >
+                  <Text style={[s.choiceChipText, enabled && s.choiceChipTextActive]}>
+                    {channel} {enabled ? "on" : "off"}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+        </View>
+        <Text style={s.inlineHint}>
+          Voice routing is stored now, but richer spoken proactive follow-up remains part of later Phase 6 work.
+        </Text>
+
+        <TouchableOpacity
+          style={[s.toggleCard, fileWatcherEnabled && s.toggleCardActive]}
+          onPress={() => setFileWatcherEnabled((value) => !value)}
+        >
+          <Text style={s.toggleTitle}>{fileWatcherEnabled ? "File watcher enabled" : "File watcher disabled"}</Text>
+          <Text style={s.toggleCopy}>
+            Sensitive files notify immediately. Working files are summarized. Cache/log noise stays silent.
+          </Text>
+        </TouchableOpacity>
+
+        <View style={s.fieldBlock}>
+          <Text style={s.label}>Watch Paths (one per line)</Text>
+          <TextInput
+            style={[s.input, s.multiLineInput]}
+            value={watchPathsText}
+            onChangeText={setWatchPathsText}
+            placeholder={"C:\\Users\\test\\OneDrive\\Desktop\\EDITH\\workspace"}
+            placeholderTextColor="#555"
+            multiline
+            textAlignVertical="top"
+            autoCapitalize="none"
+          />
+        </View>
+      </View>
+    )
+  }
+
+  function renderMacrosSection() {
+    return (
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Macro Config</Text>
+        <Text style={s.sectionCopy}>
+          Macro execution is the next Phase 6 landing. The runtime path is stored now so setup remains onboarding-first.
+        </Text>
+
+        <TouchableOpacity
+          style={[s.toggleCard, macrosEnabled && s.toggleCardActive]}
+          onPress={() => setMacrosEnabled((value) => !value)}
+        >
+          <Text style={s.toggleTitle}>{macrosEnabled ? "Macros enabled" : "Macros disabled"}</Text>
+          <Text style={s.toggleCopy}>
+            This stores the macro catalog path in top-level macros config on the gateway host.
+          </Text>
+        </TouchableOpacity>
+
+        {renderTextField("Macro YAML Path", macroYamlPath, setMacroYamlPath, "macros.yaml")}
       </View>
     )
   }
@@ -398,11 +729,14 @@ export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
     const edithConfig: Record<string, unknown> = {
       env: {} as Record<string, string>,
       voice: buildVoiceConfig(getVoiceInput()),
+      vision: buildVisionConfig(getVisionInput()),
+      proactive: buildProactiveConfig(getProactiveInput()),
+      macros: buildMacroConfig(getMacroInput()),
       identity: { name: "EDITH", emoji: "✦", theme: "dark minimal" },
       agents: {
         defaults: {
           model: { primary: MODEL_MAP[provider], fallbacks: [] },
-          workspace: "./workspace",
+          workspace: buildWorkbenchPath(workbenchPreset),
         },
       },
     }
@@ -480,7 +814,8 @@ export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
       <ScrollView style={s.container}>
         <Text style={s.title}>{provider === "ollama" ? "Ollama Setup" : `${providerName} API Key`}</Text>
         <Text style={s.desc}>
-          Configure the main chat provider, then optionally save gateway-hosted voice settings.
+          Configure the main chat provider, then save gateway-hosted voice and vision settings for the
+          Phase 3 and Phase 6 runtime.
         </Text>
 
         {field ? (
@@ -494,7 +829,11 @@ export default function Setup({ gatewayUrl, onComplete }: SetupProps) {
           </View>
         )}
 
+        {renderWorkbenchSection()}
         {renderVoiceSection()}
+        {renderVisionSection()}
+        {renderProactiveSection()}
+        {renderMacrosSection()}
 
         <TouchableOpacity
           style={s.btn}
@@ -589,6 +928,9 @@ const s = StyleSheet.create({
     fontSize: 15,
     borderWidth: 2,
     borderColor: "#222",
+  },
+  multiLineInput: {
+    minHeight: 110,
   },
   toggleCard: {
     borderRadius: 12,

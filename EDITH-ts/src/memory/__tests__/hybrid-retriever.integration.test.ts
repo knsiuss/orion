@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 vi.mock("../../database/index.js", () => ({
   prisma: {
     $queryRaw: vi.fn(),
+    $executeRawUnsafe: vi.fn(),
+    memoryNode: {
+      findMany: vi.fn(),
+    },
   },
 }))
 
@@ -21,14 +25,22 @@ import { HybridRetriever } from "../hybrid-retriever.js"
 describe("HybridRetriever integration (mocked Prisma FTS)", () => {
   const prismaMock = prisma as unknown as {
     $queryRaw: ReturnType<typeof vi.fn>
+    $executeRawUnsafe: ReturnType<typeof vi.fn>
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
-    prismaMock.$queryRaw.mockResolvedValue([
-      { id: "m1", content: "Go build cache issue", rank: 0.12 },
-      { id: "m2", content: "TypeScript io parsing", rank: 0.3 },
-    ])
+    prismaMock.$queryRaw
+      .mockResolvedValueOnce([
+        {
+          type: "table",
+          sql: "CREATE VIRTUAL TABLE \"MemoryNodeFTS\" USING fts5(content, content='MemoryNode', content_rowid='rowid')",
+        },
+      ])
+      .mockResolvedValueOnce([
+        { id: "m1", content: "Go build cache issue", metadata: null, rank: 0.12 },
+        { id: "m2", content: "TypeScript io parsing", metadata: null, rank: 0.3 },
+      ])
   })
 
   it("passes raw userId to FTS query and keeps short technical tokens in MATCH query", async () => {
@@ -41,7 +53,7 @@ describe("HybridRetriever integration (mocked Prisma FTS)", () => {
     expect(results).toHaveLength(2)
     expect(results[0]?.id).toBe("m1")
 
-    const callArgs = prismaMock.$queryRaw.mock.calls[0] ?? []
+    const callArgs = prismaMock.$queryRaw.mock.calls[1] ?? []
     expect(callArgs[1]).toBe("user/dev+1")
     expect(String(callArgs[2])).toContain("go*")
     expect(String(callArgs[2])).toContain("js*")

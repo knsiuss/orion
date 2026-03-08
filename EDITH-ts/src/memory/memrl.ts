@@ -371,7 +371,36 @@ export class MemRLUpdater {
     })
 
     const nodeById = new Map(nodes.map((node) => [node.id, node]))
-    const fallbackNextMaxQByUser = new Map<string, number>()
+    const candidateRowsByUser = new Map<string, Array<{
+      id: string
+      qValue: number
+      utilityScore: number
+    }>>()
+    const userIds = Array.from(new Set(nodes.map((node) => node.userId)))
+
+    await Promise.all(userIds.map(async (userId) => {
+      const candidates = await prisma.memoryNode.findMany({
+        where: {
+          userId,
+        },
+        orderBy: [
+          { qValue: "desc" },
+          { utilityScore: "desc" },
+        ],
+        select: {
+          id: true,
+          qValue: true,
+          utilityScore: true,
+        },
+        take: 2,
+      })
+
+      candidateRowsByUser.set(userId, candidates.map((candidate) => ({
+        id: candidate.id,
+        qValue: candidate.qValue ?? candidate.utilityScore,
+        utilityScore: candidate.utilityScore,
+      })))
+    }))
 
     // Update each memory with Bellman Q-value and utility
     await Promise.all(uniqueIds.map(async (memoryId) => {
@@ -385,36 +414,13 @@ export class MemRLUpdater {
         // Get current Q-value (default to utility if not set)
         const currentQ = node.qValue ?? node.utilityScore
 
-        const peerMaxQ = nodes
-          .filter((candidate) => candidate.userId === node.userId && candidate.id !== memoryId)
-          .map((candidate) => candidate.qValue ?? candidate.utilityScore)
+        const nextCandidate = (candidateRowsByUser.get(node.userId) ?? []).find(
+          (candidate) => candidate.id !== memoryId,
+        )
 
-        let nextMaxQ = peerMaxQ.length > 0
-          ? Math.max(...peerMaxQ)
-          : Number.NaN
-
-        if (!Number.isFinite(nextMaxQ)) {
-          if (fallbackNextMaxQByUser.has(node.userId)) {
-            nextMaxQ = fallbackNextMaxQByUser.get(node.userId) ?? 0.5
-          } else {
-            const successor = await prisma.memoryNode.findFirst({
-              where: {
-                userId: node.userId,
-                id: { not: memoryId },
-              },
-              orderBy: { qValue: "desc" },
-              select: {
-                qValue: true,
-                utilityScore: true,
-              },
-            })
-
-            nextMaxQ = successor
-              ? (successor.qValue ?? successor.utilityScore)
-              : 0.5
-            fallbackNextMaxQByUser.set(node.userId, nextMaxQ)
-          }
-        }
+        let nextMaxQ = nextCandidate
+          ? (nextCandidate.qValue ?? nextCandidate.utilityScore)
+          : 0.5
 
         nextMaxQ = clamp(nextMaxQ, -1, 1)
 

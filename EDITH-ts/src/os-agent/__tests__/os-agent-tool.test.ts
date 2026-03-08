@@ -34,7 +34,25 @@ vi.mock("ai", () => ({
 
 /** Build a complete mock OSAgent with all subsystems as vi.fn() mocks. */
 function buildMockOSAgent() {
+  const execute = vi.fn(async (input: any) => {
+    if (input?.type === "gui") {
+      return {
+        success: true,
+        data: {
+          result: "action completed",
+          resolvedElement: input.payload?.targetQuery
+            ? { text: "Save", bounds: { x: 10, y: 20, width: 30, height: 40 } }
+            : undefined,
+          reflection: { summary: "visual reflection confirmed the change" },
+        },
+      }
+    }
+
+    return { success: true, data: {} }
+  })
+
   return {
+    execute,
     gui: {
       execute: vi.fn<[], Promise<{ success: boolean; data?: any; error?: string }>>().mockResolvedValue({
         success: true,
@@ -88,6 +106,11 @@ function buildMockOSAgent() {
       summarize: vi.fn<[], string>().mockReturnValue("System: CPU 25%, RAM 60% | Activity: coding"),
       getSnapshot: vi.fn<[], Promise<any>>().mockResolvedValue({ timestamp: Date.now() }),
     },
+    recallVisualMemory: vi.fn<[], Promise<any>>().mockResolvedValue({
+      query: "save",
+      matches: [{ id: "m1", kind: "visual_reflection", source: "episodic-memory", content: "save reflection", score: 0.9 }],
+      summary: ["1. [visual_reflection/episodic-memory] save reflection"],
+    }),
     getContextSnapshot: vi.fn<[], Promise<any>>().mockResolvedValue({ timestamp: Date.now() }),
   }
 }
@@ -116,21 +139,48 @@ describe("createOSAgentTool", () => {
    * Verify the action routing matrix covers all primary action types.
    */
   describe("[Action Routing]", () => {
-    it("routes 'click' action to gui.execute() with correct coordinates", async () => {
+    it("routes 'click' action through osAgent.execute() with correct coordinates", async () => {
       const result = await toolDef.execute({ action: "click", x: 100, y: 200 })
 
-      expect(mockAgent.gui.execute).toHaveBeenCalledWith(
-        expect.objectContaining({ action: "click", coordinates: { x: 100, y: 200 } }),
+      expect(mockAgent.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "gui",
+          payload: expect.objectContaining({ action: "click", coordinates: { x: 100, y: 200 } }),
+        }),
       )
       expect(typeof result).toBe("string")
       expect(result).toContain("action completed")
     })
 
-    it("routes 'type' action to gui.execute() with provided text", async () => {
+    it("routes 'click' with a natural-language target through osAgent.execute()", async () => {
+      const result = await toolDef.execute({
+        action: "click",
+        target: "Save button",
+        expectedOutcome: "saved",
+      })
+
+      expect(mockAgent.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "gui",
+          payload: expect.objectContaining({
+            action: "click",
+            targetQuery: "Save button",
+            expectedOutcome: "saved",
+          }),
+        }),
+      )
+      expect(result).toContain("Grounded target: Save")
+      expect(result).toContain("Reflect:")
+    })
+
+    it("routes 'type' action through osAgent.execute() with provided text", async () => {
       const result = await toolDef.execute({ action: "type", text: "hello" })
 
-      expect(mockAgent.gui.execute).toHaveBeenCalledWith(
-        expect.objectContaining({ action: "type", text: "hello" }),
+      expect(mockAgent.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "gui",
+          payload: expect.objectContaining({ action: "type", text: "hello" }),
+        }),
       )
       expect(typeof result).toBe("string")
     })
@@ -176,13 +226,33 @@ describe("createOSAgentTool", () => {
       expect(result).toBe("command output")
     })
 
-    it("routes 'open_app' to gui.execute() with appName", async () => {
+    it("returns stderr or a no-output fallback for shell commands without stdout", async () => {
+      mockAgent.system.executeCommand
+        .mockResolvedValueOnce({ success: true, data: { stdout: "", stderr: "warning" } })
+        .mockResolvedValueOnce({ success: true, data: { stdout: "", stderr: "" } })
+
+      await expect(toolDef.execute({ action: "shell", command: "warn" })).resolves.toBe("warning")
+      await expect(toolDef.execute({ action: "shell", command: "silent" })).resolves.toBe("(no output)")
+    })
+
+    it("routes 'open_app' through osAgent.execute() with appName", async () => {
       const result = await toolDef.execute({ action: "open_app", name: "Notepad" })
 
-      expect(mockAgent.gui.execute).toHaveBeenCalledWith(
-        expect.objectContaining({ action: "open_app", appName: "Notepad" }),
+      expect(mockAgent.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "gui",
+          payload: expect.objectContaining({ action: "open_app", appName: "Notepad" }),
+        }),
       )
       expect(typeof result).toBe("string")
+    })
+
+    it("routes 'visual_memory' to recallVisualMemory()", async () => {
+      const result = await toolDef.execute({ action: "visual_memory", text: "save flow", limit: 3 })
+
+      expect(mockAgent.recallVisualMemory).toHaveBeenCalledWith("save flow", 3)
+      expect(result).toContain("visual_reflection")
+      expect(result).toContain("save reflection")
     })
 
     it("routes 'perception' to perception.summarize() without refreshing", async () => {
@@ -190,6 +260,36 @@ describe("createOSAgentTool", () => {
 
       expect(mockAgent.perception.summarize).toHaveBeenCalledOnce()
       expect(result).toContain("CPU 25%")
+    })
+
+    it("routes 'double_click' and 'right_click' through osAgent.execute()", async () => {
+      await toolDef.execute({ action: "double_click", x: 9, y: 8 })
+      await toolDef.execute({ action: "right_click", x: 7, y: 6 })
+
+      expect(mockAgent.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "gui",
+          payload: expect.objectContaining({ action: "double_click", coordinates: { x: 9, y: 8 } }),
+        }),
+      )
+      expect(mockAgent.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "gui",
+          payload: expect.objectContaining({ action: "right_click", coordinates: { x: 7, y: 6 } }),
+        }),
+      )
+    })
+
+    it("routes 'hotkey', 'scroll', 'focus_window', and 'close_window' through osAgent.execute()", async () => {
+      await toolDef.execute({ action: "hotkey", keys: ["ctrl", "shift", "esc"] })
+      await toolDef.execute({ action: "scroll", direction: "up", amount: 5 })
+      await toolDef.execute({ action: "focus_window", name: "Terminal" })
+      await toolDef.execute({ action: "close_window", name: "Terminal" })
+
+      expect(mockAgent.execute).toHaveBeenCalledWith(expect.objectContaining({ type: "gui", payload: expect.objectContaining({ action: "hotkey", keys: ["ctrl", "shift", "esc"] }) }))
+      expect(mockAgent.execute).toHaveBeenCalledWith(expect.objectContaining({ type: "gui", payload: expect.objectContaining({ action: "scroll", direction: "up", amount: 5 }) }))
+      expect(mockAgent.execute).toHaveBeenCalledWith(expect.objectContaining({ type: "gui", payload: expect.objectContaining({ action: "focus_window", windowTitle: "Terminal" }) }))
+      expect(mockAgent.execute).toHaveBeenCalledWith(expect.objectContaining({ type: "gui", payload: expect.objectContaining({ action: "close_window", windowTitle: "Terminal" }) }))
     })
   })
 
@@ -200,12 +300,12 @@ describe("createOSAgentTool", () => {
    * @paper CaMeL 2503.18813 — Missing params must surface errors, not crash
    */
   describe("[Validation]", () => {
-    it("returns 'Error: x and y coordinates required' for click without x/y", async () => {
+    it("returns coordinate-or-target validation error for click without x/y", async () => {
       const result = await toolDef.execute({ action: "click" })
 
       expect(result).toContain("Error:")
       expect(result).toContain("coordinates")
-      expect(mockAgent.gui.execute).not.toHaveBeenCalled()
+      expect(mockAgent.execute).not.toHaveBeenCalled()
     })
 
     it("returns 'Error: text required' for type action without text", async () => {
@@ -213,7 +313,7 @@ describe("createOSAgentTool", () => {
 
       expect(result).toContain("Error:")
       expect(result).toContain("text")
-      expect(mockAgent.gui.execute).not.toHaveBeenCalled()
+      expect(mockAgent.execute).not.toHaveBeenCalled()
     })
 
     it("returns error for 'shell' action without command", async () => {
@@ -237,6 +337,15 @@ describe("createOSAgentTool", () => {
       expect(result).toContain("Error:")
       expect(mockAgent.voice.speak).not.toHaveBeenCalled()
     })
+
+    it("returns a parse failure when iot natural language produces no commands", async () => {
+      mockAgent.iot.parseNaturalLanguage.mockReturnValue([])
+
+      const result = await toolDef.execute({ action: "iot", iotCommand: "do something impossible" })
+
+      expect(result).toContain("Could not parse IoT command")
+      expect(mockAgent.iot.execute).not.toHaveBeenCalled()
+    })
   })
 
   // ── [Error Handling] ─────────────────────────────────────────────────────
@@ -258,7 +367,7 @@ describe("createOSAgentTool", () => {
     })
 
     it("returns error string when gui.execute() fails — no throw to LLM", async () => {
-      mockAgent.gui.execute.mockResolvedValue({
+      mockAgent.execute.mockResolvedValueOnce({
         success: false,
         error: "element not found",
       })
@@ -279,6 +388,17 @@ describe("createOSAgentTool", () => {
 
       expect(result).toContain("TTS failed")
       expect(result).toContain("unavailable")
+    })
+
+    it("returns command failures from shell execution", async () => {
+      mockAgent.system.executeCommand.mockResolvedValue({
+        success: false,
+        error: "permission denied",
+      })
+
+      const result = await toolDef.execute({ action: "shell", command: "rm -rf /" })
+
+      expect(result).toBe("Command failed: permission denied")
     })
   })
 
@@ -320,6 +440,62 @@ describe("createOSAgentTool", () => {
       expect(toolDef.description).toBeDefined()
       expect(toolDef.description).toContain("screenshot")
       expect(toolDef.description).toContain("click")
+    })
+
+    it("clipboard_read uses platform-specific command routing", async () => {
+      const originalPlatform = process.platform
+      Object.defineProperty(process, "platform", { value: "win32", configurable: true })
+
+      await toolDef.execute({ action: "clipboard_read" })
+      expect(mockAgent.system.executeCommand).toHaveBeenCalledWith("Get-Clipboard")
+
+      Object.defineProperty(process, "platform", { value: "darwin", configurable: true })
+      await toolDef.execute({ action: "clipboard_read" })
+      expect(mockAgent.system.executeCommand).toHaveBeenCalledWith("pbpaste")
+
+      Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true })
+    })
+
+    it("clipboard_write uses direct command on Windows and piped command elsewhere", async () => {
+      const originalPlatform = process.platform
+      Object.defineProperty(process, "platform", { value: "win32", configurable: true })
+      await toolDef.execute({ action: "clipboard_write", text: "hello" })
+      expect(mockAgent.system.executeCommand).toHaveBeenCalledWith("Set-Clipboard -Value 'hello'")
+
+      Object.defineProperty(process, "platform", { value: "linux", configurable: true })
+      await toolDef.execute({ action: "clipboard_write", text: "hello linux" })
+      expect(mockAgent.system.executeCommand).toHaveBeenCalledWith(expect.stringContaining("xclip -selection clipboard"))
+
+      Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true })
+    })
+
+    it("clipboard operations surface subsystem failures", async () => {
+      const originalPlatform = process.platform
+
+      Object.defineProperty(process, "platform", { value: "win32", configurable: true })
+      mockAgent.system.executeCommand.mockResolvedValueOnce({ success: false, error: "clipboard locked" })
+      await expect(toolDef.execute({ action: "clipboard_write", text: "hello" })).resolves.toBe("Failed: clipboard locked")
+
+      Object.defineProperty(process, "platform", { value: "linux", configurable: true })
+      mockAgent.system.executeCommand.mockResolvedValueOnce({ success: false, error: "xclip missing" })
+      await expect(toolDef.execute({ action: "clipboard_write", text: "hello" })).resolves.toBe("Failed: xclip missing")
+
+      Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true })
+    })
+
+    it("surfaces unexpected tool exceptions as OS-Agent error strings", async () => {
+      mockAgent.execute.mockRejectedValueOnce(new Error("boom"))
+
+      const result = await toolDef.execute({ action: "click", x: 1, y: 2 })
+
+      expect(result).toContain("OS-Agent error:")
+      expect(result).toContain("boom")
+    })
+
+    it("returns the default branch for unsupported actions", async () => {
+      const result = await toolDef.execute({ action: "unsupported" as any })
+
+      expect(result).toBe("Unknown action: unsupported")
     })
   })
 })

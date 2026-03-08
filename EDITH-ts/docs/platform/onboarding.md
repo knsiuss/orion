@@ -69,10 +69,12 @@ See:
 
 1. Chooses a first test channel (`telegram`, `discord`, `whatsapp`, or `webchat`).
 2. Chooses a primary model provider.
-3. Collects minimal required env values.
+3. Chooses the target workbench (`testing` by default, `edith` for promoted setups).
+4. Collects minimal required env values.
    - For WhatsApp, the wizard asks whether you want `Scan QR (Baileys)` or `Cloud API`.
-4. Writes `.env` (preserving comments and existing keys where possible).
-5. Prints channel-specific next steps and docs references.
+5. Writes `.env` (preserving comments and existing keys where possible).
+6. Writes `edith.json` with `agents.defaults.workspace` pointing at the selected workbench.
+7. Prints channel-specific next steps and docs references.
 
 ## Run modes (quick shortcuts)
 
@@ -85,6 +87,8 @@ pnpm gateway:watch
 ## Notes
 
 - The wizard writes `.env` in the repo root (`EDITH-ts/.env`).
+- New onboarding-first setups default to `EDITH-ts/workbenches/testing` so experiments stay isolated from the promoted `edith` workbench.
+- EDITH provisions missing workbench files from the shared template in `EDITH-ts/workspace` on first start.
 - When launched via global `edith` wrapper, the wizard writes the active profile env file (`~/.edith/profiles/<name>/.env` or your explicit `--profile` path).
 - Channel adapters are safe-by-default:
   - Telegram: private chat only if `TELEGRAM_CHAT_ID` is unset

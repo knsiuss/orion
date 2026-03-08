@@ -50,6 +50,7 @@
     "ai": "^6.0.97",
     "apache-arrow": "^18.1.0",
     "baileys": "7.0.0-rc.9",
+    "chokidar": "^4.0.3",
     "discord.js": "^14.25.1",
     "dotenv": "^17.3.1",
     "execa": "^9.6.1",

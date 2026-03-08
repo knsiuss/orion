@@ -80,6 +80,15 @@ describe("IoTBridge", () => {
 
       expect(mockFetch).not.toHaveBeenCalled()
     })
+
+    it("continues when Home Assistant responds with a non-ok status", async () => {
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 503, json: () => Promise.resolve({}) })
+
+      const bridge = new IoTBridge(createMockIoTConfig({ enabled: true }))
+
+      await expect(bridge.initialize()).resolves.not.toThrow()
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
   })
 
   // ── [HA Execute] ─────────────────────────────────────────────────────────
@@ -89,6 +98,15 @@ describe("IoTBridge", () => {
    * Each NL command must map to a valid HA service POST call.
    */
   describe("[HA Execute]", () => {
+    it("returns not initialized before initialize() is called", async () => {
+      const bridge = new IoTBridge(createMockIoTConfig({ enabled: true }))
+
+      const result = await bridge.execute({ target: "home_assistant", domain: "light", service: "turn_on" })
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain("not initialized")
+    })
+
     it("calls light/turn_on endpoint and returns success with response data", async () => {
       // Setup: connection OK, entities fetched, service call OK
       mockFetch
@@ -131,6 +149,75 @@ describe("IoTBridge", () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toContain("401")
+    })
+
+    it("returns an explicit error for unknown IoT targets", async () => {
+      const bridge = new IoTBridge(createMockIoTConfig({ enabled: true }))
+      await bridge.initialize()
+
+      const result = await bridge.execute({ target: "zigbee" as any, domain: "light", service: "turn_on" })
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain("Unknown IoT target")
+    })
+
+    it("returns HA API 500 errors with the status text", async () => {
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ message: "API running." }) })
+        .mockResolvedValueOnce({ ok: false, status: 500, statusText: "Internal Server Error", json: () => Promise.resolve({}) })
+
+      const bridge = new IoTBridge(createMockIoTConfig({ enabled: true }))
+      await bridge.initialize()
+
+      const result = await bridge.execute({
+        target: "home_assistant",
+        domain: "light",
+        service: "turn_on",
+        entityId: "light.bedroom",
+      })
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain("500 Internal Server Error")
+    })
+
+    it("returns Home Assistant not configured when credentials are missing", async () => {
+      const bridge = new IoTBridge(createMockIoTConfig({ enabled: true, homeAssistantUrl: undefined }))
+      await bridge.initialize()
+
+      const result = await bridge.execute({ target: "home_assistant", domain: "light", service: "turn_on" })
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain("not configured")
+    })
+
+    it("returns MQTT not connected for MQTT targets", async () => {
+      const bridge = new IoTBridge(createMockIoTConfig({ enabled: true, mqttBrokerUrl: "mqtt://broker" }))
+      await bridge.initialize()
+
+      const result = await bridge.execute({ target: "mqtt", domain: "light", service: "turn_on" } as any)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain("MQTT not connected")
+    })
+
+    it("merges entity_id and data into the Home Assistant request body", async () => {
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ message: "API running." }) })
+        .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve(haServiceResponse) })
+
+      const bridge = new IoTBridge(createMockIoTConfig({ enabled: true }))
+      await bridge.initialize()
+
+      await bridge.execute({
+        target: "home_assistant",
+        domain: "light",
+        service: "turn_on",
+        entityId: "light.bedroom",
+        data: { brightness: 128 },
+      })
+
+      const [, request] = mockFetch.mock.calls[1]
+      expect(JSON.parse(request.body)).toEqual({ brightness: 128, entity_id: "light.bedroom" })
     })
   })
 
@@ -231,6 +318,31 @@ describe("IoTBridge", () => {
 
       expect(result).toHaveLength(0)
     })
+
+    it("parses light-off, unlock, and default-room commands", () => {
+      const bridge = new IoTBridge(createMockIoTConfig({ enabled: false }))
+
+      expect(bridge.parseNaturalLanguage("padamkan lampu kamar tidur")[0]).toMatchObject({
+        domain: "light",
+        service: "turn_off",
+        entityId: "light.bedroom",
+      })
+      expect(bridge.parseNaturalLanguage("unlock the front door")[0]).toMatchObject({
+        domain: "lock",
+        service: "lock",
+      })
+      expect(bridge.parseNaturalLanguage("nyalakan lampu")[0]).toMatchObject({
+        entityId: "light.all",
+      })
+    })
+
+    it("maps additional room keywords for climate and lights", () => {
+      const bridge = new IoTBridge(createMockIoTConfig({ enabled: false }))
+
+      expect(bridge.parseNaturalLanguage("turn on kitchen light")[0]?.entityId).toBe("light.kitchen")
+      expect(bridge.parseNaturalLanguage("atur suhu office 21")[0]?.entityId).toBe("climate.office")
+      expect(bridge.parseNaturalLanguage("hidupkan lampu garasi")[0]?.entityId).toBe("light.garage")
+    })
   })
 
   // ── [States] ─────────────────────────────────────────────────────────────
@@ -263,6 +375,19 @@ describe("IoTBridge", () => {
 
       expect(states.connectedDevices).toBe(0)
       expect(states.devices).toHaveLength(0)
+    })
+
+    it("returns an empty state list when the HA states request fails", async () => {
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ message: "API running." }) })
+        .mockRejectedValueOnce(new Error("network down"))
+
+      const bridge = new IoTBridge(createMockIoTConfig({ enabled: true, autoDiscover: false }))
+      await bridge.initialize()
+
+      const states = await bridge.getStates()
+
+      expect(states).toEqual({ connectedDevices: 0, devices: [] })
     })
   })
 })

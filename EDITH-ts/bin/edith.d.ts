@@ -75,6 +75,34 @@ export function probeLocalTcpPort(
   latencyMs: number
   error: string | null
 }>
+export function buildGatewayAccessCandidates(
+  host: string,
+  port: number,
+): {
+  bindHost: string
+  bindUrl: string
+  accessUrls: string[]
+  healthUrls: string[]
+}
+export function waitForFirstLocalHttpReady(
+  urls: string[],
+  options?: { timeoutMs?: number; intervalMs?: number; requestTimeoutMs?: number },
+): Promise<{
+  ready: boolean
+  url: string | null
+  statusCode: number | null
+  elapsedMs: number
+  error: string | null
+}>
+export function waitForLocalHttpReady(
+  url: string,
+  options?: { timeoutMs?: number; intervalMs?: number; requestTimeoutMs?: number },
+): Promise<{
+  ready: boolean
+  statusCode: number | null
+  elapsedMs: number
+  error: string | null
+}>
 export function inspectWhatsAppBaileysAuthState(
   authDir: string,
   fsModule?: {

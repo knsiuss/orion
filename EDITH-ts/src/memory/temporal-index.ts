@@ -1,6 +1,9 @@
-﻿import { prisma } from "../database/index.js"
+import { Prisma } from "@prisma/client"
+
+import { prisma } from "../database/index.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
+import { ensureMemoryNodeFTSReady } from "./memory-node-fts.js"
 
 const log = createLogger("memory.temporal-index")
 
@@ -75,8 +78,12 @@ export class TemporalIndex {
     level: MemoryLevel,
     category: string,
     memoryId?: string,
+    metadata?: Record<string, unknown>,
   ): Promise<TemporalMemoryNode> {
     const cleanCategory = category.trim() || "fact"
+    await ensureMemoryNodeFTSReady().catch((error) => {
+      log.warn("MemoryNode FTS preflight failed before store", { userId, error })
+    })
 
     const created = await prisma.memoryNode.create({
       data: {
@@ -85,6 +92,7 @@ export class TemporalIndex {
         content,
         level,
         category: cleanCategory,
+        ...(metadata ? { metadata: metadata as Prisma.InputJsonValue } : {}),
       },
     })
 

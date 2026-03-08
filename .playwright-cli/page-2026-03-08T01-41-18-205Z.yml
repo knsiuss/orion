@@ -1,0 +1,225 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Even Dead, I'm The Hero
+      - heading "EDITH" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Control-room shell for setup, runtime posture, and operator recovery. Start in testing, operate there, then promote only when the flow feels stable.
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Navigation
+        - navigation [ref=e11]:
+          - link "Overview" [ref=e12] [cursor=pointer]:
+            - /url: "#overview"
+          - link "System State" [ref=e13] [cursor=pointer]:
+            - /url: "#state"
+          - link "Operator Flow" [ref=e14] [cursor=pointer]:
+            - /url: "#flow"
+          - link "Subsystems" [ref=e15] [cursor=pointer]:
+            - /url: "#systems"
+          - link "Command Deck" [ref=e16] [cursor=pointer]:
+            - /url: "#commands"
+          - link "Next Moves" [ref=e17] [cursor=pointer]:
+            - /url: "#next"
+      - generic [ref=e18]:
+        - generic [ref=e19]: Active Workbench
+        - generic [ref=e20]: workspace
+        - code [ref=e22]: C:\Users\test\.edith\profiles\default\workspace
+      - generic [ref=e23]:
+        - generic [ref=e24]: Runtime Snapshot
+        - generic [ref=e25]:
+          - text: Channels
+          - strong [ref=e26]: webchat
+        - generic [ref=e27]:
+          - text: Users
+          - strong [ref=e28]: "0"
+        - generic [ref=e29]:
+          - text: Uptime
+          - strong [ref=e30]: 38m 3s
+      - generic [ref=e31]:
+        - generic [ref=e32]: Operator Loop
+        - list [ref=e33]:
+          - listitem [ref=e34]: Stabilize the host with setup or repair before changing behavior.
+          - listitem [ref=e35]:
+            - text: Run experiments in
+            - code [ref=e36]: testing
+            - text: until the shell feels routine.
+          - listitem [ref=e37]:
+            - text: Promote to
+            - code [ref=e38]: edith
+            - text: only when recovery and daily use are boring.
+  - main [ref=e39]:
+    - generic [ref=e40]:
+      - generic [ref=e41]:
+        - generic [ref=e42]:
+          - generic [ref=e43]: EDITH Control
+          - generic [ref=e44]: Operator shell for gateway, setup, channels, and local runtime posture.
+          - generic [ref=e45]: Live snapshot updates automatically.
+        - generic [ref=e46]:
+          - button "Refresh now" [ref=e47] [cursor=pointer]
+          - button "Copy control URL" [ref=e48] [cursor=pointer]
+          - button "Copy command deck" [ref=e49] [cursor=pointer]
+      - generic [ref=e50]:
+        - generic [ref=e51]: Even Dead, I'm The Hero
+        - heading "EDITH Control" [level=1] [ref=e52]
+        - paragraph [ref=e53]: Local command center for gateway, perception, channels, and setup.
+        - generic [ref=e54]:
+          - generic [ref=e55]: Gateway online
+          - generic [ref=e59]: Daemon armed
+          - generic [ref=e62]: Voice push-to-talk
+          - generic [ref=e65]: Vision disabled
+        - generic [ref=e66]:
+          - article [ref=e67]:
+            - strong [ref=e68]: Stabilize First
+            - paragraph [ref=e69]: Use this shell first. If setup drifted or the machine is new, run onboarding before you touch channels or phase work.
+          - article [ref=e70]:
+            - strong [ref=e71]: Operate In Testing
+            - paragraph [ref=e72]: EDITH assumes experiments should live in the testing workbench, not in the promoted identity.
+          - article [ref=e73]:
+            - strong [ref=e74]: Promote Deliberately
+            - paragraph [ref=e75]: Move to edith only when setup, recovery, and daily operator flow feel boringly predictable.
+      - generic [ref=e76]:
+        - generic [ref=e77]:
+          - heading "System State" [level=2] [ref=e78]
+          - generic [ref=e79]: Live snapshot of the current local runtime.
+        - generic [ref=e80]:
+          - generic [ref=e81]:
+            - article [ref=e82]:
+              - generic [ref=e83]: Control Surface
+              - code [ref=e85]: http://127.0.0.1:18789
+              - generic [ref=e86]: This root page is the local operator entrypoint for EDITH.
+            - article [ref=e87]:
+              - generic [ref=e88]: Uptime
+              - generic [ref=e89]: 38m 3s
+              - generic [ref=e90]: Version 0.1.0
+            - article [ref=e91]:
+              - generic [ref=e92]: Workbench
+              - generic [ref=e93]: workspace
+              - code [ref=e95]: C:\Users\test\.edith\profiles\default\workspace
+            - article [ref=e96]:
+              - generic [ref=e97]: Channels
+              - generic [ref=e98]: webchat
+              - generic [ref=e99]: 0 active user(s)
+          - generic [ref=e100]:
+            - article [ref=e101]:
+              - generic [ref=e102]: Quick Actions
+              - generic [ref=e103]:
+                - link "Open WebChat" [ref=e104] [cursor=pointer]:
+                  - /url: http://127.0.0.1:8080
+                - link "Health JSON" [ref=e105] [cursor=pointer]:
+                  - /url: /health
+                - link "Metrics" [ref=e106] [cursor=pointer]:
+                  - /url: /metrics
+            - article [ref=e107]:
+              - generic [ref=e108]: Current Posture
+              - generic [ref=e109]:
+                - generic [ref=e110]:
+                  - generic [ref=e111]: Gateway
+                  - strong [ref=e112]: Local control live
+                - generic [ref=e113]:
+                  - generic [ref=e114]: Users
+                  - strong [ref=e115]: "0"
+                - generic [ref=e116]:
+                  - generic [ref=e117]: Channels
+                  - strong [ref=e118]: webchat
+      - generic [ref=e119]:
+        - generic [ref=e120]:
+          - heading "Operator Flow" [level=2] [ref=e121]
+          - generic [ref=e122]: "The intended EDITH loop: stabilize, operate safely, then promote."
+        - generic [ref=e123]:
+          - article [ref=e124]:
+            - generic [ref=e125]: "1"
+            - strong [ref=e126]: Stabilize The Host
+            - paragraph [ref=e127]: Run onboarding or a repair pass before changing behavior on a drifting machine.
+            - code [ref=e128]: edith setup
+          - article [ref=e129]:
+            - generic [ref=e130]: "2"
+            - strong [ref=e131]: Operate In Testing
+            - paragraph [ref=e132]:
+              - text: Keep runtime and phase work inside
+              - code [ref=e133]: testing
+              - text: until the operator flow becomes routine.
+            - code [ref=e134]: "workbench: testing"
+          - article [ref=e135]:
+            - generic [ref=e136]: "3"
+            - strong [ref=e137]: Promote When Quiet
+            - paragraph [ref=e138]:
+              - text: Move to
+              - code [ref=e139]: edith
+              - text: only when setup, recovery, and daily use feel boringly reliable.
+            - code [ref=e140]: "workbench: edith"
+      - generic [ref=e141]:
+        - generic [ref=e142]:
+          - heading "Subsystem Grid" [level=2] [ref=e143]
+          - generic [ref=e144]: Operational posture for EDITH modules that matter in daily use.
+        - generic [ref=e145]:
+          - article [ref=e146]:
+            - strong [ref=e147]: Daemon
+            - generic [ref=e148]: Running
+            - generic [ref=e149]: 0 trigger(s) loaded / 600000ms interval
+          - article [ref=e150]:
+            - strong [ref=e151]: Voice
+            - generic [ref=e152]: push-to-talk / auto
+            - generic [ref=e153]: TTS edge
+          - article [ref=e154]:
+            - strong [ref=e155]: Vision
+            - generic [ref=e156]: Disabled
+            - generic [ref=e157]: Element detection accessibility
+          - article [ref=e158]:
+            - strong [ref=e159]: Proactive
+            - generic [ref=e160]: Enabled
+            - generic [ref=e161]: desktop on / mobile on / voice off / watcher off
+          - article [ref=e162]:
+            - strong [ref=e163]: Gateway
+            - code [ref=e165]: http://127.0.0.1:18789
+            - generic [ref=e166]:
+              - text: WebSocket
+              - code [ref=e167]: ws://127.0.0.1:18789/ws
+          - article [ref=e168]:
+            - strong [ref=e169]: WebChat
+            - code [ref=e171]: http://127.0.0.1:8080
+            - generic [ref=e172]: Use this when you want browser chat instead of desktop shell.
+      - generic [ref=e173]:
+        - generic [ref=e174]:
+          - heading "Command Deck" [level=2] [ref=e175]
+          - generic [ref=e176]: OpenClaw-style operator ergonomics, but tuned for EDITH workflows.
+        - generic [ref=e177]:
+          - code [ref=e179]: edith setup edith dashboard --open edith all edith status --fix --migrate
+          - generic [ref=e180]:
+            - article [ref=e181]:
+              - generic [ref=e182]: Setup
+              - code [ref=e184]: edith setup
+              - generic [ref=e185]: Run onboarding again and rewrite the local control config cleanly.
+            - article [ref=e186]:
+              - generic [ref=e187]: Control
+              - code [ref=e189]: edith dashboard --open
+              - generic [ref=e190]: Open this control surface from the global CLI.
+            - article [ref=e191]:
+              - generic [ref=e192]: Boot
+              - code [ref=e194]: edith all
+              - generic [ref=e195]: Start gateway, channels, and CLI transport together.
+            - article [ref=e196]:
+              - generic [ref=e197]: Repair
+              - code [ref=e199]: edith status --fix --migrate
+              - generic [ref=e200]: Use this first when profiles, database state, or setup drift start acting strange.
+      - generic [ref=e201]:
+        - generic [ref=e202]:
+          - heading "Next Moves" [level=2] [ref=e203]
+          - generic [ref=e204]: Operator checklist for first-run and recovery.
+        - list [ref=e206]:
+          - listitem [ref=e207]:
+            - strong [ref=e208]: 1. Run onboarding
+            - text: If this machine is new or drifted, start with
+            - code [ref=e209]: edith setup
+            - text: .
+          - listitem [ref=e210]:
+            - strong [ref=e211]: 2. Use testing first
+            - text: Keep experiments in the
+            - code [ref=e212]: testing
+            - text: workbench, then promote to
+            - code [ref=e213]: edith
+            - text: .
+          - listitem [ref=e214]:
+            - strong [ref=e215]: 3. Repair before guessing
+            - text: If database or profile state feels wrong, use
+            - code [ref=e216]: edith status --fix --migrate
+            - text: .

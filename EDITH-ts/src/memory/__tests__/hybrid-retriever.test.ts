@@ -44,6 +44,13 @@ describe("HybridRetriever helpers", () => {
     expect(config.topK).toBeGreaterThanOrEqual(config.finalLimit)
   })
 
+  it("raises the default score threshold to filter weaker single-source matches", () => {
+    const retriever = new HybridRetriever()
+
+    expect(retriever.getConfig().scoreThreshold).toBe(0.008)
+    expect(__hybridRetrieverTestUtils.normalizeHybridConfig({}).scoreThreshold).toBe(0.008)
+  })
+
   it("exposes the short-token allowlist for test visibility", () => {
     expect(__hybridRetrieverTestUtils.SHORT_TECHNICAL_TOKENS.has("go")).toBe(true)
     expect(__hybridRetrieverTestUtils.SHORT_TECHNICAL_TOKENS.has("js")).toBe(true)

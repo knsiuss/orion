@@ -33,6 +33,25 @@ export type EdithEvent =
     priority: string
   }
   | {
+    type: "notification.dispatched"
+    userId: string
+    title: string
+    message: string
+    priority: "low" | "medium" | "high"
+    channels: Array<"desktop" | "mobile" | "voice">
+    source: "trigger" | "file-watcher" | "heartbeat" | "system"
+    timestamp: number
+    metadata?: Record<string, unknown>
+  }
+  | {
+    type: "system.file.changed"
+    userId: string
+    path: string
+    event: "add" | "change" | "unlink"
+    importance: "high" | "medium" | "low"
+    timestamp: number
+  }
+  | {
     type: "channel.connected"
     channelName: string
   }

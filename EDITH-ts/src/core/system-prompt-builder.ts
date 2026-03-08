@@ -18,8 +18,8 @@
  */
 
 import os from "node:os"
-import path from "node:path"
 
+import { resolveConfiguredWorkspaceDir } from "../config/edith-config.js"
 import { createLogger } from "../logger.js"
 import { skillLoader } from "../skills/loader.js"
 import { getBootstrapLoader, type SessionMode } from "./bootstrap.js"
@@ -58,7 +58,7 @@ export interface BuildPromptOptions {
 }
 
 function buildWorkspaceInfoSection(sessionMode: SessionMode): string {
-  const workspaceDir = process.env.EDITH_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
+  const workspaceDir = resolveConfiguredWorkspaceDir()
   return `# Workspace\nDirectory: ${workspaceDir}\nSession mode: ${sessionMode}`
 }
 

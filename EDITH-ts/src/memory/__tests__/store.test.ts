@@ -1,26 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import config from "../../config.js"
-import { MemoryStore, __memoryStoreTestUtils } from "../store.js"
-
-function cosineSimilarity(a: number[], b: number[]): number {
-  const length = Math.min(a.length, b.length)
-  let dot = 0
-  let normA = 0
-  let normB = 0
-
-  for (let i = 0; i < length; i += 1) {
-    dot += a[i] * b[i]
-    normA += a[i] * a[i]
-    normB += b[i] * b[i]
-  }
-
-  if (normA <= 0 || normB <= 0) {
-    return 0
-  }
-
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB))
-}
+import * as keywordMemory from "../memory-node-fts.js"
+import { MemoryStore, EmbeddingUnavailableError } from "../store.js"
+import { temporalIndex } from "../temporal-index.js"
 
 describe("MemoryStore", () => {
   let originalFetch: typeof globalThis.fetch
@@ -44,7 +27,7 @@ describe("MemoryStore", () => {
     const openAiVector = new Array(768).fill(0.123)
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes("/api/embeddings")) {
+      if (url.includes("/api/embed")) {
         return {
           ok: false,
           status: 503,
@@ -78,15 +61,7 @@ describe("MemoryStore", () => {
     expect(consumed).toBeNull()
   })
 
-  it("fallback embedding preserves lexical proximity better than unrelated text", () => {
-    const anchor = __memoryStoreTestUtils.hashToVector("deploy app to production pipeline")
-    const near = __memoryStoreTestUtils.hashToVector("deploy application to production pipeline")
-    const far = __memoryStoreTestUtils.hashToVector("buy groceries and cook dinner tonight")
-
-    expect(cosineSimilarity(anchor, near)).toBeGreaterThan(cosineSimilarity(anchor, far))
-  })
-
-  it("embed caches repeated text to avoid duplicate provider calls", async () => {
+  it("throws EmbeddingUnavailableError when every embedding provider fails", async () => {
     const store = new MemoryStore()
     config.OPENAI_API_KEY = ""
 
@@ -94,6 +69,20 @@ describe("MemoryStore", () => {
       ok: false,
       status: 503,
       json: async () => ({}),
+    }) as Response) as typeof globalThis.fetch
+
+    await expect(store.embed("embedding failure")).rejects.toBeInstanceOf(EmbeddingUnavailableError)
+  })
+
+  it("embed caches repeated text to avoid duplicate provider calls", async () => {
+    const store = new MemoryStore()
+    config.OPENAI_API_KEY = ""
+
+    const ollamaVector = new Array(768).fill(0.42)
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ embedding: ollamaVector }),
     }) as Response) as typeof globalThis.fetch
 
     const first = await store.embed("cache me")
@@ -103,7 +92,46 @@ describe("MemoryStore", () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1)
   })
 
-  it("tracks hash fallback embedding usage as a metric counter", async () => {
+  it("stores to the keyword path without writing vectors when embeddings are unavailable", async () => {
+    const store = new MemoryStore()
+    config.OPENAI_API_KEY = ""
+
+    const add = vi.fn()
+    ;(store as unknown as { table: { add: typeof add } }).table = { add } as unknown as { add: typeof add }
+
+    globalThis.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    }) as Response) as typeof globalThis.fetch
+
+    const temporalSpy = vi.spyOn(temporalIndex, "store").mockResolvedValue({
+      id: "memory-id",
+      userId: "u1",
+      content: "remember this",
+      level: 0,
+      validFrom: new Date(),
+      validUntil: null,
+      category: "fact",
+    })
+
+    const id = await store.save("u1", "remember this", {
+      category: "fact",
+      temporal: false,
+    })
+
+    expect(id).toBeTypeOf("string")
+    expect(add).not.toHaveBeenCalled()
+    expect(temporalSpy).toHaveBeenCalledOnce()
+    expect(temporalSpy.mock.calls[0]?.[4]).toBe(id)
+    expect(temporalSpy.mock.calls[0]?.[5]).toMatchObject({
+      category: "fact",
+      temporal: false,
+      embeddingStatus: "unavailable",
+    })
+  })
+
+  it("degrades search to keyword-only retrieval when embeddings are unavailable", async () => {
     const store = new MemoryStore()
     config.OPENAI_API_KEY = ""
 
@@ -113,11 +141,25 @@ describe("MemoryStore", () => {
       json: async () => ({}),
     }) as Response) as typeof globalThis.fetch
 
-    expect(store.getFallbackEmbeddingCount()).toBe(0)
-    await store.embed("fallback count one")
-    await store.embed("fallback count two")
-    await store.embed("fallback count one")
+    const keywordSpy = vi.spyOn(keywordMemory, "searchMemoryNodeFTS").mockResolvedValue([
+      {
+        id: "fts-1",
+        content: "keyword memory",
+        metadata: { source: "fts" },
+        score: 0.9,
+      },
+    ])
 
-    expect(store.getFallbackEmbeddingCount()).toBe(2)
+    const results = await store.search("u1", "keyword memory", 3)
+
+    expect(keywordSpy).toHaveBeenCalledWith("u1", "keyword memory", 3)
+    expect(results).toEqual([
+      {
+        id: "fts-1",
+        content: "keyword memory",
+        metadata: { source: "fts" },
+        score: 0.9,
+      },
+    ])
   })
 })

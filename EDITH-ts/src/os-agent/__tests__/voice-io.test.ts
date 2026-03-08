@@ -26,6 +26,7 @@
 
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest"
 import { FAKE_MP3, createMockVoiceConfig } from "./test-helpers.js"
+import { EventEmitter } from "node:events"
 
 // ── Mock declarations (hoisted — must be before VoiceIO import) ───────────────
 
@@ -92,6 +93,7 @@ vi.mock("../../voice/edge-engine.js", () => ({
 import { VoiceIO } from "../voice-io.js"
 import { execa } from "execa"
 import fs from "node:fs/promises"
+import { createTurnSttProvider } from "../../voice/providers.js"
 
 const mockExeca = vi.mocked(execa)
 const mockFs = fs as any
@@ -164,6 +166,24 @@ describe("VoiceIO", () => {
       // Must NOT throw even when python is missing
       await expect(voice.initialize()).resolves.not.toThrow()
     })
+
+    it("startListening() throws before initialization", async () => {
+      const voice = new VoiceIO(createMockVoiceConfig({ enabled: true, mode: "always-on" }))
+
+      await expect(voice.startListening()).rejects.toThrow("not initialized")
+    })
+
+    it("startListening() emits an error when always-on capture is unavailable", async () => {
+      const voice = new VoiceIO(createMockVoiceConfig({ enabled: true, mode: "always-on" }))
+      const errors: string[] = []
+      voice.on("error", (error) => errors.push(error.message))
+
+      await voice.initialize()
+      await voice.startListening()
+
+      expect(errors[0]).toContain("unavailable")
+      expect(voice.isListening).toBe(false)
+    })
   })
 
   // ── [TTS Speak] ───────────────────────────────────────────────────────────
@@ -222,29 +242,26 @@ describe("VoiceIO", () => {
     })
 
     it("speak() returns success=true with interrupted=true when cancelled mid-playback", async () => {
-      // Playback takes a long time — we cancel it mid-stream
-      let rejectFn: (e: Error) => void
-      mockExeca.mockReturnValue({
-        // Simulate a long playback that can be aborted
-        then: (resolve: Function, reject: Function) => {
-          rejectFn = reject as any
-          return Promise.resolve()
-        },
-      } as any)
+      mockExeca.mockImplementation((_command: string, _args?: string[], options?: { signal?: AbortSignal }) => {
+        return new Promise((_resolve, reject) => {
+          if (options?.signal?.aborted) {
+            reject(new Error("aborted"))
+            return
+          }
+          options?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true })
+        }) as any
+      })
 
-      // Actually, let's just test cancelSpeech directly instead
       const config = createMockVoiceConfig({ enabled: false, fullDuplex: true })
       const voice = new VoiceIO(config)
 
-      // Start speak but don't await
       const speakPromise = voice.speak("long speech that gets interrupted")
-      // Cancel immediately
-      voice.cancelSpeech()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+      await voice.cancelSpeech()
 
-      // The speak should eventually complete (possibly interrupted)
       const result = await speakPromise
-      // Either success (interrupted) or failure — but must NOT throw
-      expect(typeof result.success).toBe("boolean")
+      expect(result.success).toBe(true)
+      expect((result.data as any).interrupted).toBe(true)
     })
 
     it("speak() returns success=false with error message when EdgeEngine.generate() throws", async () => {
@@ -298,6 +315,30 @@ describe("VoiceIO", () => {
 
       expect(voice.isSpeaking).toBe(false)
     })
+
+    it("stopListening() terminates the active capture process", async () => {
+      const voice = new VoiceIO(createMockVoiceConfig({ enabled: true, mode: "always-on" }))
+      const kill = vi.fn()
+      const child = Object.assign(Promise.resolve(), {
+        kill,
+        catch: () => Promise.resolve(),
+      })
+
+      ;(voice as any).listening = true
+      ;(voice as any).captureProcess = child
+
+      await voice.stopListening()
+
+      expect(kill).toHaveBeenCalledWith("SIGTERM")
+      expect(voice.isListening).toBe(false)
+    })
+
+    it("stopListening() succeeds when no capture process is active", async () => {
+      const voice = new VoiceIO(createMockVoiceConfig({ enabled: true }))
+
+      await expect(voice.stopListening()).resolves.toBeUndefined()
+      expect(voice.isListening).toBe(false)
+    })
   })
 
   // ── [State Properties] ────────────────────────────────────────────────────
@@ -340,6 +381,152 @@ describe("VoiceIO", () => {
       const voice = new VoiceIO(config)
 
       expect(voice.lastTranscript).toBeUndefined()
+    })
+
+    it("implementationStatus exposes the resolved runtime plan", async () => {
+      const voice = new VoiceIO(createMockVoiceConfig({ enabled: true }))
+      await voice.initialize()
+
+      expect(voice.implementationStatus.captureImplementation).toBe("unavailable")
+      expect(voice.implementationStatus.wakeWordImplementation).toBe("transcript-keyword")
+    })
+
+    it("processAudioSegment() emits transcript events and resets audio level", async () => {
+      vi.useFakeTimers()
+      const voice = new VoiceIO(createMockVoiceConfig({ enabled: false }))
+      const provider = {
+        transcribeTurn: vi.fn().mockResolvedValue({ text: "hey edith open browser" }),
+      }
+      ;(voice as any).sttProvider = provider
+
+      const wakeWord = vi.fn()
+      const speechEnd = vi.fn()
+      voice.on("wakeWord", wakeWord)
+      voice.on("speechEnd", speechEnd)
+
+      await (voice as any).processAudioSegment(JSON.stringify(Buffer.from("audio").toString("base64")))
+
+      expect(wakeWord).toHaveBeenCalledOnce()
+      expect(speechEnd).toHaveBeenCalledWith("open browser")
+      expect(voice.audioLevel).toBe(0)
+
+      await vi.advanceTimersByTimeAsync(800)
+      expect(voice.audioLevel).toBe(0)
+      vi.useRealTimers()
+    })
+
+    it("processAudioSegment() ignores empty transcripts without emitting speech", async () => {
+      const voice = new VoiceIO(createMockVoiceConfig({ enabled: false }))
+      ;(voice as any).sttProvider = {
+        transcribeTurn: vi.fn().mockResolvedValue({ text: "   " }),
+      }
+      const speechEnd = vi.fn()
+      voice.on("speechEnd", speechEnd)
+
+      await (voice as any).processAudioSegment(JSON.stringify(Buffer.from("audio").toString("base64")))
+
+      expect(speechEnd).not.toHaveBeenCalled()
+    })
+
+    it("processAudioSegment() emits errors for malformed payloads", async () => {
+      const voice = new VoiceIO(createMockVoiceConfig({ enabled: false }))
+      const errors: string[] = []
+      ;(voice as any).sttProvider = { transcribeTurn: vi.fn() }
+      voice.on("error", (error) => errors.push(error.message))
+
+      await (voice as any).processAudioSegment("not-json")
+
+      expect(errors[0]).toContain("Unexpected token")
+    })
+
+    it("handleTranscriptTurn() emits a follow-up speech turn when awaiting followup", async () => {
+      const voice = new VoiceIO(createMockVoiceConfig({ enabled: false }))
+      const speechStart = vi.fn()
+      const speechEnd = vi.fn()
+      voice.on("speechStart", speechStart)
+      voice.on("speechEnd", speechEnd)
+
+      ;(voice as any).awaitingFollowupTurn = true
+      await (voice as any).handleTranscriptTurn("open settings")
+
+      expect(speechStart).toHaveBeenCalledOnce()
+      expect(speechEnd).toHaveBeenCalledWith("open settings")
+    })
+
+    it("handleNativeWakeWordDetection() cancels speech in full-duplex mode", async () => {
+      vi.useFakeTimers()
+      const voice = new VoiceIO(createMockVoiceConfig({ enabled: false, fullDuplex: true }))
+      const cancelSpeech = vi.spyOn(voice, "cancelSpeech")
+      const wakeWord = vi.fn()
+      voice.on("wakeWord", wakeWord)
+
+      ;(voice as any).speaking = true
+      await (voice as any).handleNativeWakeWordDetection()
+
+      expect(wakeWord).toHaveBeenCalledOnce()
+      expect(cancelSpeech).toHaveBeenCalledOnce()
+      expect(voice.wakeWordDetected).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(8_100)
+      expect((voice as any).awaitingFollowupTurn).toBe(false)
+      vi.useRealTimers()
+    })
+
+    it("startCaptureLoop() emits an error when capture implementation is unavailable", () => {
+      const voice = new VoiceIO(createMockVoiceConfig({ enabled: true, mode: "always-on" }))
+      const errors: string[] = []
+      voice.on("error", (error) => errors.push(error.message))
+
+      ;(voice as any).listening = true
+      ;(voice as any).runtimePlan = {
+        captureImplementation: "unavailable",
+        vadImplementation: "unavailable",
+        sttImplementation: "python-whisper",
+        wakeWordImplementation: "transcript-keyword",
+        fallbackReasons: ["missing microphone"],
+      }
+
+      ;(voice as any).startCaptureLoop()
+
+      expect(errors[0]).toContain("missing microphone")
+    })
+
+    it("startCaptureLoop() handles WAKE and SEGMENT stdout events and schedules a restart after exit", async () => {
+      vi.useFakeTimers()
+      const voice = new VoiceIO(createMockVoiceConfig({ enabled: true, mode: "always-on" }))
+      const stdout = new EventEmitter()
+      const stderr = new EventEmitter()
+      const child: any = Promise.resolve()
+      child.stdout = stdout
+      child.stderr = stderr
+      const originalCatch = child.catch.bind(child)
+      child.catch = (handler: (error: unknown) => void) => originalCatch(handler)
+      mockExeca.mockReturnValue(child as any)
+
+      const handleWake = vi.spyOn(voice as any, "handleNativeWakeWordDetection").mockResolvedValue(undefined)
+      const processSegment = vi.spyOn(voice as any, "processAudioSegment").mockResolvedValue(undefined)
+      const timeoutSpy = vi.spyOn(globalThis, "setTimeout")
+
+      ;(voice as any).listening = true
+      ;(voice as any).runtimePlan = {
+        captureImplementation: "python",
+        vadImplementation: "python",
+        sttImplementation: "python-whisper",
+        wakeWordImplementation: "transcript-keyword",
+        fallbackReasons: [],
+      }
+
+      ;(voice as any).startCaptureLoop()
+      stdout.emit("data", "WAKE\nSEGMENT:\"YXVkaW8=\"\n")
+      await Promise.resolve()
+
+      expect(handleWake).toHaveBeenCalledOnce()
+      expect(processSegment).toHaveBeenCalledWith('"YXVkaW8="')
+
+      await Promise.resolve()
+      expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1_000)
+      ;(voice as any).listening = false
+      vi.useRealTimers()
     })
   })
 })

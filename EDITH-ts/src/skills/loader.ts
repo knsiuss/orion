@@ -2,23 +2,28 @@ import { constants, type Dirent, type FSWatcher, watch } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 
+import { resolveConfiguredWorkspaceDir } from "../config/edith-config.js"
 import { createLogger } from "../logger.js"
 
 const log = createLogger("skills.loader")
 
 const HOME_DIR = process.env.HOME ?? process.env.USERPROFILE ?? process.cwd()
-
-const SKILL_DIR_WORKSPACE = path.resolve(process.cwd(), "workspace", "skills")
 const SKILL_DIR_MANAGED = path.resolve(HOME_DIR, ".edith", "skills")
 const SKILL_DIR_BUNDLED = path.resolve(process.cwd(), "src", "skills", "bundled")
 
-const SKILL_DIRS_BY_PRECEDENCE: readonly string[] = [
-  SKILL_DIR_WORKSPACE,
-  SKILL_DIR_MANAGED,
-  SKILL_DIR_BUNDLED,
-]
-
 const DEFAULT_WATCH_DEBOUNCE_MS = 1_500
+
+function getWorkspaceSkillDir(): string {
+  return path.join(resolveConfiguredWorkspaceDir(), "skills")
+}
+
+function getSkillDirsByPrecedence(): readonly string[] {
+  return [
+    getWorkspaceSkillDir(),
+    SKILL_DIR_MANAGED,
+    SKILL_DIR_BUNDLED,
+  ]
+}
 
 export interface SkillMeta {
   name: string
@@ -322,8 +327,9 @@ export class SkillLoader {
     const skills: SkillMeta[] = []
     const nextContentCache = new Map<string, string>()
     const platform = this.getPlatformName()
+    const skillDirs = getSkillDirsByPrecedence()
 
-    for (const dir of SKILL_DIRS_BY_PRECEDENCE) {
+    for (const dir of skillDirs) {
       const entries = await this.readDirectoryEntries(dir)
       if (entries.length === 0) {
         continue
@@ -416,7 +422,9 @@ export class SkillLoader {
 
     this.watchDebounceMs = Math.max(100, options.debounceMs ?? DEFAULT_WATCH_DEBOUNCE_MS)
 
-    for (const dir of SKILL_DIRS_BY_PRECEDENCE) {
+    const skillDirs = getSkillDirsByPrecedence()
+
+    for (const dir of skillDirs) {
       const watcher = this.createWatcher(dir)
       if (watcher) {
         this.watchers.push(watcher)
@@ -425,7 +433,7 @@ export class SkillLoader {
 
     if (this.watchers.length > 0) {
       log.info("skill watch enabled", {
-        paths: SKILL_DIRS_BY_PRECEDENCE,
+        paths: skillDirs,
         debounceMs: this.watchDebounceMs,
       })
     }
@@ -788,7 +796,7 @@ export class SkillLoader {
       return null
     }
 
-    for (const dir of SKILL_DIRS_BY_PRECEDENCE) {
+    for (const dir of getSkillDirsByPrecedence()) {
       if (await this.isWithinDirectoryRealPath(realRequested, dir)) {
         return realRequested
       }
@@ -828,4 +836,5 @@ export const __skillLoaderTestUtils = {
   sanitizeScalar,
   splitInlineList,
   parseFrontmatter,
+  getSkillDirsByPrecedence,
 }

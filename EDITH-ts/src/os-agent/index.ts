@@ -17,13 +17,23 @@
  */
 
 import { createLogger } from "../logger.js"
+import config from "../config.js"
 import { GUIAgent } from "./gui-agent.js"
-import { VisionCortex } from "./vision-cortex.js"
+import { VisionCortex, type VisionAnalysisResult } from "./vision-cortex.js"
 import { VoiceIO } from "./voice-io.js"
 import { SystemMonitor } from "./system-monitor.js"
 import { IoTBridge } from "./iot-bridge.js"
 import { PerceptionFusion } from "./perception-fusion.js"
-import type { OSAgentConfig, OSAction, OSActionResult, PerceptionSnapshot } from "./types.js"
+import type {
+  OSAgentConfig,
+  OSAction,
+  OSActionResult,
+  PerceptionSnapshot,
+  GUIActionPayload,
+  GUIActionReflection,
+  UIElement,
+  VisualMemoryRecall,
+} from "./types.js"
 
 const log = createLogger("os-agent")
 
@@ -100,6 +110,13 @@ export class OSAgent {
     return this.perception.getSnapshot()
   }
 
+  async recallVisualMemory(query: string, limit = 5): Promise<VisualMemoryRecall> {
+    return this.vision.recallVisualMemories(query, {
+      userId: config.DEFAULT_USER_ID,
+      limit,
+    })
+  }
+
   /**
    * Execute an OS-level action. This is the main entry point for the
    * agent runner to perform system actions.
@@ -109,7 +126,7 @@ export class OSAgent {
 
     switch (action.type) {
       case "gui":
-        return this.gui.execute(action.payload)
+        return this.executeGuiAction(action.payload)
       case "shell":
         return this.system.executeCommand(action.payload.command, action.payload.options)
       case "voice":
@@ -138,6 +155,102 @@ export class OSAgent {
       this.gui.shutdown(),
     ])
     log.info("OS-Agent layer shut down")
+  }
+
+  private async executeGuiAction(payload: GUIActionPayload): Promise<OSActionResult> {
+    let resolvedPayload: GUIActionPayload = { ...payload }
+    let resolvedElement: UIElement | null = null
+
+    if (payload.targetQuery && !payload.coordinates && this.actionSupportsGrounding(payload.action)) {
+      if (!this.config.vision.enabled) {
+        return {
+          success: false,
+          error: `Vision must be enabled to ground GUI target "${payload.targetQuery}"`,
+        }
+      }
+
+      resolvedElement = await this.vision.findElement(payload.targetQuery)
+      if (!resolvedElement) {
+        return {
+          success: false,
+          error: `Could not find a UI element matching "${payload.targetQuery}"`,
+        }
+      }
+
+      resolvedPayload = {
+        ...resolvedPayload,
+        coordinates: this.getElementCenter(resolvedElement),
+      }
+    }
+
+    const shouldReflect = this.config.vision.enabled && payload.reflectAfterAction !== false
+    const before = shouldReflect ? await this.captureVisionAnalysisForReflection() : null
+    const result = await this.gui.execute(resolvedPayload)
+
+    if (!shouldReflect) {
+      return this.attachGuiMetadata(result, resolvedElement)
+    }
+
+    const after = await this.captureVisionAnalysisForReflection()
+    const reflection = await this.vision.reflectOnGuiAction({
+      userId: config.DEFAULT_USER_ID,
+      action: resolvedPayload.action,
+      success: result.success,
+      targetQuery: payload.targetQuery,
+      expectedOutcome: payload.expectedOutcome,
+      resolvedElement,
+      before,
+      after,
+      commandResult: typeof result.data === "string" ? result.data : undefined,
+      error: result.error,
+    })
+
+    return this.attachGuiMetadata(result, resolvedElement, reflection)
+  }
+
+  private async captureVisionAnalysisForReflection(): Promise<VisionAnalysisResult | null> {
+    try {
+      const result = await this.vision.captureAndAnalyze()
+      if (!result.success || !result.data) {
+        return null
+      }
+      return result.data as VisionAnalysisResult
+    } catch {
+      return null
+    }
+  }
+
+  private attachGuiMetadata(
+    result: OSActionResult,
+    resolvedElement?: UIElement | null,
+    reflection?: GUIActionReflection,
+  ): OSActionResult {
+    if (!resolvedElement && !reflection) {
+      return result
+    }
+
+    return {
+      ...result,
+      data: {
+        result: result.data,
+        resolvedElement: resolvedElement ?? undefined,
+        reflection,
+      },
+    }
+  }
+
+  private actionSupportsGrounding(action: GUIActionPayload["action"]): boolean {
+    return action === "click"
+      || action === "double_click"
+      || action === "right_click"
+      || action === "move"
+  }
+
+  private getElementCenter(element: UIElement): { x: number; y: number } {
+    return {
+      x: Math.round(element.bounds.x + (element.bounds.width / 2)),
+      y: Math.round(element.bounds.y + (element.bounds.height / 2)),
+    }
   }
 }
 

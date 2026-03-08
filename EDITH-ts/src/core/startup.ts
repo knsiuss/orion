@@ -22,13 +22,16 @@ import { initializeTracing, shutdownTracing } from "../observability/tracing.js"
 import { getDefaultOSAgentConfig, getEdithOSConfig } from "../os-agent/defaults.js"
 import { OSAgent } from "../os-agent/index.js"
 import type { OSAgentConfig } from "../os-agent/types.js"
+import { resolveOSVisionConfig } from "../os-agent/vision-config.js"
 import { resolveOSVoiceConfig } from "../os-agent/voice-config.js"
 import { pluginLoader } from "../plugin-sdk/loader.js"
 import { skillLoader } from "../skills/loader.js"
+import { resolveRuntimeVisionConfig } from "../vision/runtime-config.js"
 import { resolveRuntimeVoiceConfig } from "../voice/runtime-config.js"
 import { bootstrapLoader } from "./bootstrap.js"
 import { eventBus } from "./event-bus.js"
 import { processMessage } from "./message-pipeline.js"
+import { ensureWorkbenchReady } from "./workbench.js"
 
 const log = createLogger("startup")
 
@@ -57,16 +60,10 @@ function initializeEventHandlers(): void {
   })
 }
 
-async function ensureWorkspaceStructure(workspaceDir: string): Promise<void> {
-  await fs.mkdir(workspaceDir, { recursive: true })
-  await fs.mkdir(path.join(workspaceDir, "skills"), { recursive: true })
-  await fs.mkdir(path.join(workspaceDir, "memory"), { recursive: true })
-}
-
 export async function initialize(workspaceDir: string): Promise<StartupResult> {
   log.info("starting EDITH-ts")
 
-  await ensureWorkspaceStructure(workspaceDir)
+  await ensureWorkbenchReady(workspaceDir)
   await initializeTracing()
 
   try {
@@ -108,6 +105,7 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
 
   const edithConfig = await loadEdithConfig()
   const edithMode = config.EDITH_MODE
+  const runtimeVision = resolveRuntimeVisionConfig(edithConfig)
   const runtimeVoice = resolveRuntimeVoiceConfig(edithConfig)
   const edithOsAgent = (edithConfig as Record<string, unknown>).osAgent as
     | { enabled?: boolean; gui?: object; vision?: object; voice?: object; system?: object; iot?: object; perceptionIntervalMs?: number }
@@ -115,6 +113,7 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
   const shouldStartOSAgent = config.OS_AGENT_ENABLED
     || edithMode
     || Boolean(edithOsAgent?.enabled)
+    || runtimeVision.enabled
     || (runtimeVoice.enabled && runtimeVoice.mode === "always-on")
 
   let osAgent: OSAgent | null = null
@@ -125,7 +124,11 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
         const defaults = getEdithOSConfig()
         osAgentConfig = {
           gui: defaults.gui,
-          vision: defaults.vision,
+          vision: resolveOSVisionConfig(
+            defaults.vision,
+            runtimeVision,
+            edithOsAgent?.vision as Partial<typeof defaults.vision> | undefined,
+          ),
           voice: resolveOSVoiceConfig(
             defaults.voice,
             runtimeVoice,
@@ -153,7 +156,11 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
         const defaults = getDefaultOSAgentConfig()
         osAgentConfig = {
           gui: { ...defaults.gui, ...(edithOsAgent?.gui as object ?? {}) },
-          vision: { ...defaults.vision, ...(edithOsAgent?.vision as object ?? {}) },
+          vision: resolveOSVisionConfig(
+            defaults.vision,
+            runtimeVision,
+            edithOsAgent?.vision as Partial<typeof defaults.vision> | undefined,
+          ),
           voice: resolveOSVoiceConfig(
             defaults.voice,
             runtimeVoice,

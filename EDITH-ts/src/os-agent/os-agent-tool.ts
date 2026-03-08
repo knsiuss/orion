@@ -21,6 +21,36 @@ import type { OSAgent } from "./index.js"
 
 const log = createLogger("tools.os-agent")
 
+function formatGuiActionResult(result: { success: boolean; data?: unknown; error?: string }): string {
+  if (!result.success) {
+    return `Failed: ${result.error}`
+  }
+
+  const payload = (result.data ?? {}) as {
+    result?: unknown
+    resolvedElement?: { text?: string }
+    reflection?: { summary?: string }
+  }
+
+  const lines: string[] = []
+  const baseResult = typeof payload.result === "string"
+    ? payload.result
+    : typeof result.data === "string"
+      ? result.data
+      : "Action completed"
+  lines.push(baseResult)
+
+  if (payload.resolvedElement?.text) {
+    lines.push(`Grounded target: ${payload.resolvedElement.text}`)
+  }
+
+  if (payload.reflection?.summary) {
+    lines.push(`Reflect: ${payload.reflection.summary}`)
+  }
+
+  return lines.join("\n")
+}
+
 /**
  * Create the OS-Agent tool for use in the agent runner.
  * Requires an initialized OSAgent instance.
@@ -29,13 +59,14 @@ export function createOSAgentTool(osAgent: OSAgent) {
   return tool({
     description: `EDITH-level OS control. Actions:
 - screenshot: Capture & analyze the current screen (OCR + element detection)
-- click(x, y): Click at screen coordinates
+- click(x, y) or click(target): Click at screen coordinates or a grounded natural-language target
 - type(text): Type text at current cursor position
 - hotkey(keys): Press keyboard shortcut (e.g. ["ctrl", "c"])
 - scroll(direction, amount): Scroll up/down
 - open_app(name): Open an application
 - focus_window(title): Focus a window by title
 - list_windows: List all open windows
+- visual_memory(query): Recall past visual contexts and reflected GUI outcomes
 - shell(command): Execute a shell command
 - system_info: Get CPU, RAM, disk, battery info
 - active_context: Get what the user is currently doing
@@ -55,6 +86,7 @@ export function createOSAgentTool(osAgent: OSAgent) {
         "focus_window",
         "close_window",
         "list_windows",
+        "visual_memory",
         "shell",
         "system_info",
         "active_context",
@@ -69,11 +101,14 @@ export function createOSAgentTool(osAgent: OSAgent) {
       y: z.number().optional().describe("Y coordinate for click/drag"),
       // Text for type/speak/clipboard
       text: z.string().optional().describe("Text to type, speak, or write to clipboard"),
+      target: z.string().optional().describe("Natural-language UI target, e.g. 'Save button'"),
+      expectedOutcome: z.string().optional().describe("Expected visual outcome to verify after a GUI action"),
       // Keys for hotkey
       keys: z.array(z.string()).optional().describe("Keys for hotkey, e.g. ['ctrl', 'c']"),
       // Scroll
       direction: z.enum(["up", "down"]).optional(),
       amount: z.number().optional().describe("Scroll amount (default: 3)"),
+      limit: z.number().int().min(1).max(10).optional().describe("Recall result limit"),
       // App/window
       name: z.string().optional().describe("App name or window title"),
       // Shell
@@ -97,56 +132,78 @@ export function createOSAgentTool(osAgent: OSAgent) {
           case "click":
           case "double_click":
           case "right_click": {
-            if (input.x === undefined || input.y === undefined) return "Error: x and y coordinates required"
-            const result = await osAgent.gui.execute({
-              action: input.action,
-              coordinates: { x: input.x, y: input.y },
+            if ((input.x === undefined || input.y === undefined) && !input.target) {
+              return "Error: x and y coordinates required unless a target query is provided"
+            }
+            const result = await osAgent.execute({
+              type: "gui",
+              payload: {
+                action: input.action,
+                coordinates: input.x !== undefined && input.y !== undefined
+                  ? { x: input.x, y: input.y }
+                  : undefined,
+                targetQuery: input.target,
+                expectedOutcome: input.expectedOutcome,
+              },
             })
-            return result.success ? (result.data as string) : `Failed: ${result.error}`
+            return formatGuiActionResult(result)
           }
 
           case "type": {
             if (!input.text) return "Error: text required"
-            const result = await osAgent.gui.execute({ action: "type", text: input.text })
-            return result.success ? (result.data as string) : `Failed: ${result.error}`
+            const result = await osAgent.execute({ type: "gui", payload: { action: "type", text: input.text } })
+            return formatGuiActionResult(result)
           }
 
           case "hotkey": {
             if (!input.keys?.length) return "Error: keys array required"
-            const result = await osAgent.gui.execute({ action: "hotkey", keys: input.keys })
-            return result.success ? (result.data as string) : `Failed: ${result.error}`
+            const result = await osAgent.execute({ type: "gui", payload: { action: "hotkey", keys: input.keys } })
+            return formatGuiActionResult(result)
           }
 
           case "scroll": {
-            const result = await osAgent.gui.execute({
-              action: "scroll",
-              direction: input.direction ?? "down",
-              amount: input.amount ?? 3,
+            const result = await osAgent.execute({
+              type: "gui",
+              payload: {
+                action: "scroll",
+                direction: input.direction ?? "down",
+                amount: input.amount ?? 3,
+              },
             })
-            return result.success ? (result.data as string) : `Failed: ${result.error}`
+            return formatGuiActionResult(result)
           }
 
           case "open_app": {
             if (!input.name) return "Error: app name required"
-            const result = await osAgent.gui.execute({ action: "open_app", appName: input.name })
-            return result.success ? (result.data as string) : `Failed: ${result.error}`
+            const result = await osAgent.execute({ type: "gui", payload: { action: "open_app", appName: input.name } })
+            return formatGuiActionResult(result)
           }
 
           case "focus_window": {
             if (!input.name) return "Error: window title required"
-            const result = await osAgent.gui.execute({ action: "focus_window", windowTitle: input.name })
-            return result.success ? (result.data as string) : `Failed: ${result.error}`
+            const result = await osAgent.execute({ type: "gui", payload: { action: "focus_window", windowTitle: input.name } })
+            return formatGuiActionResult(result)
           }
 
           case "close_window": {
-            const result = await osAgent.gui.execute({ action: "close_window", windowTitle: input.name })
-            return result.success ? (result.data as string) : `Failed: ${result.error}`
+            const result = await osAgent.execute({ type: "gui", payload: { action: "close_window", windowTitle: input.name } })
+            return formatGuiActionResult(result)
           }
 
           case "list_windows": {
             const windows = await osAgent.gui.listWindows()
             if (windows.length === 0) return "No windows found"
             return windows.map((w) => `• [${w.processName}] ${w.title}`).join("\n")
+          }
+
+          case "visual_memory": {
+            const query = input.text ?? input.target ?? input.name
+            if (!query) return "Error: query required"
+            const recall = await osAgent.recallVisualMemory(query, input.limit ?? 5)
+            if (recall.matches.length === 0) {
+              return `No visual memories found for "${query}".`
+            }
+            return recall.summary.join("\n")
           }
 
           case "shell": {

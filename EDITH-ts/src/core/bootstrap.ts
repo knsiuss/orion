@@ -37,6 +37,10 @@ import { createHash } from "node:crypto"
 import fs from "node:fs/promises"
 import path from "node:path"
 
+import {
+  resolveConfiguredWorkspaceDir,
+  resolveEdithConfigPath,
+} from "../config/edith-config.js"
 import { createLogger } from "../logger.js"
 
 const log = createLogger("core.bootstrap")
@@ -50,7 +54,7 @@ export const DEFAULT_HEARTBEAT_FILENAME = "HEARTBEAT.md"
 export const DEFAULT_BOOTSTRAP_FILENAME = "BOOTSTRAP.md"
 export const DEFAULT_MEMORY_FILENAME = "MEMORY.md"
 
-const DEFAULT_CHECKSUMS_FILENAME = "CHECKSUMS.sha256"
+export const DEFAULT_CHECKSUMS_FILENAME = "CHECKSUMS.sha256"
 
 const DEFAULT_BOOTSTRAP_MAX_CHARS = 65_536
 const DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS = 150_000
@@ -494,7 +498,7 @@ export class BootstrapLoader extends EventEmitter {
   }
 
   private async loadRawEdithConfig(): Promise<Record<string, unknown> | null> {
-    const configPath = path.resolve(process.cwd(), "edith.json")
+    const configPath = resolveEdithConfigPath()
 
     try {
       const stat = await fs.stat(configPath)
@@ -637,14 +641,17 @@ export class BootstrapLoader extends EventEmitter {
 }
 
 let singletonBootstrapLoader: BootstrapLoader | null = null
+let singletonWorkspaceDir: string | null = null
 
 export function getBootstrapLoader(): BootstrapLoader {
-  if (singletonBootstrapLoader) {
+  const workspaceDir = resolveConfiguredWorkspaceDir()
+
+  if (singletonBootstrapLoader && singletonWorkspaceDir === workspaceDir) {
     return singletonBootstrapLoader
   }
 
-  const workspaceDir = process.env.EDITH_WORKSPACE ?? path.resolve(process.cwd(), "workspace")
   singletonBootstrapLoader = new BootstrapLoader(workspaceDir)
+  singletonWorkspaceDir = workspaceDir
   return singletonBootstrapLoader
 }
 

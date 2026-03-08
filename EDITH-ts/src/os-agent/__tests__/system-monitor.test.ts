@@ -129,6 +129,16 @@ describe("SystemMonitor", () => {
       // cpuUsage stays at initial default 0
       expect(monitor.state.cpuUsage).toBe(0)
     })
+
+    it("state getter returns a defensive copy", async () => {
+      const monitor = new SystemMonitor(createMockSystemConfig({ enabled: true }))
+      await monitor.initialize()
+
+      const snapshot = monitor.state
+      snapshot.cpuUsage = 999
+
+      expect(monitor.state.cpuUsage).not.toBe(999)
+    })
   })
 
   // ── [CPU] ────────────────────────────────────────────────────────────────
@@ -291,6 +301,21 @@ describe("SystemMonitor", () => {
 
       expect(monitor.state.networkConnected).toBe(false)
     })
+
+    it("uses ping on Linux to determine network connectivity", async () => {
+      const originalPlatform = process.platform
+      Object.defineProperty(process, "platform", { value: "linux", configurable: true })
+
+      mockExeca.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 } as any)
+
+      const monitor = new SystemMonitor(createMockSystemConfig({ enabled: true }))
+      await monitor.initialize()
+
+      expect(monitor.state.networkConnected).toBe(true)
+      expect(mockExeca).toHaveBeenCalledWith("ping", ["-c", "1", "-W", "2", "8.8.8.8"], { timeout: 5_000 })
+
+      Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true })
+    })
   })
 
   // ── [Processes] ──────────────────────────────────────────────────────────
@@ -338,6 +363,110 @@ describe("SystemMonitor", () => {
 
       // Clipboard preview is first 200 chars
       expect(monitor.state.clipboardPreview).toBe("copied text sample")
+    })
+
+    it("reads clipboard text via pbpaste on macOS", async () => {
+      const originalPlatform = process.platform
+      Object.defineProperty(process, "platform", { value: "darwin", configurable: true })
+
+      mockExeca.mockResolvedValue({ stdout: "clipboard mac", stderr: "", exitCode: 0 } as any)
+
+      const monitor = new SystemMonitor(createMockSystemConfig({ enabled: true, watchClipboard: true }))
+      await monitor.initialize()
+
+      expect(monitor.state.clipboardPreview).toBe("clipboard mac")
+      Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true })
+    })
+  })
+
+  describe("[Commands]", () => {
+    it("executeCommand() blocks known dangerous commands", async () => {
+      const monitor = new SystemMonitor(createMockSystemConfig({ enabled: true }))
+
+      const result = await monitor.executeCommand("rm -rf /")
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain("blocked")
+    })
+
+    it("executeCommand() shells through PowerShell on Windows by default", async () => {
+      const monitor = new SystemMonitor(createMockSystemConfig({ enabled: true }))
+      mockExeca.mockResolvedValueOnce({ stdout: "hello", stderr: "", exitCode: 0 } as any)
+
+      const result = await monitor.executeCommand("Write-Output hello")
+
+      expect(result.success).toBe(true)
+      expect(mockExeca).toHaveBeenCalledWith(
+        "powershell",
+        ["-command", "Write-Output hello"],
+        expect.objectContaining({ timeout: 30000 }),
+      )
+    })
+
+    it("executeCommand() supports background processes and calls unref", async () => {
+      const monitor = new SystemMonitor(createMockSystemConfig({ enabled: true }))
+      const unref = vi.fn()
+      mockExeca.mockReturnValueOnce({ unref } as any)
+
+      const result = await monitor.executeCommand("notepad", { background: true })
+
+      expect(result.success).toBe(true)
+      expect(unref).toHaveBeenCalledOnce()
+    })
+
+    it("executeCommand() returns stderr output on command failure", async () => {
+      const monitor = new SystemMonitor(createMockSystemConfig({ enabled: true }))
+      mockExeca.mockRejectedValueOnce({ stderr: "permission denied" })
+
+      const result = await monitor.executeCommand("Write-Error boom")
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain("permission denied")
+    })
+  })
+
+  describe("[Idle And Battery]", () => {
+    it("getIdleTime() parses ioreg output on macOS", async () => {
+      const originalPlatform = process.platform
+      Object.defineProperty(process, "platform", { value: "darwin", configurable: true })
+      mockExeca.mockResolvedValueOnce({ stdout: '"HIDIdleTime" = 4000000000', stderr: "", exitCode: 0 } as any)
+
+      const monitor = new SystemMonitor(createMockSystemConfig({ enabled: true }))
+      const idle = await monitor.getIdleTime()
+
+      expect(idle).toBe(4)
+      Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true })
+    })
+
+    it("getBatteryInfo() parses Windows WMI JSON", async () => {
+      mockExeca.mockResolvedValueOnce({
+        stdout: JSON.stringify({ EstimatedChargeRemaining: 87, BatteryStatus: 2 }),
+        stderr: "",
+        exitCode: 0,
+      } as any)
+
+      const monitor = new SystemMonitor(createMockSystemConfig({ enabled: true }))
+      const battery = await monitor.getBatteryInfo()
+
+      expect(battery).toEqual({ level: 87, charging: true })
+    })
+  })
+
+  describe("[Lifecycle]", () => {
+    it("startMonitoring() is idempotent and shutdown() stops the loop", async () => {
+      vi.useFakeTimers()
+
+      const monitor = new SystemMonitor(createMockSystemConfig({ enabled: true, resourceCheckIntervalMs: 100 }))
+      await monitor.initialize()
+
+      monitor.startMonitoring()
+      monitor.startMonitoring()
+      await vi.advanceTimersByTimeAsync(120)
+      await monitor.shutdown()
+      await vi.advanceTimersByTimeAsync(120)
+
+      expect(mockExeca).toHaveBeenCalled()
+      vi.useRealTimers()
     })
   })
 })

@@ -15,11 +15,15 @@
  * @module memory/hybrid-retriever
  */
 
-import { prisma } from "../database/index.js"
 import { createLogger } from "../logger.js"
 import config from "../config.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { clamp, sanitizeUserId as sanitizeVectorUserId } from "../utils/index.js"
+import {
+  buildMemoryNodeFTSQuery,
+  searchMemoryNodeFTS,
+  __memoryNodeFTSTestUtils,
+} from "./memory-node-fts.js"
 import type { SearchResult } from "./store.js"
 
 const log = createLogger("memory.hybrid-retriever")
@@ -63,25 +67,12 @@ const DEFAULT_CONFIG: HybridConfig = {
   rrfK: 60,
   ftsWeight: 0.4,
   vectorWeight: 0.6,
-  scoreThreshold: 0.005,
+  scoreThreshold: 0.008,
 }
 
 const MIN_RRF_WEIGHT = 0.01
 const MAX_TOP_K = 200
 const MAX_FINAL_LIMIT = 50
-const SHORT_TECHNICAL_TOKENS = new Set([
-  "ai",
-  "db",
-  "go",
-  "io",
-  "js",
-  "ml",
-  "qa",
-  "ts",
-  "ui",
-  "ux",
-])
-
 /**
  * Compute weighted RRF score contribution for one source.
  *
@@ -138,35 +129,6 @@ function normalizeHybridConfig(config: Partial<HybridConfig>, base: HybridConfig
   // Keep candidate pool >= final output limit so "limit" settings stay intuitive.
   next.topK = Math.max(next.topK, next.finalLimit)
   return next
-}
-
-function buildFTSQuery(query: string): string {
-  const deduped: string[] = []
-  const seen = new Set<string>()
-
-  for (const rawToken of query.match(/[a-zA-Z0-9_]+/g) ?? []) {
-    const token = rawToken.trim().toLowerCase()
-    if (!token) {
-      continue
-    }
-
-    const allowShort = token.length >= 2 && SHORT_TECHNICAL_TOKENS.has(token)
-    if (token.length <= 2 && !allowShort) {
-      continue
-    }
-    if (token.length > 2 || allowShort) {
-      if (seen.has(token)) {
-        continue
-      }
-      seen.add(token)
-      deduped.push(token)
-    }
-    if (deduped.length >= 8) {
-      break
-    }
-  }
-
-  return deduped.map((token) => `${token}*`).join(" ")
 }
 
 function tokenizeForOverlap(text: string): Set<string> {
@@ -273,38 +235,17 @@ export class HybridRetriever {
    */
   private async searchFTS(userId: string, query: string): Promise<RankedResult[]> {
     try {
-      // Prisma parameterization already handles SQL quoting; do not sanitize userId here
-      // because MemoryNode.userId stores the raw value (see temporal-index/store).
-      const ftsQuery = buildFTSQuery(query)
-
-      if (!ftsQuery) {
-        return []
-      }
-
-      // Query FTS5 virtual table with rank
-      // rank is computed by FTS5's BM25 algorithm
-      const results = await prisma.$queryRaw<Array<{
-        id: string
-        content: unknown
-        rank: number
-      }>>`
-        SELECT m.id, m.content, rank
-        FROM MemoryNode m
-        -- MemoryNode.id is a string primary key; FTS rowid maps to SQLite rowid, not m.id.
-        JOIN MemoryNodeFTS fts ON m.rowid = fts.rowid
-        WHERE m.userId = ${userId}
-          AND MemoryNodeFTS MATCH ${ftsQuery}
-        ORDER BY rank ASC
-        LIMIT ${this.config.topK}
-      `
-
+      const results = await searchMemoryNodeFTS(userId, query, this.config.topK)
       return results.map((row, index) => ({
         id: row.id,
         content: parseFTSContent(row.content),
-        metadata: { ftsRank: row.rank },
+        metadata: {
+          ...row.metadata,
+          ftsScore: row.score,
+        },
         rank: index + 1, // 1-based rank for RRF
         source: "fts",
-        rawScore: 1 / (1 + row.rank), // Convert rank to approximate score
+        rawScore: row.score,
       }))
     } catch (error) {
       log.warn("FTS search failed, falling back to empty", { error })
@@ -591,9 +532,9 @@ export class HybridRetriever {
 export const hybridRetriever = new HybridRetriever()
 
 export const __hybridRetrieverTestUtils = {
-  buildFTSQuery,
+  buildFTSQuery: buildMemoryNodeFTSQuery,
   normalizeHybridConfig,
   computeWeightedRRFScore,
   computeOverlapScore,
-  SHORT_TECHNICAL_TOKENS: new Set(SHORT_TECHNICAL_TOKENS),
+  SHORT_TECHNICAL_TOKENS: new Set(__memoryNodeFTSTestUtils.SHORT_TECHNICAL_TOKENS),
 }

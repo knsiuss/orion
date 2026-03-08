@@ -52,6 +52,7 @@ On first run, `edith` now behaves like an EDITH-style entrypoint:
 - if run inside an EDITH repo and no link exists, it auto-detects and auto-links the repo
 - if the active profile is not configured yet, it launches the setup wizard automatically
 - if configured, it shows the next recommended commands (`dashboard`, `channels login`, `all`, `status`)
+- `edith help` now stays compact by default and highlights only the common path first (`setup`, `dashboard`, `all`, `status`)
 
 Alternative (without global install), you can still run:
 
@@ -189,7 +190,22 @@ edith onboard -- --channel telegram --provider groq
 
 `edith logs` and `edith channels logs --channel <name>` now run the same profile DB migration preflight before starting foreground logs, reducing noisy first-run `P2021` errors in log streams.
 
-`edith dashboard --open` tries to open the dashboard URL in your default browser (best effort) and then starts gateway foreground mode.
+`edith dashboard --open` tries to open the EDITH Control surface at the gateway root in your default browser (best effort) and then starts gateway foreground mode.
+
+The gateway root (`GET /`) now serves a small landing page instead of returning `404`, with quick links to:
+
+- `/health`
+- `/metrics`
+- local WebChat (`http://127.0.0.1:<WEBCHAT_PORT>`)
+
+That root page now acts as **EDITH Control**:
+
+- a live local control surface
+- subsystem status for daemon / voice / vision / proactive runtime
+- a left-rail operator shell with guided flow from stabilize -> testing -> promote
+- quick actions + command deck for setup, boot, and recovery
+
+Desktop onboarding and the desktop chat renderer now follow the same control-room visual language, so the transition between `edith setup`, `edith dashboard --open`, and the desktop shell feels like one product instead of three unrelated surfaces.
 
 `--repo` and `--profile` are one-shot overrides for the current command. They do not rewrite your saved default link/profile unless you run `edith link`.
 

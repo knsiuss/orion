@@ -29,6 +29,7 @@ import { createLogger } from "../logger.js"
 import { sanitizeUserId, parseJsonSafe } from "../utils/index.js"
 import { hiMeS } from "./himes.js"
 import { memrlUpdater, type TaskFeedback } from "./memrl.js"
+import * as keywordMemory from "./memory-node-fts.js"
 import { proMem } from "./promem.js"
 import { temporalIndex } from "./temporal-index.js"
 
@@ -41,7 +42,6 @@ const OLLAMA_EMBEDDING_MODEL = "nomic-embed-text"
 const EMBEDDING_REQUEST_TIMEOUT_MS = 8_000
 const PENDING_FEEDBACK_MAX_AGE_MS = 30 * 60 * 1000
 const EMBEDDING_CACHE_MAX_ENTRIES = 512
-const HASH_FALLBACK_ALERT_EVERY = 25
 
 interface MemoryRow extends Record<string, unknown> {
   id: string
@@ -91,79 +91,18 @@ export interface BuildContextResult {
   retrievedMemoryIds: string[]
 }
 
-function hashFeature(input: string): number {
-  let hash = 0x811c9dc5
-  for (let i = 0; i < input.length; i += 1) {
-    hash ^= input.charCodeAt(i)
-    hash = Math.imul(hash, 0x01000193)
-  }
-  return hash >>> 0
-}
-
-function normalizeVector(vector: number[]): number[] {
-  const squaredSum = vector.reduce((sum, value) => sum + (value * value), 0)
-  if (!Number.isFinite(squaredSum) || squaredSum <= 0) {
-    return vector
-  }
-  const norm = Math.sqrt(squaredSum)
-  return vector.map((value) => value / norm)
-}
-
 /**
- * Deterministic lexical fallback embedding.
- *
- * This is intentionally simple and local-only, but preserves token overlap
- * better than pseudo-random sin-based vectors.
+ * Signals that semantic embeddings are unavailable and callers must fall back
+ * to the keyword-only memory path.
  */
-function hashToVector(text: string): number[] {
-  const normalizedText = text
-    .toLowerCase()
-    .normalize("NFKC")
-    .trim()
+export class EmbeddingUnavailableError extends Error {
+  readonly reason: string
 
-  const vector = new Array(VECTOR_DIMENSION).fill(0)
-  if (!normalizedText) {
-    return vector
+  constructor(reason: string) {
+    super(`Embedding unavailable: ${reason}`)
+    this.name = "EmbeddingUnavailableError"
+    this.reason = reason
   }
-
-  const rawTokens = normalizedText.match(/[a-z0-9_]+/g) ?? []
-  const tokens = rawTokens.length > 0
-    ? rawTokens
-    : [normalizedText.slice(0, 128)]
-
-  const baseWeight = 1 / Math.sqrt(tokens.length)
-
-  for (const token of tokens) {
-    const truncated = token.slice(0, 64)
-    if (!truncated) {
-      continue
-    }
-
-    const tokenHash = hashFeature(truncated)
-
-    // Multiple signed projections per token for better spread.
-    for (let projection = 0; projection < 3; projection += 1) {
-      const mixed = (tokenHash + Math.imul(0x9e3779b1, projection + 1)) >>> 0
-      const index = mixed % VECTOR_DIMENSION
-      const sign = ((mixed >>> 31) & 1) === 0 ? 1 : -1
-      vector[index] += sign * baseWeight
-    }
-
-    // Add short n-gram signals to improve lexical similarity for close variants.
-    const maxGramOffset = Math.min(truncated.length - 3, 5)
-    for (let i = 0; i <= maxGramOffset; i += 1) {
-      const gram = truncated.slice(i, i + 3)
-      if (gram.length < 3) {
-        continue
-      }
-      const gramHash = hashFeature(gram)
-      const gramIndex = gramHash % VECTOR_DIMENSION
-      const gramSign = ((gramHash >>> 30) & 1) === 0 ? 1 : -1
-      vector[gramIndex] += gramSign * (baseWeight * 0.5)
-    }
-  }
-
-  return normalizeVector(vector)
 }
 
 async function openAIEmbed(text: string): Promise<number[] | null> {
@@ -253,7 +192,6 @@ export class MemoryStore {
   private table: lancedb.Table | null = null
   private initialized = false
   private embeddingCache = new Map<string, number[]>()
-  private hashFallbackCount = 0
 
   private getCachedEmbedding(text: string): number[] | null {
     const cached = this.embeddingCache.get(text)
@@ -272,20 +210,18 @@ export class MemoryStore {
     }
   }
 
-  private recordHashFallbackEmbedding(text: string): void {
-    this.hashFallbackCount += 1
-    log.debug("using hash-based fallback embedding", {
-      count: this.hashFallbackCount,
-      textLength: text.length,
-    })
+  private async persistKeywordMemory(
+    userId: string,
+    content: string,
+    metadata: Record<string, unknown>,
+    id: string,
+  ): Promise<string> {
+    const levelValue = Number(metadata.level)
+    const level = levelValue === 1 || levelValue === 2 ? levelValue : 0
+    const category = typeof metadata.category === "string" ? metadata.category : "fact"
 
-    if (this.hashFallbackCount === 1 || this.hashFallbackCount % HASH_FALLBACK_ALERT_EVERY === 0) {
-      log.warn("hash-based fallback embedding activated", {
-        count: this.hashFallbackCount,
-        openAiConfigured: config.OPENAI_API_KEY.trim().length > 0,
-        ollamaBaseUrl: config.OLLAMA_BASE_URL,
-      })
-    }
+    await temporalIndex.store(userId, content, level, category, id, metadata)
+    return id
   }
 
   private async createMemoryTable(): Promise<lancedb.Table> {
@@ -363,6 +299,7 @@ export class MemoryStore {
       }
     }
 
+    const providerFailures: string[] = []
     const ollamaResult = await ollamaEmbed(text)
 
     if (ollamaResult) {
@@ -371,7 +308,9 @@ export class MemoryStore {
       }
       return ollamaResult
     }
+    providerFailures.push("ollama unavailable")
 
+    const openAiConfigured = config.OPENAI_API_KEY.trim().length > 0
     const openAIResult = await openAIEmbed(text)
     if (openAIResult) {
       if (cacheKey) {
@@ -379,17 +318,9 @@ export class MemoryStore {
       }
       return openAIResult
     }
+    providerFailures.push(openAiConfigured ? "openai unavailable" : "openai not configured")
 
-    this.recordHashFallbackEmbedding(text)
-    const fallback = hashToVector(text)
-    if (cacheKey) {
-      this.setCachedEmbedding(cacheKey, fallback)
-    }
-    return fallback
-  }
-
-  getFallbackEmbeddingCount(): number {
-    return this.hashFallbackCount
+    throw new EmbeddingUnavailableError(providerFailures.join("; "))
   }
 
   async save(
@@ -397,17 +328,18 @@ export class MemoryStore {
     content: string,
     metadata: Record<string, unknown> = {}
   ): Promise<string | null> {
-    if (!this.table) {
-      log.warn("memory table not initialized")
-      return null
-    }
+    const id = randomUUID()
+    const sanitizedUserId = sanitizeUserId(userId)
 
     try {
-      const id = randomUUID()
+      if (!this.table) {
+        throw new EmbeddingUnavailableError("vector store unavailable")
+      }
+
       const vector = await this.embed(content)
       const row: MemoryRow = {
         id,
-        userId: sanitizeUserId(userId),
+        userId: sanitizedUserId,
         content,
         vector,
         metadata: JSON.stringify(metadata),
@@ -416,17 +348,39 @@ export class MemoryStore {
       }
 
       await this.table.add([row])
+
       if (metadata.temporal !== false) {
-        const levelValue = Number(metadata.level)
-        const level = levelValue === 1 || levelValue === 2 ? levelValue : 0
-        const category = typeof metadata.category === "string" ? metadata.category : "fact"
-        void temporalIndex.store(userId, content, level, category, id)
+        await this.persistKeywordMemory(userId, content, metadata, id)
       }
+
       log.debug("saved memory", { id, userId, contentLength: content.length })
       return id
     } catch (error) {
-      log.error("failed to save memory", error)
-      return null
+      const shouldPersistKeywordOnly =
+        error instanceof EmbeddingUnavailableError
+        || !this.table
+        || metadata.temporal !== false
+
+      if (!shouldPersistKeywordOnly) {
+        log.error("failed to save memory", error)
+        return null
+      }
+
+      try {
+        await this.persistKeywordMemory(userId, content, {
+          ...metadata,
+          embeddingStatus: error instanceof EmbeddingUnavailableError ? "unavailable" : "skipped",
+        }, id)
+        log.warn("stored memory without vector embedding", {
+          id,
+          userId,
+          reason: error instanceof EmbeddingUnavailableError ? error.reason : String(error),
+        })
+        return id
+      } catch (keywordError) {
+        log.error("failed to save memory to keyword path", { error, keywordError })
+        return null
+      }
     }
   }
 
@@ -464,7 +418,7 @@ export class MemoryStore {
     query: string,
     limit = 5,
   ): Promise<SearchResult[]> {
-    if (!this.table || limit <= 0) {
+    if (limit <= 0) {
       return []
     }
 
@@ -472,6 +426,10 @@ export class MemoryStore {
 
     try {
       queryVector = await this.embed(query)
+      if (!this.table) {
+        throw new EmbeddingUnavailableError("vector store unavailable")
+      }
+
       const memrlResults = await memrlUpdater.twoPhaseRetrieve(
         sanitizeUserId(userId),
         queryVector,
@@ -485,18 +443,24 @@ export class MemoryStore {
 
       return await this.legacySearch(userId, queryVector, limit)
     } catch (error) {
-      log.error("search failed", error)
-
-      if (!queryVector) {
-        return []
+      if (error instanceof EmbeddingUnavailableError) {
+        log.warn("semantic memory search unavailable, degrading to keyword-only search", {
+          userId,
+          reason: error.reason,
+        })
+        return keywordMemory.searchMemoryNodeFTS(userId, query, limit)
       }
 
       try {
-        return await this.legacySearch(userId, queryVector, limit)
+        if (queryVector && this.table) {
+          return await this.legacySearch(userId, queryVector, limit)
+        }
       } catch (fallbackError) {
         log.error("legacy search fallback failed", fallbackError)
-        return []
       }
+
+      log.error("search failed, degrading to keyword-only search", error)
+      return keywordMemory.searchMemoryNodeFTS(userId, query, limit)
     }
   }
 
@@ -682,5 +646,5 @@ export class MemoryStore {
 export const memory = new MemoryStore()
 
 export const __memoryStoreTestUtils = {
-  hashToVector,
+  EmbeddingUnavailableError,
 }

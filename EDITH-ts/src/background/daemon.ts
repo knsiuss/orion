@@ -1,6 +1,5 @@
 import crypto from "node:crypto"
 
-import { channelManager } from "../channels/manager.js"
 import config from "../config.js"
 import { getHistory, getLatestTriggerLog, logTrigger } from "../database/index.js"
 import { createLogger } from "../logger.js"
@@ -14,8 +13,10 @@ import { acpRouter } from "../acp/router.js"
 import { signMessage, type ACPMessage, type AgentCredential } from "../acp/protocol.js"
 import { eventBus } from "../core/event-bus.js"
 import { heartbeat } from "./heartbeat.js"
-import { isWithinHardQuietHours } from "./quiet-hours.js"
 import { multiUser } from "../multiuser/manager.js"
+import { loadRuntimeProactiveConfig } from "./runtime-config.js"
+import { FileWatcher } from "../os-agent/file-watcher.js"
+import { notificationDispatcher } from "../os-agent/notification.js"
 
 const logger = createLogger("daemon")
 const TRIGGERS_FILE = "permissions/triggers.yaml"
@@ -52,6 +53,7 @@ export class EdithDaemon {
   private lastTemporalMaintenanceAt = new Map<string, number>()
   private inCycleTriggerDedup = new Set<string>()
   private readonly credential: AgentCredential
+  private readonly fileWatcher = new FileWatcher(notificationDispatcher)
 
   constructor() {
     this.credential = acpRouter.registerAgent(
@@ -116,6 +118,7 @@ export class EdithDaemon {
     heartbeat.stop()
     this.cycleInProgress = false
     this.running = false
+    void this.fileWatcher.shutdown()
     logger.info("Daemon stopped")
   }
 
@@ -152,11 +155,16 @@ export class EdithDaemon {
       await triggerEngine.load(TRIGGERS_FILE)
       await pairingManager.cleanupExpired()
       const userIds = this.collectTargetUserIds()
-
-      const now = new Date()
-      const blockedByQuietHours = isWithinHardQuietHours(now)
+      const proactiveConfig = await loadRuntimeProactiveConfig()
+      notificationDispatcher.updateConfig(proactiveConfig)
+      await this.fileWatcher.applyConfig(proactiveConfig, config.DEFAULT_USER_ID)
 
       this.inCycleTriggerDedup.clear()
+
+      if (!proactiveConfig.enabled) {
+        logger.info("Phase 6 proactive runtime disabled by config")
+        return
+      }
 
       for (const userId of userIds) {
         await this.checkForActivity(userId)
@@ -178,16 +186,6 @@ export class EdithDaemon {
                 userId: trigger.userId,
                 trigger: trigger.name,
                 cooldownMinutes: config.DAEMON_TRIGGER_COOLDOWN_MINUTES,
-              })
-              await logTrigger(trigger.userId, trigger.name, false)
-              continue
-            }
-
-            if (blockedByQuietHours) {
-              logger.info("Trigger blocked by hard quiet-hours gate", {
-                trigger: trigger.name,
-                userId: trigger.userId,
-                hour: now.getHours(),
               })
               await logTrigger(trigger.userId, trigger.name, false)
               continue
@@ -217,7 +215,22 @@ export class EdithDaemon {
 
             const allowed = await sandbox.check(PermissionAction.PROACTIVE_MESSAGE, trigger.userId)
             if (allowed) {
-              actedOn = await channelManager.send(trigger.userId, trigger.message)
+              const dispatchResult = await notificationDispatcher.dispatch({
+                userId: trigger.userId,
+                title: `EDITH • ${trigger.name}`,
+                message: trigger.message,
+                priority: trigger.priority === "urgent"
+                  ? "high"
+                  : trigger.priority === "low"
+                    ? "low"
+                    : "medium",
+                source: "trigger",
+                metadata: {
+                  triggerName: trigger.name,
+                  triggerType: trigger.type,
+                },
+              })
+              actedOn = dispatchResult.ok
               if (actedOn) {
                 this.lastActivityTime = Date.now()
                 heartbeat.recordActivity(this.lastActivityTime)

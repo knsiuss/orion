@@ -5,6 +5,7 @@ import path from "node:path"
 import { z } from "zod"
 
 import { createLogger } from "../logger.js"
+import { DEFAULT_WORKSPACE_PATH } from "./edith-config.js"
 
 const log = createLogger("config.edith-config")
 
@@ -108,7 +109,7 @@ const EdithConfigSchema = z.object({
               primary: "groq/llama-3.3-70b-versatile",
               fallbacks: [],
             }),
-          workspace: z.string().default("./workspace"),
+          workspace: z.string().default(DEFAULT_WORKSPACE_PATH),
           bootstrapMaxChars: z.number().default(65536),
           bootstrapTotalMaxChars: z.number().default(100000),
         })
@@ -117,7 +118,7 @@ const EdithConfigSchema = z.object({
             primary: "groq/llama-3.3-70b-versatile",
             fallbacks: [],
           },
-          workspace: "./workspace",
+          workspace: DEFAULT_WORKSPACE_PATH,
           bootstrapMaxChars: 65536,
           bootstrapTotalMaxChars: 100000,
         }),
@@ -128,7 +129,7 @@ const EdithConfigSchema = z.object({
           primary: "groq/llama-3.3-70b-versatile",
           fallbacks: [],
         },
-        workspace: "./workspace",
+        workspace: DEFAULT_WORKSPACE_PATH,
         bootstrapMaxChars: 65536,
         bootstrapTotalMaxChars: 100000,
       },

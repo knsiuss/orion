@@ -23,10 +23,14 @@ export function getDefaultOSAgentConfig(): OSAgentConfig {
     },
     vision: {
       enabled: false,
+      profile: "minimum-spec",
       ocrEngine: "tesseract",
       elementDetection: "accessibility",
-      multimodalEngine: "gemini",
-      monitorIntervalMs: 5000,
+      multimodalEngine: "auto",
+      monitorIntervalMs: 8_000,
+      rateLimitMs: 12_000,
+      maxImageBytesMb: 8,
+      maxImageEdgePx: 1_280,
     },
     voice: {
       enabled: false,
@@ -78,10 +82,14 @@ export function getEdithOSConfig(): OSAgentConfig {
     },
     vision: {
       enabled: true,
+      profile: "minimum-spec",
       ocrEngine: "tesseract",
       elementDetection: "accessibility",
-      multimodalEngine: "gemini",
-      monitorIntervalMs: 2000,
+      multimodalEngine: "auto",
+      monitorIntervalMs: 8_000,
+      rateLimitMs: 12_000,
+      maxImageBytesMb: 8,
+      maxImageEdgePx: 1_280,
     },
     voice: {
       enabled: true,

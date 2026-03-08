@@ -29,14 +29,22 @@ export interface GUIConfig {
 
 export interface VisionConfig {
   enabled: boolean
+  /** Runtime profile. "minimum-spec" is the safe default for EDITH's minimum system requirement. */
+  profile: "minimum-spec" | "balanced"
   /** OCR engine: "tesseract" | "cloud" */
   ocrEngine: "tesseract" | "cloud"
   /** Element detection: "accessibility" | "yolo" | "omniparser" */
   elementDetection: "accessibility" | "yolo" | "omniparser"
   /** Multimodal LLM for image understanding */
-  multimodalEngine: "gemini" | "openai" | "anthropic" | "ollama"
+  multimodalEngine: "auto" | "gemini" | "openai" | "anthropic" | "ollama"
   /** Screen monitoring interval in ms */
   monitorIntervalMs: number
+  /** Rate limit for multimodal requests in ms. */
+  rateLimitMs: number
+  /** Maximum accepted image payload size in megabytes. */
+  maxImageBytesMb: number
+  /** Maximum image edge before downscaling. */
+  maxImageEdgePx: number
 }
 
 export interface VoiceIOConfig {
@@ -109,6 +117,30 @@ export interface IoTConfig {
   autoDiscover: boolean
 }
 
+export type NotificationPriority = "low" | "medium" | "high"
+
+export type NotificationChannel = "desktop" | "mobile" | "voice"
+
+export interface NotificationPayload {
+  userId: string
+  title: string
+  message: string
+  priority: NotificationPriority
+  source: "trigger" | "file-watcher" | "heartbeat" | "system"
+  channels?: NotificationChannel[]
+  bypassQuietHours?: boolean
+  cooldownKey?: string
+  cooldownMs?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface NotificationDispatchResult {
+  ok: boolean
+  requestedChannels: NotificationChannel[]
+  deliveredChannels: NotificationChannel[]
+  suppressedReason?: "proactive-disabled" | "quiet-hours" | "cooldown" | "no-channels"
+}
+
 // ── Action Types ──
 
 export type OSAction =
@@ -128,6 +160,12 @@ export interface GUIActionPayload {
   amount?: number
   windowTitle?: string
   appName?: string
+  /** Natural-language target for grounding, e.g. "Save button". */
+  targetQuery?: string
+  /** Expected observable result after the action, used by the reflect loop. */
+  expectedOutcome?: string
+  /** If false, skip the post-action visual reflection step. */
+  reflectAfterAction?: boolean
 }
 
 export interface ShellActionPayload {
@@ -263,6 +301,51 @@ export interface UIElement {
   role?: string
   /** Accessibility name */
   name?: string
+  /** Detection source for observability and routing decisions. */
+  source?: "accessibility" | "llm-som" | "llm-vision" | "advanced-detector"
+  /** Confidence score [0-1] from grounding or detection. */
+  confidence?: number
+  /** Optional verifier result for LLM-grounded candidates. */
+  verification?: GroundingVerification
+}
+
+export interface GroundingVerification {
+  passed: boolean
+  score: number
+  method: "heuristic" | "multimodal" | "multimodal+heuristic"
+  reason: string
+}
+
+export interface GUIActionReflection {
+  action: GUIActionPayload["action"]
+  success: boolean
+  verificationStatus: "confirmed" | "uncertain" | "not-observed"
+  summary: string
+  signals: string[]
+  beforeWindow?: string
+  afterWindow?: string
+  targetQuery?: string
+  expectedOutcome?: string
+  resolvedElement?: UIElement
+  memoryId?: string | null
+  episodeId?: string
+}
+
+export interface VisualMemoryMatch {
+  id: string
+  source: "semantic-memory" | "episodic-memory"
+  kind: "visual_context" | "visual_reflection"
+  content: string
+  activeWindow?: string
+  timestamp?: number
+  score: number
+  tags?: string[]
+}
+
+export interface VisualMemoryRecall {
+  query: string
+  matches: VisualMemoryMatch[]
+  summary: string[]
 }
 
 export interface WindowInfo {

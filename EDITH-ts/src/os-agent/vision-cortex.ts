@@ -51,26 +51,38 @@ import path from "node:path"
 import fs from "node:fs/promises"
 import { execa } from "execa"
 import { createLogger } from "../logger.js"
-import type { VisionConfig, OSActionResult, UIElement, ScreenState } from "./types.js"
+import { episodicMemory } from "../memory/episodic.js"
+import { memory, type SearchResult } from "../memory/store.js"
+import type {
+  VisionConfig,
+  OSActionResult,
+  UIElement,
+  ScreenState,
+  GUIActionPayload,
+  GUIActionReflection,
+  GroundingVerification,
+  VisualMemoryMatch,
+  VisualMemoryRecall,
+} from "./types.js"
 import type { GUIAgent } from "./gui-agent.js"
-import type { ImagePayload } from "../engines/types.js"
+import type { GenerateOptions, ImagePayload } from "../engines/types.js"
 
 const log = createLogger("os-agent.vision")
 
 // ── Constants (from GPT-4V Card safety bounds) ────────────────────────────────
 
 /** Maximum image size in bytes before rejecting. Source: GPT-4V Card. */
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024 // 20 MB
+const DEFAULT_MAX_IMAGE_BYTES = 20 * 1024 * 1024 // 20 MB
 
 /** Maximum edge length in pixels before downscaling. Source: GPT-4V Card. */
-const MAX_IMAGE_EDGE_PX = 2048
+const DEFAULT_MAX_IMAGE_EDGE_PX = 2048
 
 /**
  * Rate limit: minimum milliseconds between LLM vision API calls.
  * Source: OSWorld evaluation protocol (1 call per 10 seconds max).
  * Prevents cost explosion while still providing responsive vision.
  */
-const VISION_RATE_LIMIT_MS = 10_000
+const DEFAULT_VISION_RATE_LIMIT_MS = 10_000
 
 /**
  * How long to cache element detection results in milliseconds.
@@ -114,10 +126,24 @@ export interface VisionAnalysisResult {
 
 /** Visual snapshot stored to persistent memory (MemGPT pattern) */
 interface VisualContextSnapshot {
+  userId?: string
   description: string
   ocrText: string
   activeWindow: string
   timestamp: number
+}
+
+interface GuiActionReflectionInput {
+  userId?: string
+  action: GUIActionPayload["action"]
+  success: boolean
+  targetQuery?: string
+  expectedOutcome?: string
+  resolvedElement?: UIElement | null
+  before?: VisionAnalysisResult | null
+  after?: VisionAnalysisResult | null
+  commandResult?: string
+  error?: string
 }
 
 // ── Element cache entry ────────────────────────────────────────────────────────
@@ -158,6 +184,35 @@ export class VisionCortex {
     this.guiAgent = gui
   }
 
+  private getMaxImageBytes(): number {
+    const configuredBytes = Math.round(this.config.maxImageBytesMb * 1024 * 1024)
+    return Number.isFinite(configuredBytes) && configuredBytes > 0
+      ? configuredBytes
+      : DEFAULT_MAX_IMAGE_BYTES
+  }
+
+  private getMaxImageEdgePx(): number {
+    return Number.isFinite(this.config.maxImageEdgePx) && this.config.maxImageEdgePx > 0
+      ? Math.round(this.config.maxImageEdgePx)
+      : DEFAULT_MAX_IMAGE_EDGE_PX
+  }
+
+  private getVisionRateLimitMs(): number {
+    return Number.isFinite(this.config.rateLimitMs) && this.config.rateLimitMs >= 0
+      ? Math.round(this.config.rateLimitMs)
+      : DEFAULT_VISION_RATE_LIMIT_MS
+  }
+
+  private async waitForVisionRateLimit(): Promise<void> {
+    const rateLimitMs = this.getVisionRateLimitMs()
+    const msSinceLastCall = Date.now() - this.lastVisionCallMs
+    if (msSinceLastCall >= rateLimitMs) {
+      return
+    }
+
+    await this.sleep(rateLimitMs - msSinceLastCall)
+  }
+
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   async initialize(): Promise<void> {
@@ -172,9 +227,13 @@ export class VisionCortex {
 
     this.initialized = true
     log.info("Vision Cortex initialized", {
+      profile: this.config.profile,
       ocr: this.config.ocrEngine,
       detection: this.config.elementDetection,
       multimodalEngine: this.config.multimodalEngine,
+      maxImageBytesMb: this.config.maxImageBytesMb,
+      maxImageEdgePx: this.config.maxImageEdgePx,
+      rateLimitMs: this.config.rateLimitMs,
     })
   }
 
@@ -270,9 +329,10 @@ export class VisionCortex {
     }
 
     // Enforce OSWorld rate limit to prevent cost explosion
+    const rateLimitMs = this.getVisionRateLimitMs()
     const msSinceLastCall = Date.now() - this.lastVisionCallMs
-    if (msSinceLastCall < VISION_RATE_LIMIT_MS) {
-      const waitMs = VISION_RATE_LIMIT_MS - msSinceLastCall
+    if (msSinceLastCall < rateLimitMs) {
+      const waitMs = rateLimitMs - msSinceLastCall
       log.debug("vision rate limit: waiting", { waitMs })
       await this.sleep(waitMs)
     }
@@ -282,9 +342,6 @@ export class VisionCortex {
     const prompt = question ?? "Describe what you see in this image in detail. Include the active application, visible UI elements, text content, and any relevant context."
 
     try {
-      // Dynamically import orchestrator to avoid circular dependency
-      const { orchestrator } = await import("../engines/orchestrator.js")
-
       this.lastVisionCallMs = Date.now()
 
       log.info("calling multimodal LLM for image description", {
@@ -295,7 +352,7 @@ export class VisionCortex {
 
       // Pass image as ImagePayload — each engine adapter handles its own format
       // (Gemini: inlineData, OpenAI: image_url, Anthropic: base64 source)
-      const description = await orchestrator.generate("multimodal", {
+      const description = await this.generateMultimodal({
         prompt,
         images: [{ data: base64, mimeType }],
         maxTokens: 1024,
@@ -343,14 +400,25 @@ export class VisionCortex {
     // ── Step 2: Try accessibility API first (OmniParser hybrid — fast path) ─
     const accessibilityResult = await this.findElementViaAccessibility(query)
     if (accessibilityResult) {
+      const verifiedAccessibilityResult = this.decorateCandidate(accessibilityResult, {
+        source: accessibilityResult.source ?? "accessibility",
+        confidence: accessibilityResult.confidence ?? 0.98,
+        verification: {
+          passed: true,
+          score: 0.98,
+          method: "heuristic",
+          reason: "Matched directly via accessibility tree lookup",
+        },
+      })
+
       // Cache the successful result
       this.elementCache.set(cacheKey, {
-        elements: [accessibilityResult],
+        elements: [verifiedAccessibilityResult],
         timestamp: Date.now(),
         windowTitle,
       })
-      log.debug("findElement: found via accessibility API", { query, element: accessibilityResult.text })
-      return accessibilityResult
+      log.debug("findElement: found via accessibility API", { query, element: verifiedAccessibilityResult.text })
+      return verifiedAccessibilityResult
     }
 
     // ── Step 3: Fallback to LLM visual grounding (SoM approach) ─────────────
@@ -394,9 +462,6 @@ export class VisionCortex {
    */
   async storeVisualContext(snapshot: VisualContextSnapshot): Promise<void> {
     try {
-      // Dynamically import memory service to avoid circular dependency
-      const { memoryService } = await import("../memory/service.js")
-
       const content = [
         `[Visual Context] Window: ${snapshot.activeWindow}`,
         snapshot.description
@@ -404,12 +469,12 @@ export class VisionCortex {
           : `OCR Text: ${snapshot.ocrText.slice(0, 500)}`, // Truncate long OCR
       ].join("\n")
 
-      await memoryService.storeMemory({
-        userId: "owner",
-        content,
+      await memory.save(snapshot.userId ?? "owner", content, {
         category: "visual_context",
+        kind: "visual_context",
         importance: 0.3,    // Low — visual context is ambient, not critical
         ttlDays: 7,         // Auto-expire after 7 days (MemGPT: stale data cleanup)
+        temporal: false,
         metadata: {
           timestamp: snapshot.timestamp,
           activeWindow: snapshot.activeWindow,
@@ -429,6 +494,210 @@ export class VisionCortex {
   }
 
   /**
+   * Reflect on a completed GUI action by comparing before/after screen context.
+   *
+   * This closes the ScreenAgent loop: Act -> Reflect.
+   * A successful click is not enough; EDITH should verify whether anything
+   * observable changed and store that lesson for future retrieval.
+   */
+  async reflectOnGuiAction(input: GuiActionReflectionInput): Promise<GUIActionReflection> {
+    const beforeWindow = input.before?.screenState?.activeWindowTitle
+    const afterWindow = input.after?.screenState?.activeWindowTitle
+    const signals: string[] = []
+
+    if (!input.success) {
+      signals.push(input.error ?? "GUI action failed before a visible change could be observed")
+    } else {
+      if (beforeWindow && afterWindow && beforeWindow !== afterWindow) {
+        signals.push(`window changed from "${beforeWindow}" to "${afterWindow}"`)
+      }
+
+      const textShift = this.computeTextShift(input.before?.ocrText ?? "", input.after?.ocrText ?? "")
+      if (textShift >= 0.18) {
+        signals.push(`OCR content changed materially (${Math.round(textShift * 100)}%)`)
+      }
+
+      if (input.targetQuery && input.after && !this.analysisMatchesQuery(input.after, input.targetQuery)) {
+        signals.push(`target "${input.targetQuery}" is no longer visible after the action`)
+      }
+
+      if (input.expectedOutcome && input.after && this.analysisMatchesQuery(input.after, input.expectedOutcome)) {
+        signals.push(`expected outcome "${input.expectedOutcome}" was observed`)
+      }
+    }
+
+    const verificationStatus: GUIActionReflection["verificationStatus"] = !input.success
+      ? "not-observed"
+      : signals.length > 0
+        ? "confirmed"
+        : "uncertain"
+
+    const summary = this.buildGuiReflectionSummary(input, verificationStatus, signals)
+    const userId = input.userId ?? "owner"
+
+    if (input.after) {
+      await this.storeVisualContext({
+        userId,
+        description: input.after.description,
+        ocrText: input.after.ocrText,
+        activeWindow: afterWindow ?? input.after.screenState?.activeWindowTitle ?? "Unknown",
+        timestamp: Date.now(),
+      })
+    }
+
+    const memoryId = await memory.save(userId, `[GUI Reflection] ${summary}`, {
+      category: "visual_reflection",
+      kind: "visual_reflection",
+      importance: input.success ? 0.45 : 0.6,
+      ttlDays: 14,
+      temporal: false,
+      metadata: {
+        action: input.action,
+        success: input.success,
+        targetQuery: input.targetQuery,
+        expectedOutcome: input.expectedOutcome,
+        beforeWindow,
+        afterWindow,
+        verificationStatus,
+        signals,
+        timestamp: Date.now(),
+      },
+    })
+
+    const episode = episodicMemory.record({
+      userId,
+      task: input.targetQuery
+        ? `GUI ${input.action} on "${input.targetQuery}"`
+        : `GUI ${input.action}`,
+      approach: "GUI action with post-action visual reflection",
+      toolsUsed: ["gui-agent", "vision-cortex"],
+      outcome: !input.success
+        ? "failure"
+        : verificationStatus === "confirmed"
+          ? "success"
+          : "partial",
+      result: summary,
+      lesson: verificationStatus === "confirmed"
+        ? `Visual signals confirmed the effect of ${input.action}.`
+        : "The action executed, but the visual effect remained uncertain and should be verified more carefully next time.",
+      importance: !input.success ? 0.7 : verificationStatus === "confirmed" ? 0.55 : 0.45,
+      tags: ["gui_action", "visual_reflection", input.action],
+    })
+
+    return {
+      action: input.action,
+      success: input.success,
+      verificationStatus,
+      summary,
+      signals,
+      beforeWindow,
+      afterWindow,
+      targetQuery: input.targetQuery,
+      expectedOutcome: input.expectedOutcome,
+      resolvedElement: input.resolvedElement ?? undefined,
+      memoryId,
+      episodeId: episode.id,
+    }
+  }
+
+  /**
+   * Retrieve visual memories from both semantic and episodic stores.
+   *
+   * This lets EDITH answer questions like:
+   *   - "What was on screen when I last saved that file?"
+   *   - "What happened after I clicked deploy yesterday?"
+   */
+  async recallVisualMemories(
+    query: string,
+    options: { userId?: string; limit?: number } = {},
+  ): Promise<VisualMemoryRecall> {
+    const userId = options.userId ?? "owner"
+    const limit = Math.max(1, Math.min(options.limit ?? 5, 10))
+
+    const [semanticMatches, episodicMatches] = await Promise.all([
+      memory.search(userId, query, Math.max(limit * 3, 8)).catch(() => [] as SearchResult[]),
+      Promise.resolve(
+        episodicMemory.retrieve({
+          userId,
+          query,
+          tags: ["visual_reflection", "gui_action"],
+          limit: Math.max(limit * 2, 6),
+        }),
+      ),
+    ])
+
+    const semanticVisualMatches: VisualMemoryMatch[] = semanticMatches
+      .filter((entry) => this.isVisualMemoryCategory(entry.metadata))
+      .slice(0, limit)
+      .map((entry) => ({
+        id: entry.id,
+        source: "semantic-memory",
+        kind: this.getVisualMemoryKind(entry.metadata),
+        content: entry.content,
+        activeWindow: this.asOptionalString(entry.metadata.activeWindow),
+        timestamp: this.asOptionalNumber(entry.metadata.timestamp),
+        score: entry.score,
+      }))
+
+    const episodicVisualMatches: VisualMemoryMatch[] = episodicMatches
+      .filter(({ episode }) => episode.tags.includes("visual_reflection") || episode.tags.includes("gui_action"))
+      .slice(0, limit)
+      .map(({ episode, retrievalScore }) => ({
+        id: episode.id,
+        source: "episodic-memory",
+        kind: "visual_reflection",
+        content: episode.result,
+        activeWindow: this.extractWindowFromReflection(episode.result),
+        timestamp: episode.createdAt,
+        score: retrievalScore,
+        tags: episode.tags,
+      }))
+
+    const ranked = this.rankVisualMemoryMatches(
+      [...semanticVisualMatches, ...episodicVisualMatches],
+      limit,
+    )
+
+    return {
+      query,
+      matches: ranked,
+      summary: ranked.map((match, index) => this.summarizeVisualMatch(match, index)),
+    }
+  }
+
+  private async generateMultimodal(options: GenerateOptions): Promise<string> {
+    const { orchestrator } = await import("../engines/orchestrator.js")
+    const preferredEngine = this.config.multimodalEngine
+
+    await this.waitForVisionRateLimit()
+    this.lastVisionCallMs = Date.now()
+
+    if (
+      preferredEngine === "gemini"
+      || preferredEngine === "openai"
+      || preferredEngine === "anthropic"
+    ) {
+      const engine = orchestrator.getEngineMap().get(preferredEngine)
+      if (engine) {
+        try {
+          return await engine.generate(options)
+        } catch (err) {
+          log.warn("preferred multimodal engine failed, falling back to orchestrator routing", {
+            preferredEngine,
+            error: String(err),
+          })
+        }
+      } else {
+        log.warn("preferred multimodal engine is not available, falling back to orchestrator routing", {
+          preferredEngine,
+        })
+      }
+    }
+
+    return orchestrator.generate("multimodal", options)
+  }
+
+  /**
    * Extract text from an image using OCR.
    *
    * Uses Tesseract locally (free, no API cost) with English + Indonesian
@@ -438,11 +707,13 @@ export class VisionCortex {
    * @returns Extracted text string, or empty string if OCR fails/unavailable
    */
   async extractText(imageBuffer: Buffer): Promise<string> {
-    if (this.config.ocrEngine === "tesseract") {
-      return this.tesseractOCR(imageBuffer)
+    if (this.config.ocrEngine === "cloud") {
+      log.warn("cloud OCR requested but not implemented yet, falling back to Tesseract", {
+        profile: this.config.profile,
+      })
     }
-    // Cloud OCR placeholder (Google Vision, Azure, etc.)
-    return ""
+
+    return this.tesseractOCR(imageBuffer)
   }
 
   /**
@@ -455,11 +726,31 @@ export class VisionCortex {
    * @returns Array of detected UIElements with type, text, bounds
    */
   async detectElements(_screenshot: Buffer): Promise<UIElement[]> {
+    const accessibilityElements = await this.getAccessibilityElements()
+
     if (this.config.elementDetection === "accessibility") {
-      return this.getAccessibilityElements()
+      return accessibilityElements
     }
-    // Future: YOLO / OmniParser local model integration here
-    return []
+
+    if (this.config.profile !== "balanced") {
+      log.warn("advanced element detection is not active in the minimum-spec vision path, falling back to accessibility", {
+        requestedEngine: this.config.elementDetection,
+        profile: this.config.profile,
+      })
+
+      return accessibilityElements
+    }
+
+    const advancedElements = await this.detectElementsViaAdvancedPath(_screenshot, this.config.elementDetection)
+    if (advancedElements.length === 0) {
+      log.warn("advanced detector returned no elements, falling back to accessibility", {
+        requestedEngine: this.config.elementDetection,
+        profile: this.config.profile,
+      })
+      return accessibilityElements
+    }
+
+    return this.mergeDetectedElements(accessibilityElements, advancedElements)
   }
 
   /**
@@ -503,10 +794,11 @@ export class VisionCortex {
    */
   async validateAndResizeImage(imageBuffer: Buffer): Promise<Buffer | null> {
     // Check file size (GPT-4V Card: max 20MB)
-    if (imageBuffer.length > MAX_IMAGE_BYTES) {
+    const maxImageBytes = this.getMaxImageBytes()
+    if (imageBuffer.length > maxImageBytes) {
       log.error("validateAndResizeImage: image too large", {
         sizeBytes: imageBuffer.length,
-        maxBytes: MAX_IMAGE_BYTES,
+        maxBytes: maxImageBytes,
       })
       return null
     }
@@ -683,11 +975,7 @@ export class VisionCortex {
         `If not found, reply "none".`,
       ].join("\n")
 
-      const { orchestrator } = await import("../engines/orchestrator.js")
-
-      this.lastVisionCallMs = Date.now()
-
-      const response = await orchestrator.generate("multimodal", {
+      const response = await this.generateMultimodal({
         prompt,
         images: [{ data: base64, mimeType }],
         maxTokens: 10, // We only need a number or "none"
@@ -707,8 +995,18 @@ export class VisionCortex {
         return null
       }
 
-      // Return the element at the given 1-based index
-      return elements[elementId - 1] ?? null
+      const candidate = elements[elementId - 1]
+      if (!candidate) {
+        return null
+      }
+
+      return this.verifyGroundingCandidate({
+        query,
+        candidate,
+        screenshot: annotatedScreenshot,
+        source: "llm-som",
+        highlightedIndex: elementId,
+      })
     } catch (err) {
       log.warn("findElementViaLLM failed", { query, error: String(err) })
       return null
@@ -734,10 +1032,7 @@ export class VisionCortex {
       `If not found, reply: {"found": false}`,
     ].join("\n")
 
-    const { orchestrator } = await import("../engines/orchestrator.js")
-    this.lastVisionCallMs = Date.now()
-
-    const response = await orchestrator.generate("multimodal", {
+    const response = await this.generateMultimodal({
       prompt,
       images: [{ data: base64, mimeType }],
       maxTokens: 100,
@@ -751,7 +1046,7 @@ export class VisionCortex {
 
       if (!parsed.found) return null
 
-      return {
+      const candidate: UIElement = {
         type: "unknown",
         text: parsed.text ?? query,
         bounds: {
@@ -763,6 +1058,13 @@ export class VisionCortex {
         interactable: true,
         name: query,
       }
+
+      return this.verifyGroundingCandidate({
+        query,
+        candidate,
+        screenshot,
+        source: "llm-vision",
+      })
     } catch {
       return null
     }
@@ -780,7 +1082,7 @@ export class VisionCortex {
       if (!sharp) return false
 
       const { width = 0, height = 0 } = await sharp(buffer).metadata()
-      return Math.max(width, height) > MAX_IMAGE_EDGE_PX
+      return Math.max(width, height) > this.getMaxImageEdgePx()
     } catch {
       return false
     }
@@ -800,8 +1102,9 @@ export class VisionCortex {
       const sharp = await import("sharp").then((m) => m.default).catch(() => null)
       if (!sharp) return null
 
+      const maxImageEdgePx = this.getMaxImageEdgePx()
       return sharp(buffer)
-        .resize(MAX_IMAGE_EDGE_PX, MAX_IMAGE_EDGE_PX, {
+        .resize(maxImageEdgePx, maxImageEdgePx, {
           fit: "inside",      // Preserve aspect ratio (never upscale)
           withoutEnlargement: true,
         })
@@ -952,6 +1255,8 @@ $elements | ConvertTo-Json -Depth 3`
         interactable: true,
         role: String(el.type ?? ""),
         name: String(el.name ?? ""),
+        source: "accessibility" as const,
+        confidence: 0.98,
       }))
     } catch {
       return []
@@ -1018,13 +1323,523 @@ $elements | ConvertTo-Json -Depth 3`
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  private async verifyTesseract(): Promise<void> {
+  private async verifyTesseractBootstrap(): Promise<void> {
     try {
       await execa("tesseract", ["--version"])
       log.info("Tesseract OCR available")
     } catch {
       log.warn(
         "Tesseract not found — OCR unavailable. Install: choco install tesseract / apt install tesseract-ocr",
+      )
+    }
+  }
+  private async detectElementsViaAdvancedPath(
+    screenshot: Buffer,
+    detector: "yolo" | "omniparser",
+  ): Promise<UIElement[]> {
+    try {
+      const elements = await this.detectElementsViaMultimodal(screenshot, detector)
+      if (elements.length > 0) {
+        log.info("advanced detector path succeeded", {
+          detector,
+          elementCount: elements.length,
+          profile: this.config.profile,
+        })
+      }
+      return elements
+    } catch (err) {
+      log.warn("advanced detector path failed", {
+        detector,
+        error: String(err),
+        profile: this.config.profile,
+      })
+      return []
+    }
+  }
+
+  private async detectElementsViaMultimodal(
+    screenshot: Buffer,
+    detector: "yolo" | "omniparser",
+  ): Promise<UIElement[]> {
+    const validatedBuffer = await this.validateAndResizeImage(screenshot)
+    if (!validatedBuffer) {
+      return []
+    }
+
+    const { width, height } = await this.readImageDimensions(validatedBuffer)
+    const mimeType = this.detectMimeType(validatedBuffer) ?? "image/png"
+    const response = await this.generateMultimodal({
+      prompt: this.buildAdvancedDetectorPrompt(detector),
+      images: [{ data: validatedBuffer.toString("base64"), mimeType }],
+      maxTokens: 700,
+      temperature: 0,
+      systemPrompt: "You are a precise UI parser. Return compact JSON only and never add markdown fences.",
+    })
+
+    const parsed = this.parseJsonObject(response)
+    const rawElements = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.elements)
+        ? parsed.elements
+        : []
+
+    return rawElements
+      .map((element) => this.normalizeAdvancedDetectorElement(element, width, height))
+      .filter((element): element is UIElement => element !== null)
+  }
+
+  private buildAdvancedDetectorPrompt(detector: "yolo" | "omniparser"): string {
+    const detectorHint = detector === "omniparser"
+      ? "Parse the UI structurally like a screen parser: buttons, inputs, menus, tabs, dropdowns, and meaningful labels."
+      : "Detect the most actionable UI regions a user could click, type into, or inspect."
+
+    return [
+      detectorHint,
+      "Return JSON only with this shape:",
+      '{"elements":[{"type":"button","text":"Save","name":"Save","left":120,"top":80,"right":220,"bottom":120,"interactable":true,"confidence":0.82}]}',
+      "Use normalized coordinates from 0 to 1000, where 0 is the left/top edge and 1000 is the right/bottom edge.",
+      "Include at most 15 high-value elements and skip decorative noise.",
+    ].join("\n")
+  }
+
+  private normalizeAdvancedDetectorElement(
+    raw: unknown,
+    width: number,
+    height: number,
+  ): UIElement | null {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      return null
+    }
+
+    const record = raw as Record<string, unknown>
+    const bounds = this.normalizeDetectorBounds(record, width, height)
+    if (!bounds) {
+      return null
+    }
+
+    const type = this.normalizeElementType(record.type)
+    const text = this.asOptionalString(record.text) ?? this.asOptionalString(record.name) ?? type
+    const confidence = this.clampUnit(this.asOptionalNumber(record.confidence) ?? 0.65)
+
+    return {
+      type,
+      text,
+      name: this.asOptionalString(record.name) ?? text,
+      role: this.asOptionalString(record.type),
+      bounds,
+      interactable: this.asOptionalBoolean(record.interactable) ?? type !== "text",
+      source: "advanced-detector",
+      confidence,
+    }
+  }
+
+  private normalizeDetectorBounds(
+    raw: Record<string, unknown>,
+    width: number,
+    height: number,
+  ): UIElement["bounds"] | null {
+    const left = this.normalizeDetectorCoordinate(raw.left ?? raw.x1 ?? raw.x, width)
+    const top = this.normalizeDetectorCoordinate(raw.top ?? raw.y1 ?? raw.y, height)
+    const right = this.normalizeDetectorCoordinate(raw.right ?? raw.x2, width)
+    const bottom = this.normalizeDetectorCoordinate(raw.bottom ?? raw.y2, height)
+
+    if (left !== null && top !== null && right !== null && bottom !== null) {
+      const normalizedRight = Math.max(right, left + 1)
+      const normalizedBottom = Math.max(bottom, top + 1)
+      return {
+        x: left,
+        y: top,
+        width: normalizedRight - left,
+        height: normalizedBottom - top,
+      }
+    }
+
+    const x = this.normalizeDetectorCoordinate(raw.x, width)
+    const y = this.normalizeDetectorCoordinate(raw.y, height)
+    const normalizedWidth = this.normalizeDetectorCoordinate(raw.width, width)
+    const normalizedHeight = this.normalizeDetectorCoordinate(raw.height, height)
+    if (x === null || y === null || normalizedWidth === null || normalizedHeight === null) {
+      return null
+    }
+
+    return {
+      x,
+      y,
+      width: Math.max(1, normalizedWidth),
+      height: Math.max(1, normalizedHeight),
+    }
+  }
+
+  private normalizeDetectorCoordinate(value: unknown, max: number): number | null {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return null
+    }
+
+    if (value >= 0 && value <= 1) {
+      return Math.round(value * max)
+    }
+
+    if (value >= 0 && value <= 1000) {
+      return Math.round((value / 1000) * max)
+    }
+
+    return Math.max(0, Math.min(Math.round(value), max))
+  }
+
+  private mergeDetectedElements(base: UIElement[], advanced: UIElement[]): UIElement[] {
+    const merged = [...base]
+
+    for (const candidate of advanced) {
+      const duplicateIndex = merged.findIndex((existing) => this.isLikelyDuplicateElement(existing, candidate))
+      if (duplicateIndex === -1) {
+        merged.push(candidate)
+        continue
+      }
+
+      const existing = merged[duplicateIndex]
+      if ((candidate.confidence ?? 0) > (existing.confidence ?? 0)) {
+        merged[duplicateIndex] = {
+          ...existing,
+          ...candidate,
+          source: candidate.source ?? existing.source,
+          confidence: candidate.confidence ?? existing.confidence,
+        }
+      }
+    }
+
+    return merged
+  }
+
+  private isLikelyDuplicateElement(a: UIElement, b: UIElement): boolean {
+    const textA = `${a.text} ${a.name ?? ""}`.trim().toLowerCase()
+    const textB = `${b.text} ${b.name ?? ""}`.trim().toLowerCase()
+    const sameText = textA.length > 0 && textA === textB
+    const centerAX = a.bounds.x + (a.bounds.width / 2)
+    const centerAY = a.bounds.y + (a.bounds.height / 2)
+    const centerBX = b.bounds.x + (b.bounds.width / 2)
+    const centerBY = b.bounds.y + (b.bounds.height / 2)
+    const closeCenter = Math.abs(centerAX - centerBX) <= 24 && Math.abs(centerAY - centerBY) <= 24
+    return sameText || closeCenter
+  }
+
+  private async verifyGroundingCandidate(input: {
+    query: string
+    candidate: UIElement
+    screenshot: Buffer
+    source: UIElement["source"]
+    highlightedIndex?: number
+  }): Promise<UIElement | null> {
+    const heuristic = this.computeCandidateHeuristic(input.query, input.candidate)
+    let multimodalMatch: { match: boolean; confidence: number; reason: string } | null = null
+
+    try {
+      const verificationImage = input.highlightedIndex
+        ? input.screenshot
+        : await this.applySetOfMarks(input.screenshot, [input.candidate])
+      const validatedBuffer = await this.validateAndResizeImage(verificationImage)
+      if (validatedBuffer) {
+        const response = await this.generateMultimodal({
+          prompt: this.buildGroundingVerificationPrompt(input.query, input.candidate, input.highlightedIndex),
+          images: [{ data: validatedBuffer.toString("base64"), mimeType: this.detectMimeType(validatedBuffer) ?? "image/png" }],
+          maxTokens: 120,
+          temperature: 0,
+        })
+
+        const parsed = this.parseJsonObject(response)
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const record = parsed as Record<string, unknown>
+          multimodalMatch = {
+            match: this.asOptionalBoolean(record.match) ?? false,
+            confidence: this.clampUnit(this.asOptionalNumber(record.confidence) ?? 0),
+            reason: this.asOptionalString(record.reason) ?? "multimodal verifier returned no reason",
+          }
+        }
+      }
+    } catch (err) {
+      log.debug("grounding verifier multimodal step failed", {
+        query: input.query,
+        error: String(err),
+      })
+    }
+
+    const verification = this.combineGroundingVerification(heuristic, multimodalMatch)
+    if (!verification.passed) {
+      log.info("grounding verifier rejected candidate", {
+        query: input.query,
+        candidateText: input.candidate.text,
+        score: verification.score,
+        reason: verification.reason,
+      })
+      return null
+    }
+
+    return this.decorateCandidate(input.candidate, {
+      source: input.source,
+      confidence: verification.score,
+      verification,
+    })
+  }
+
+  private buildGroundingVerificationPrompt(
+    query: string,
+    candidate: UIElement,
+    highlightedIndex?: number,
+  ): string {
+    const candidateLabel = highlightedIndex
+      ? `numbered element #${highlightedIndex}`
+      : "the highlighted candidate"
+
+    return [
+      `Verify whether ${candidateLabel} matches the query "${query}".`,
+      `Candidate text: "${candidate.text}".`,
+      `Candidate type: "${candidate.type}".`,
+      "Reply in JSON only:",
+      '{"match":true,"confidence":0.83,"reason":"The highlighted button label matches the query."}',
+    ].join("\n")
+  }
+
+  private combineGroundingVerification(
+    heuristic: { score: number; reason: string },
+    multimodalMatch: { match: boolean; confidence: number; reason: string } | null,
+  ): GroundingVerification {
+    if (!multimodalMatch) {
+      return {
+        passed: heuristic.score >= 0.55,
+        score: heuristic.score,
+        method: "heuristic",
+        reason: heuristic.reason,
+      }
+    }
+
+    const combinedScore = multimodalMatch.match
+      ? this.clampUnit((heuristic.score + multimodalMatch.confidence) / 2)
+      : this.clampUnit(heuristic.score * 0.5)
+    const passed = multimodalMatch.match
+      ? combinedScore >= 0.45 || heuristic.score >= 0.72
+      : heuristic.score >= 0.8
+
+    return {
+      passed,
+      score: combinedScore,
+      method: "multimodal+heuristic",
+      reason: multimodalMatch.reason,
+    }
+  }
+
+  private computeCandidateHeuristic(query: string, candidate: UIElement): { score: number; reason: string } {
+    const queryTokens = this.tokenizeMatchText(query)
+    const candidateTokens = this.tokenizeMatchText([
+      candidate.text,
+      candidate.name ?? "",
+      candidate.role ?? "",
+      candidate.type,
+    ].join(" "))
+
+    let overlapCount = 0
+    for (const token of queryTokens) {
+      if (candidateTokens.has(token)) {
+        overlapCount += 1
+      }
+    }
+
+    const coverage = queryTokens.size > 0 ? overlapCount / queryTokens.size : 0
+    const directSubstringMatch = candidate.text.toLowerCase().includes(query.toLowerCase())
+      || (candidate.name ?? "").toLowerCase().includes(query.toLowerCase())
+    const score = this.clampUnit(
+      (coverage * 0.7)
+      + (directSubstringMatch ? 0.25 : 0)
+      + (candidate.interactable ? 0.05 : 0),
+    )
+
+    return {
+      score,
+      reason: directSubstringMatch
+        ? "candidate text matches the query directly"
+        : `token overlap coverage ${Math.round(coverage * 100)}%`,
+    }
+  }
+
+  private decorateCandidate(candidate: UIElement, overrides: Partial<UIElement>): UIElement {
+    return {
+      ...candidate,
+      ...overrides,
+    }
+  }
+
+  private async readImageDimensions(buffer: Buffer): Promise<{ width: number; height: number }> {
+    try {
+      const sharp = await import("sharp").then((m) => m.default).catch(() => null)
+      if (sharp) {
+        const { width = 0, height = 0 } = await sharp(buffer).metadata()
+        if (width > 0 && height > 0) {
+          return { width, height }
+        }
+      }
+    } catch {
+      // Fall through to screen resolution.
+    }
+
+    return this.getScreenResolution()
+  }
+
+  private computeTextShift(beforeText: string, afterText: string): number {
+    const beforeTokens = this.tokenizeMatchText(beforeText)
+    const afterTokens = this.tokenizeMatchText(afterText)
+    const union = new Set([...beforeTokens, ...afterTokens])
+    if (union.size === 0) {
+      return 0
+    }
+
+    let overlap = 0
+    for (const token of beforeTokens) {
+      if (afterTokens.has(token)) {
+        overlap += 1
+      }
+    }
+
+    return 1 - (overlap / union.size)
+  }
+
+  private analysisMatchesQuery(analysis: VisionAnalysisResult, query: string): boolean {
+    const normalizedQuery = query.toLowerCase().trim()
+    if (!normalizedQuery) {
+      return false
+    }
+
+    if (analysis.ocrText.toLowerCase().includes(normalizedQuery)) {
+      return true
+    }
+
+    return analysis.elements.some((element) => this.computeCandidateHeuristic(query, element).score >= 0.55)
+  }
+
+  private buildGuiReflectionSummary(
+    input: GuiActionReflectionInput,
+    verificationStatus: GUIActionReflection["verificationStatus"],
+    signals: string[],
+  ): string {
+    const actionLabel = input.targetQuery
+      ? `${input.action} on "${input.targetQuery}"`
+      : input.action
+
+    if (!input.success) {
+      return `${actionLabel} failed: ${input.error ?? "unknown GUI error"}.`
+    }
+
+    if (verificationStatus === "confirmed") {
+      return `${actionLabel} completed and visual reflection confirmed the change${signals.length > 0 ? ` (${signals.join("; ")})` : ""}.`
+    }
+
+    if (signals.length > 0) {
+      return `${actionLabel} completed with mixed signals: ${signals.join("; ")}.`
+    }
+
+    return `${actionLabel} completed, but no reliable visual confirmation was observed${input.commandResult ? ` after "${input.commandResult}"` : ""}.`
+  }
+
+  private isVisualMemoryCategory(metadata: Record<string, unknown>): boolean {
+    const category = this.asOptionalString(metadata.category)
+    const kind = this.asOptionalString(metadata.kind)
+    return category === "visual_context" || category === "visual_reflection" || kind === "visual_context" || kind === "visual_reflection"
+  }
+
+  private getVisualMemoryKind(metadata: Record<string, unknown>): VisualMemoryMatch["kind"] {
+    const category = this.asOptionalString(metadata.category)
+    return category === "visual_reflection" ? "visual_reflection" : "visual_context"
+  }
+
+  private rankVisualMemoryMatches(matches: VisualMemoryMatch[], limit: number): VisualMemoryMatch[] {
+    const deduped = new Map<string, VisualMemoryMatch>()
+
+    for (const match of matches) {
+      const key = `${match.kind}:${match.content.slice(0, 120)}`
+      const existing = deduped.get(key)
+      if (!existing || match.score > existing.score) {
+        deduped.set(key, match)
+      }
+    }
+
+    return [...deduped.values()]
+      .sort((a, b) => {
+        if (b.score !== a.score) {
+          return b.score - a.score
+        }
+        return (b.timestamp ?? 0) - (a.timestamp ?? 0)
+      })
+      .slice(0, limit)
+  }
+
+  private summarizeVisualMatch(match: VisualMemoryMatch, index: number): string {
+    const windowLabel = match.activeWindow ? ` @ ${match.activeWindow}` : ""
+    return `${index + 1}. [${match.kind}/${match.source}]${windowLabel} ${match.content.slice(0, 160)}`
+  }
+
+  private extractWindowFromReflection(content: string): string | undefined {
+    const match = content.match(/window\s+changed\s+from\s+"[^"]+"\s+to\s+"([^"]+)"/i)
+    return match?.[1]
+  }
+
+  private parseJsonObject(text: string): Record<string, unknown> | Array<unknown> | null {
+    try {
+      const cleaned = text.replace(/```json|```/gi, "").trim()
+      return JSON.parse(cleaned) as Record<string, unknown> | Array<unknown>
+    } catch {
+      return null
+    }
+  }
+
+  private normalizeElementType(value: unknown): UIElement["type"] {
+    const normalized = typeof value === "string" ? value.toLowerCase().trim() : ""
+    const allowed: UIElement["type"][] = [
+      "button",
+      "input",
+      "link",
+      "text",
+      "image",
+      "menu",
+      "checkbox",
+      "dropdown",
+      "tab",
+      "unknown",
+    ]
+    return allowed.includes(normalized as UIElement["type"])
+      ? normalized as UIElement["type"]
+      : "unknown"
+  }
+
+  private tokenizeMatchText(text: string): Set<string> {
+    return new Set(
+      text
+        .toLowerCase()
+        .split(/[^a-z0-9]+/i)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 2),
+    )
+  }
+
+  private asOptionalString(value: unknown): string | undefined {
+    return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
+  }
+
+  private asOptionalNumber(value: unknown): number | undefined {
+    return typeof value === "number" && Number.isFinite(value) ? value : undefined
+  }
+
+  private asOptionalBoolean(value: unknown): boolean | undefined {
+    return typeof value === "boolean" ? value : undefined
+  }
+
+  private clampUnit(value: number): number {
+    return Math.max(0, Math.min(1, value))
+  }
+
+  private async verifyTesseract(): Promise<void> {
+    try {
+      await execa("tesseract", ["--version"])
+      log.info("Tesseract OCR available")
+    } catch {
+      log.warn(
+        "Tesseract not found - OCR unavailable. Install: choco install tesseract / apt install tesseract-ocr",
       )
     }
   }

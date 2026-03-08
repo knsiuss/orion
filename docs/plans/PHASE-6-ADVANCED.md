@@ -3,7 +3,7 @@
 > "JARVIS doesn't wait for me to say something. He already knows."
 > — Tony Stark, Iron Man 3
 
-**Status:** In progress — fondasi daemon ✅ | triggers YAML ✅ | file watcher ❌ | notifications ❌ | macros ❌ | CaMeL ❌
+**Status:** In progress — daemon foundation ✅ | triggers YAML ✅ | notification dispatcher ✅ | file watcher ✅ | onboarding config ✅ | macro engine ❌ | CaMeL ❌
 **Runtime target:** laptop minimum **1 GB RAM**, HP minimum **6 GB RAM**
 **Setup contract:** semua user-facing setup lewat onboarding, persist ke `edith.json`
 
@@ -249,16 +249,20 @@ User bisa tambah custom trigger dari Settings UI dengan kondisi berbasis natural
 - daemon berjalan dan mengevaluasi triggers YAML yang ada
 - triggers YAML dapat dibaca dan di-parse oleh daemon
 - sistem event dari OS-Agent daemon sudah ada (CPU, RAM, battery, disk)
+- top-level `proactive` dan `macros` sekarang sudah jadi config contract di `edith.json`
+- `NotificationDispatcher` sudah menjadi jalur proactive utama untuk daemon dan heartbeat
+- gateway sekarang broadcast event `notification` ke WebSocket client yang relevan
+- `FileWatcher` berbasis chokidar sudah ada, dengan klasifikasi `high / medium / low`
+- onboarding desktop dan mobile settings sudah bisa menyimpan proactive config + macro path tanpa edit file manual
 
 ## Yang Masih Next
 
-1. `NotificationDispatcher` — class belum ada, semua channel belum terhubung
-2. `FileWatcher` — chokidar belum diinstall, class belum ada
-3. `MacroEngine` — YAML loader dan step executor belum ada
-4. `CaMeL Guard` — taint tracking dan capability tokens belum ada, tool-guard.ts belum terkoneksi ke mekanisme ini
-5. Mobile notification screen dan macro builder screen
-6. Onboarding flow untuk proactive config dan file watcher paths
-7. ProAgent-style natural language macro creation
+1. `MacroEngine` — YAML loader dan step executor belum ada
+2. `CaMeL Guard` — taint tracking dan capability tokens belum ada, tool-guard.ts belum terkoneksi ke mekanisme ini
+3. Mobile notification screen dan macro builder screen
+4. ProAgent-style natural language macro creation
+5. Voice proactive follow-up yang benar-benar memanggil jalur Phase 1 TTS end-to-end
+6. Push notification yang lebih kaya di mobile di luar WebSocket session yang sedang aktif
 
 ---
 
@@ -293,11 +297,11 @@ Untuk mobile, alur yang sama lewat mobile settings screen yang menulis via `PATC
 
 - daemon dapat mengirim notifikasi desktop saat battery di bawah threshold
 - file watcher mendeteksi perubahan `.env` dan kirim HIGH priority notification
+- quiet hours menghentikan notifikasi di luar jam yang dikonfigurasi
+- semua setup proactive bisa dilakukan dari onboarding tanpa edit file manual
 - macro dengan 3 steps berhasil dieksekusi dari voice trigger
 - CaMeL gate memblokir tool call yang argumennya berasal dari data tainted
 - mobile menerima push notification dari daemon trigger
-- quiet hours menghentikan notifikasi di luar jam yang dikonfigurasi
-- semua setup bisa dilakukan dari onboarding tanpa edit file manual
 
 ---
 

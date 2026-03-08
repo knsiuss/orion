@@ -1,11 +1,14 @@
 import path from "node:path"
 import net from "node:net"
+import http from "node:http"
 
 import { describe, expect, it, vi } from "vitest"
 
 import {
+  buildGatewayAccessCandidates,
   buildDiscordSelfTestChecks,
   isProfileEnvLikelyConfigured,
+  main,
   parseDashboardArgs,
   buildTelegramSelfTestChecks,
   buildWebchatSelfTestChecks,
@@ -26,6 +29,8 @@ import {
   isEdithRepoDir,
   lineMatchesChannelLogFilter,
   probeLocalTcpPort,
+  waitForFirstLocalHttpReady,
+  waitForLocalHttpReady,
   resolveProfileSelector,
   summarizeDiscordBotToken,
   summarizeTelegramBotToken,
@@ -70,6 +75,22 @@ describe("global edith CLI helpers", () => {
       positionals: [],
       help: true,
     })
+  })
+
+  it("prints compact top-level help for the common path", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {})
+    let output = ""
+
+    try {
+      await main(["--help"])
+      output = logSpy.mock.calls.map((args) => args.join(" ")).join("\n")
+      expect(output).toContain("Primary flow:")
+      expect(output).toContain("edith dashboard --open")
+      expect(output).toContain("EDITH // CONTROL")
+      expect(output).not.toContain("EDITH-style wrapper")
+    } finally {
+      logSpy.mockRestore()
+    }
   })
 
   it("passes --help through to subcommands when command is already present", () => {
@@ -385,6 +406,82 @@ describe("global edith CLI helpers", () => {
     expect(unreachable.reachable).toBe(false)
     expect(unreachable.port).toBe(address.port)
     expect(unreachable.error).toBeTruthy()
+  })
+
+  it("builds gateway access candidates that prefer loopback for wildcard binds", () => {
+    const wildcard = buildGatewayAccessCandidates("0.0.0.0", 18789)
+    expect(wildcard.bindUrl).toBe("http://0.0.0.0:18789")
+    expect(wildcard.accessUrls).toEqual([
+      "http://127.0.0.1:18789",
+      "http://localhost:18789",
+    ])
+
+    const localhost = buildGatewayAccessCandidates("localhost", 18789)
+    expect(localhost.bindUrl).toBe("http://localhost:18789")
+    expect(localhost.accessUrls).toEqual([
+      "http://localhost:18789",
+      "http://127.0.0.1:18789",
+    ])
+  })
+
+  it("finds the first reachable local HTTP endpoint across candidate URLs", async () => {
+    const server = http.createServer((_, res) => {
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end(JSON.stringify({ ok: true }))
+    })
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()))
+    const address = server.address()
+    if (!address || typeof address === "string") {
+      server.close()
+      throw new Error("Expected HTTP address info")
+    }
+
+    const probe = await waitForFirstLocalHttpReady([
+      "http://127.0.0.1:1/health",
+      `http://127.0.0.1:${address.port}/health`,
+    ], {
+      timeoutMs: 1000,
+      intervalMs: 50,
+      requestTimeoutMs: 250,
+    })
+    expect(probe.ready).toBe(true)
+    expect(probe.url).toBe(`http://127.0.0.1:${address.port}/health`)
+    expect(probe.statusCode).toBe(200)
+    expect(probe.error).toBeNull()
+
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  })
+
+  it("waits for a local HTTP endpoint before opening EDITH Control", async () => {
+    const server = http.createServer((_, res) => {
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end(JSON.stringify({ ok: true }))
+    })
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()))
+    const address = server.address()
+    if (!address || typeof address === "string") {
+      server.close()
+      throw new Error("Expected HTTP address info")
+    }
+
+    const ready = await waitForLocalHttpReady(`http://127.0.0.1:${address.port}/health`, {
+      timeoutMs: 1000,
+      intervalMs: 50,
+      requestTimeoutMs: 250,
+    })
+    expect(ready.ready).toBe(true)
+    expect(ready.statusCode).toBe(200)
+    expect(ready.error).toBeNull()
+
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+
+    const notReady = await waitForLocalHttpReady(`http://127.0.0.1:${address.port}/health`, {
+      timeoutMs: 200,
+      intervalMs: 50,
+      requestTimeoutMs: 100,
+    })
+    expect(notReady.ready).toBe(false)
+    expect(notReady.error).toBeTruthy()
   })
 
   it("matches channel-specific live logs and preserves fatal lines in filtered mode", () => {

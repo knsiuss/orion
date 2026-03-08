@@ -5,6 +5,8 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import os from "node:os"
 import net from "node:net"
+import http from "node:http"
+import https from "node:https"
 import { spawn } from "node:child_process"
 import { fileURLToPath } from "node:url"
 
@@ -167,47 +169,49 @@ export function shouldUseShellForCommand(command, platform = process.platform) {
 }
 
 function printHelp() {
-  console.log("EDITH CLI (EDITH-style wrapper)")
-  console.log("==================================")
-  console.log("")
-  console.log("Usage:")
-  console.log("  edith                           Smart entrypoint (first-run: launches setup wizard)")
-  console.log("  edith link <path-to-EDITH-ts>     Link your EDITH repo once")
-  console.log("  edith repo                        Show linked repo path")
-  console.log("  edith profile                     Show active profile path")
-  console.log("  edith profile init                Create ~/.edith profile files (env/workspace/state)")
-  console.log("  edith setup                       EDITH-style setup alias (quickstart wizard)")
-  console.log("  edith init                        Bootstrap profile + run quickstart wizard")
-  console.log("  edith quickstart                  Run onboarding wizard")
-  console.log("  edith configure                   Re-run onboarding wizard (configure alias)")
-  console.log("  edith dashboard                   Start gateway and print dashboard URL")
-  console.log("  edith status                      Readiness/status check (self-test alias)")
-  console.log("  edith logs [all|gateway]          Stream live logs by starting a target mode")
-  console.log("  edith channels login ...          EDITH-style channel login namespace (WhatsApp QR / Cloud)")
-  console.log("  edith channels status [--channel] Channel readiness/status alias")
-  console.log("  edith channels logs [--channel]   Channel log entrypoint (live logs fallback)")
-  console.log("  edith self-test                   Check repo/profile/env readiness (beginner-friendly)")
-  console.log("  edith wa scan                     WhatsApp QR setup (EDITH-style)")
-  console.log("  edith wa cloud                    WhatsApp Cloud API setup")
-  console.log("  edith all                         Start EDITH (gateway + channels + CLI)")
-  console.log("  edith gateway                     Start gateway mode")
-  console.log("  edith doctor                      Run doctor checks")
-  console.log("  edith onboard -- <args>           Pass raw args to onboard CLI")
-  console.log("")
-  console.log("Options:")
-  console.log("  --repo <path>                     Override linked repo for this command")
-  console.log("  --profile <name|path>             Use a named profile (~/.edith/profiles/<name>) or an explicit path")
-  console.log("  --dev                             Use isolated dev profile (~/.edith/profiles/dev)")
-  console.log("  --help, -h                        Show help")
-  console.log("")
-  console.log("Examples:")
-  console.log("  edith link C:\\Users\\you\\edith\\EDITH-ts")
-  console.log("  edith profile init")
-  console.log("  edith --profile work wa scan --yes --provider groq")
-  console.log("  edith channels login --channel whatsapp --non-interactive --provider groq")
-  console.log("  edith --dev dashboard")
-  console.log("  edith wa scan")
-  console.log("  edith all")
+  console.log([
+    "EDITH // CONTROL",
+    "Local operator wrapper for setup, control, and runtime repair.",
+    "",
+    "Usage:",
+    "  edith [command]",
+    "",
+    "Primary flow:",
+    "  edith                           Smart entrypoint",
+    "  edith setup                     Run onboarding wizard",
+    "  edith dashboard --open          Open EDITH Control",
+    "  edith all                       Start EDITH",
+    "",
+    "Control:",
+    "  edith link <path-to-EDITH-ts>   Link this machine to a repo once",
+    "  edith status                    Readiness check",
+    "  edith repo                      Show linked repo path",
+    "  edith profile                   Show active profile path",
+    "  edith profile init              Bootstrap profile files",
+    "",
+    "Channels:",
+    "  edith wa scan                   WhatsApp QR setup",
+    "  edith wa cloud                  WhatsApp Cloud setup",
+    "  edith channels help             Channel namespace overview",
+    "",
+    "Advanced:",
+    "  edith logs [all|gateway]        Stream live logs",
+    "  edith gateway                   Start gateway only",
+    "  edith doctor                    Run doctor checks",
+    "  edith onboard -- <args>         Pass raw args to onboard CLI",
+    "",
+    "Global options:",
+    "  --repo <path>                   Override linked repo for one command",
+    "  --profile <name|path>           Use ~/.edith/profiles/<name> or an explicit path",
+    "  --dev                           Use ~/.edith/profiles/dev",
+    "  --help, -h                      Show help",
+    "",
+    "Examples:",
+    "  edith link C:\\Users\\you\\EDITH\\EDITH-ts",
+    "  edith --profile testing setup",
+    "  edith channels login --channel whatsapp --non-interactive --provider groq",
+    "  edith dashboard --open",
+  ].join("\n"))
 }
 
 function normalizePathInput(value) {
@@ -914,6 +918,190 @@ export async function probeLocalTcpPort(port, options = {}) {
 
     socket.connect({ host, port })
   })
+}
+
+/**
+ * Probe a local HTTP endpoint once.
+ *
+ * @param {string} url - Local HTTP(S) URL to probe.
+ * @param {number} requestTimeoutMs - Timeout for the single HTTP request.
+ * @returns {Promise<{ready: boolean, url: string, statusCode: number | null, error: string | null}>}
+ */
+async function probeLocalHttpUrl(url, requestTimeoutMs) {
+  try {
+    const response = await new Promise((resolve, reject) => {
+      const target = new URL(url)
+      const client = target.protocol === "https:" ? https : http
+      const request = client.request(target, {
+        method: "GET",
+        timeout: requestTimeoutMs,
+      }, (res) => {
+        res.resume()
+        resolve({
+          statusCode: Number.isInteger(res.statusCode) ? res.statusCode : null,
+        })
+      })
+
+      request.once("timeout", () => {
+        request.destroy(new Error(`timeout after ${requestTimeoutMs}ms`))
+      })
+      request.once("error", reject)
+      request.end()
+    })
+
+    const statusCode = response.statusCode
+    return {
+      ready: Boolean(statusCode && statusCode >= 200 && statusCode < 500),
+      url,
+      statusCode,
+      error: statusCode && statusCode >= 200 && statusCode < 500
+        ? null
+        : (statusCode ? `unexpected status ${statusCode}` : "missing status code"),
+    }
+  } catch (error) {
+    return {
+      ready: false,
+      url,
+      statusCode: null,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+function normalizeGatewayHost(rawHost) {
+  const normalized = typeof rawHost === "string" ? rawHost.trim().replace(/^\[(.*)\]$/, "$1") : ""
+  return normalized || "127.0.0.1"
+}
+
+function isWildcardGatewayHost(host) {
+  return host === "0.0.0.0" || host === "::" || host === "*"
+}
+
+function isLoopbackGatewayHost(host) {
+  return host === "127.0.0.1" || host === "localhost" || host === "::1"
+}
+
+function formatUrlHost(host) {
+  return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host
+}
+
+export function buildGatewayAccessCandidates(host, port) {
+  const normalizedHost = normalizeGatewayHost(host)
+  const bindUrl = `http://${formatUrlHost(normalizedHost)}:${port}`
+  const candidateHosts = []
+
+  const addHost = (candidateHost) => {
+    const normalizedCandidate = normalizeGatewayHost(candidateHost)
+    if (candidateHosts.includes(normalizedCandidate)) {
+      return
+    }
+    candidateHosts.push(normalizedCandidate)
+  }
+
+  if (isWildcardGatewayHost(normalizedHost)) {
+    addHost("127.0.0.1")
+    addHost("localhost")
+  } else {
+    addHost(normalizedHost)
+    if (normalizedHost === "127.0.0.1") {
+      addHost("localhost")
+    } else if (normalizedHost === "localhost") {
+      addHost("127.0.0.1")
+    } else if (normalizedHost === "::1") {
+      addHost("127.0.0.1")
+      addHost("localhost")
+    }
+  }
+
+  const accessUrls = candidateHosts.map((candidateHost) => `http://${formatUrlHost(candidateHost)}:${port}`)
+  return {
+    bindHost: normalizedHost,
+    bindUrl,
+    accessUrls,
+    healthUrls: accessUrls.map((accessUrl) => `${accessUrl}/health`),
+  }
+}
+
+/**
+ * Poll one or more local HTTP endpoints until one responds or a timeout is reached.
+ *
+ * @param {string[]} urls - Candidate local HTTP(S) URLs to probe.
+ * @param {{timeoutMs?: number, intervalMs?: number, requestTimeoutMs?: number}} [options]
+ * @returns {Promise<{ready: boolean, url: string | null, statusCode: number | null, elapsedMs: number, error: string | null}>}
+ */
+export async function waitForFirstLocalHttpReady(urls, options = {}) {
+  const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0 ? options.timeoutMs : 15000
+  const intervalMs = Number.isFinite(options.intervalMs) && options.intervalMs > 0 ? options.intervalMs : 250
+  const requestTimeoutMs = Number.isFinite(options.requestTimeoutMs) && options.requestTimeoutMs > 0
+    ? options.requestTimeoutMs
+    : 1200
+  const startedAt = Date.now()
+  const candidates = Array.from(new Set(
+    Array.isArray(urls)
+      ? urls.filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim())
+      : [],
+  ))
+  let lastError = null
+  let lastStatusCode = null
+  let lastUrl = candidates[0] ?? null
+
+  while (candidates.length > 0 && Date.now() - startedAt <= timeoutMs) {
+    const results = await Promise.all(candidates.map((url) => probeLocalHttpUrl(url, requestTimeoutMs)))
+    const ready = results.find((result) => result.ready)
+    if (ready) {
+      return {
+        ready: true,
+        url: ready.url,
+        statusCode: ready.statusCode,
+        elapsedMs: Math.max(0, Date.now() - startedAt),
+        error: null,
+      }
+    }
+
+    if (results.length > 0) {
+      const lastResult = results[results.length - 1]
+      lastStatusCode = lastResult.statusCode
+      lastError = lastResult.error
+      lastUrl = lastResult.url
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+  }
+
+  return {
+    ready: false,
+    url: lastUrl,
+    statusCode: lastStatusCode,
+    elapsedMs: Math.max(0, Date.now() - startedAt),
+    error: lastError,
+  }
+}
+
+/**
+ * Poll a local HTTP endpoint until it responds or a timeout is reached.
+ *
+ * @param {string} url - Local HTTP(S) URL to probe.
+ * @param {{timeoutMs?: number, intervalMs?: number, requestTimeoutMs?: number}} [options]
+ * @returns {Promise<{ready: boolean, statusCode: number | null, elapsedMs: number, error: string | null}>}
+ */
+export async function waitForLocalHttpReady(url, options = {}) {
+  const result = await waitForFirstLocalHttpReady([url], options)
+  return {
+    ready: result.ready,
+    statusCode: result.statusCode,
+    elapsedMs: result.elapsedMs,
+    error: result.error,
+  }
+}
+
+async function detectGatewayHostFromProfileEnv(profileDir) {
+  try {
+    const raw = await fs.readFile(getProfilePaths(profileDir).envPath, "utf-8")
+    return normalizeGatewayHost(parseEnvContentLoose(raw).GATEWAY_HOST)
+  } catch {
+    // Best-effort only; fallback below.
+  }
+  return "127.0.0.1"
 }
 
 export function summarizeWhatsAppBaileysCreds(rawCreds) {
@@ -1767,17 +1955,18 @@ async function handleDefaultEntry(repoOverride, profileOverride, devMode = false
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (/No EDITH repo linked/i.test(message)) {
-      console.log("EDITH CLI")
-      console.log("=========")
-      console.log("")
-      console.log("No linked EDITH repo found yet.")
-      console.log("EDITH-style first run needs a repo path one time (until standalone package runtime lands).")
-      console.log("")
-      console.log("Next:")
-      console.log("- `edith link C:\\path\\to\\EDITH-ts`")
-      console.log("- then run `edith` again (it will launch setup wizard if profile is not configured)")
-      console.log("")
-      console.log("Tip: if you run this inside the repo, use `edith link .`")
+      console.log([
+        "EDITH // CONTROL",
+        "",
+        "No linked EDITH repo found.",
+        "Link one repo once, then run `edith` again.",
+        "",
+        "Next:",
+        "  edith link C:\\path\\to\\EDITH-ts",
+        "  edith",
+        "",
+        "Tip: from inside the repo, run `edith link .`",
+      ].join("\n"))
       return
     }
     throw error
@@ -1789,28 +1978,34 @@ async function handleDefaultEntry(repoOverride, profileOverride, devMode = false
 
   if (autoLinked && !repoOverride && !profileOverride) {
     await saveCliConfig({ ...(await loadCliConfig()), repoDir, profileDir })
-    console.log(`Auto-linked EDITH repo: ${repoDir}`)
-    console.log(`Active profile: ${profileDir}`)
-    console.log("")
+    console.log([
+      `Auto-linked repo : ${repoDir}`,
+      `Active profile   : ${profileDir}`,
+      "",
+    ].join("\n"))
   }
 
   const { envMap } = await loadProfileEnvMap(profileDir)
   if (!isProfileEnvLikelyConfigured(envMap)) {
-    console.log("No provider/channel setup detected for the active profile.")
-    console.log("Launching setup wizard (EDITH-style first run)...")
+    console.log([
+      "Profile is not configured yet.",
+      "Launching setup wizard...",
+    ].join("\n"))
     await runPnpmScript(repoDir, profileDir, "quickstart")
     return
   }
 
-  console.log("EDITH CLI is ready.")
-  console.log(`Repo:    ${repoDir}`)
-  console.log(`Profile: ${profileDir}`)
-  console.log("")
-  console.log("Next:")
-  console.log("- `edith dashboard` (web dashboard / gateway)")
-  console.log("- `edith channels login --channel whatsapp` (QR login)")
-  console.log("- `edith all` (run EDITH + channels)")
-  console.log("- `edith status` (readiness check)")
+  console.log([
+    "EDITH // READY",
+    `Repo      ${repoDir}`,
+    `Profile   ${profileDir}`,
+    "",
+    "Next:",
+    "  edith dashboard --open",
+    "  edith all",
+    "  edith status",
+    "  edith channels login --channel whatsapp",
+  ].join("\n"))
 }
 
 async function resolveRepoDir(repoOverride) {
@@ -2091,6 +2286,16 @@ async function detectGatewayPortFromProfileEnv(profileDir) {
   return 18789
 }
 
+async function detectWebchatPortFromProfileEnv(profileDir) {
+  try {
+    const raw = await fs.readFile(getProfilePaths(profileDir).envPath, "utf-8")
+    return resolveWebchatPort(parseEnvContentLoose(raw))
+  } catch {
+    // Best-effort only; fallback below.
+  }
+  return 8080
+}
+
 async function handleLogs(repoDir, profileDir, rest) {
   const target = (rest[0] ?? "all").toLowerCase()
   if (target !== "all" && target !== "gateway") {
@@ -2106,32 +2311,75 @@ async function handleLogs(repoDir, profileDir, rest) {
 async function handleDashboard(repoDir, profileDir, rest = []) {
   const options = parseDashboardArgs(rest)
   if (options.help) {
-    console.log("EDITH Dashboard")
-    console.log("==============")
-    console.log("")
-    console.log("Usage:")
-    console.log("  edith dashboard [--open|--no-open]")
-    console.log("")
-    console.log("Options:")
-    console.log("  --open      Open dashboard URL in the default browser (best effort)")
-    console.log("  --no-open   Do not auto-open browser (default)")
+    console.log([
+      "EDITH Control",
+      "",
+      "Usage:",
+      "  edith dashboard [--open|--no-open]",
+      "",
+      "Options:",
+      "  --open      Open EDITH Control in the default browser",
+      "  --no-open   Do not auto-open browser (default)",
+    ].join("\n"))
     return
   }
 
   await maybeAutoMigrateProfileDb(repoDir, profileDir, "dashboard")
+  const gatewayHost = await detectGatewayHostFromProfileEnv(profileDir)
   const gatewayPort = await detectGatewayPortFromProfileEnv(profileDir)
-  const dashboardUrl = `http://127.0.0.1:${gatewayPort}`
-  console.log(`Dashboard URL: ${dashboardUrl}`)
+  const webchatPort = await detectWebchatPortFromProfileEnv(profileDir)
+  const gatewayAccess = buildGatewayAccessCandidates(gatewayHost, gatewayPort)
+  const dashboardUrl = gatewayAccess.accessUrls[0] ?? gatewayAccess.bindUrl
+  const dashboardHealthUrl = gatewayAccess.healthUrls[0] ?? `${dashboardUrl}/health`
+  const webchatUrl = `http://127.0.0.1:${webchatPort}`
+  const accessLabel = gatewayAccess.accessUrls.length > 1
+    ? gatewayAccess.accessUrls.join("  |  ")
+    : dashboardUrl
+
+  console.log([
+    "EDITH Control",
+    `Control  ${dashboardUrl}`,
+    `Access   ${accessLabel}`,
+    `Bind     ${gatewayAccess.bindUrl}`,
+    `Health   ${dashboardHealthUrl}`,
+    `WebChat  ${webchatUrl}`,
+    "",
+    "Starting gateway in foreground. Press Ctrl+C to stop.",
+  ].join("\n"))
+
   if (options.open) {
+    console.log("Open     browser will launch when gateway is ready")
+  }
+  console.log("Status   waiting for gateway readiness...")
+
+  void (async () => {
     try {
-      tryOpenUrl(dashboardUrl)
-      console.log("Opening dashboard in your default browser (best effort)...")
+      const ready = await waitForFirstLocalHttpReady(gatewayAccess.healthUrls)
+      if (!ready.ready || !ready.url) {
+        console.log(`Status   gateway not reachable after ${ready.elapsedMs}ms (${ready.error ?? "timed out"})`)
+        return
+      }
+
+      const activeHealthUrl = ready.url
+      const activeDashboardUrl = activeHealthUrl.endsWith("/health")
+        ? activeHealthUrl.slice(0, -"/health".length)
+        : activeHealthUrl
+
+      console.log(`Status   gateway ready in ${ready.elapsedMs}ms`)
+      console.log(`Active   ${activeDashboardUrl}`)
+
+      if (!options.open) {
+        return
+      }
+
+      tryOpenUrl(activeDashboardUrl)
+      console.log(`Open     launched ${activeDashboardUrl}`)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      console.log(`Could not auto-open browser: ${message}`)
+      console.log(`Status   readiness probe failed (${message})`)
     }
-  }
-  console.log("Starting gateway in foreground (Ctrl+C to stop)...")
+  })()
+
   await runPnpmScript(repoDir, profileDir, "gateway")
 }
 

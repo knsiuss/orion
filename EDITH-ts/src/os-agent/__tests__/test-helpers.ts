@@ -81,10 +81,14 @@ export function createMockGUIConfig(overrides: Partial<GUIConfig> = {}): GUIConf
 export function createMockVisionConfig(overrides: Partial<VisionConfig> = {}): VisionConfig {
   return {
     enabled: true,
+    profile: "minimum-spec",
     ocrEngine: "tesseract",
     elementDetection: "accessibility",
-    multimodalEngine: "gemini",
+    multimodalEngine: "auto",
     monitorIntervalMs: 5_000,
+    rateLimitMs: 0,
+    maxImageBytesMb: 8,
+    maxImageEdgePx: 1_280,
     ...overrides,
   }
 }

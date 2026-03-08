@@ -28,6 +28,7 @@ import { stdin as input, stdout as output } from "node:process"
 import { fileURLToPath } from "node:url"
 
 import config from "./config.js"
+import { resolveConfiguredWorkspaceDir } from "./config/edith-config.js"
 import { createLogger } from "./logger.js"
 import { memrlUpdater } from "./memory/memrl.js"
 import { gateway } from "./gateway/server.js"
@@ -105,22 +106,8 @@ function parseMode(): OperationMode {
   return requestedMode as OperationMode
 }
 
-/**
- * Resolve workspace directory from environment or default.
- * @returns Absolute path to workspace directory
- */
-function resolveWorkspaceDir(): string {
-  const envWorkspace = process.env.EDITH_WORKSPACE ?? process.env.EDITH_WORKSPACE
-  if (envWorkspace) {
-    return path.isAbsolute(envWorkspace)
-      ? envWorkspace
-      : path.resolve(process.cwd(), envWorkspace)
-  }
-  return path.resolve(process.cwd(), "workspace")
-}
-
 const mode = parseMode()
-const workspaceDir = resolveWorkspaceDir()
+const workspaceDir = resolveConfiguredWorkspaceDir()
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -430,6 +417,7 @@ function displayGatewayInfo(): void {
   const channels = channelManager.getConnectedChannels()
 
   output.write(`  Gateway   : ws://${config.GATEWAY_HOST}:${config.GATEWAY_PORT}\n`)
+  output.write(`  Control   : http://127.0.0.1:${config.GATEWAY_PORT}\n`)
   output.write(`  WebChat   : http://127.0.0.1:${config.WEBCHAT_PORT}\n`)
   output.write(`  Channels  : ${channels.length > 0 ? channels.join(", ") : "none"}\n`)
   output.write(`  Daemon    : ${daemon.isRunning() ? "running ✓" : "stopped"}\n`)

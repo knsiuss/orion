@@ -5,35 +5,217 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EDITH Setup</title>
   <style>
+    :root {
+      --bg: #090b10;
+      --bg-2: #111723;
+      --panel: rgba(16, 24, 36, 0.88);
+      --panel-soft: rgba(7, 11, 18, 0.74);
+      --panel-border: rgba(134, 159, 196, 0.18);
+      --text: #edf2f9;
+      --muted: #93a4b9;
+      --accent: #74d1ff;
+      --good: #67f0ae;
+      --warn: #ffd36f;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0a0a0a;
-      color: #e5e5e5;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 40px;
+      font-family: "Segoe UI", "Trebuchet MS", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(116, 209, 255, 0.14), transparent 28%),
+        radial-gradient(circle at top right, rgba(255, 138, 108, 0.10), transparent 32%),
+        linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 34px 18px;
       overflow-y: auto;
     }
 
-    .container {
-      max-width: 520px;
-      width: 100%;
-      text-align: center;
+    .setup-shell {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
     }
 
-    .logo { font-size: 48px; font-weight: 700; color: #fff; margin-bottom: 8px; }
-    .subtitle { font-size: 16px; color: #666; margin-bottom: 32px; }
+    .setup-rail {
+      position: sticky;
+      top: 18px;
+      padding: 24px 20px;
+      border: 1px solid var(--panel-border);
+      border-radius: 26px;
+      background:
+        linear-gradient(180deg, rgba(10, 14, 22, 0.94), rgba(10, 14, 22, 0.82)),
+        var(--panel-soft);
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.26);
+    }
+
+    .rail-kicker {
+      display: inline-block;
+      margin-bottom: 10px;
+      color: var(--accent);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+    }
+
+    .rail-title {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      line-height: 0.96;
+    }
+
+    .rail-copy {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .rail-stack {
+      display: grid;
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .rail-card {
+      padding: 14px 15px;
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      background: rgba(7, 11, 18, 0.6);
+    }
+
+    .rail-label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+    }
+
+    .rail-value {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .rail-detail {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .rail-steps {
+      display: grid;
+      gap: 10px;
+    }
+
+    .rail-step {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 12px 13px;
+      border: 1px solid var(--panel-border);
+      border-radius: 15px;
+      background: rgba(7, 11, 18, 0.52);
+    }
+
+    .rail-step-index {
+      width: 34px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .rail-step strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .rail-step span:last-child {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .rail-step.active {
+      border-color: rgba(116, 209, 255, 0.45);
+      background: rgba(18, 30, 48, 0.86);
+    }
+
+    .rail-step.active .rail-step-index {
+      background: rgba(116, 209, 255, 0.18);
+      color: var(--accent);
+    }
+
+    .rail-step.complete .rail-step-index {
+      background: rgba(103, 240, 174, 0.14);
+      color: var(--good);
+    }
+
+    .container {
+      max-width: none;
+      width: 100%;
+      text-align: left;
+      padding: 28px;
+      border: 1px solid var(--panel-border);
+      border-radius: 28px;
+      background:
+        linear-gradient(135deg, rgba(116, 209, 255, 0.07), transparent 34%),
+        linear-gradient(160deg, rgba(255, 138, 108, 0.07), transparent 50%),
+        var(--panel);
+      box-shadow: 0 26px 70px rgba(0, 0, 0, 0.30);
+      backdrop-filter: blur(12px);
+    }
+
+    .logo {
+      font-size: clamp(38px, 5vw, 58px);
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 8px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      line-height: 0.96;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: var(--muted);
+      margin-bottom: 34px;
+      line-height: 1.7;
+      max-width: 640px;
+    }
 
     .step { display: none; }
     .step.active { display: block; }
 
-    .step-title { font-size: 22px; font-weight: 600; margin-bottom: 10px; }
-    .step-desc { font-size: 14px; color: #888; margin-bottom: 24px; line-height: 1.6; }
+    .step-title {
+      font-size: 25px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      letter-spacing: 0.02em;
+    }
+    .step-desc {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 24px;
+      line-height: 1.7;
+      max-width: 620px;
+    }
 
     /* ── Provider grid ── */
     .provider-grid {
@@ -46,15 +228,15 @@
 
     .provider-card {
       padding: 14px;
-      background: #141414;
-      border: 2px solid #222;
-      border-radius: 12px;
+      background: rgba(10, 14, 22, 0.82);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
       cursor: pointer;
-      transition: border-color 0.15s, background 0.15s;
+      transition: border-color 0.15s, background 0.15s, transform 0.15s;
       position: relative;
     }
-    .provider-card:hover { border-color: #333; background: #1a1a1a; }
-    .provider-card.selected { border-color: #1d4ed8; background: #1a1a2e; }
+    .provider-card:hover { border-color: rgba(116, 209, 255, 0.35); background: rgba(15, 21, 33, 0.92); transform: translateY(-1px); }
+    .provider-card.selected { border-color: rgba(116, 209, 255, 0.75); background: rgba(20, 31, 49, 0.94); box-shadow: 0 0 0 1px rgba(116, 209, 255, 0.12) inset; }
     .provider-card input[type="radio"] { display: none; }
 
     .provider-card-icon {
@@ -66,7 +248,7 @@
       font-size: 14px;
       margin-bottom: 3px;
     }
-    .provider-card-desc { font-size: 11px; color: #666; line-height: 1.4; }
+    .provider-card-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
 
     .badge {
       display: inline-block;
@@ -86,89 +268,102 @@
       grid-column: 1 / -1;
       font-size: 11px;
       font-weight: 600;
-      color: #555;
+      color: var(--accent);
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      padding: 4px 0 2px;
+      letter-spacing: 0.14em;
+      padding: 6px 0 2px;
     }
 
     /* ── Form fields ── */
     .input-group { margin-bottom: 18px; text-align: left; }
-    .input-label { display: block; font-size: 12px; color: #888; margin-bottom: 6px; }
+    .input-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
     .input-field {
       width: 100%;
       padding: 11px 14px;
-      background: #141414;
-      border: 2px solid #222;
-      border-radius: 8px;
-      color: #e5e5e5;
+      background: rgba(10, 14, 22, 0.88);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      color: var(--text);
       font-size: 14px;
       outline: none;
       transition: border-color 0.15s;
     }
-    .input-field:focus { border-color: #1d4ed8; }
+    .input-field:focus { border-color: rgba(116, 209, 255, 0.7); }
     select.input-field { appearance: none; }
-    .input-link { display: block; font-size: 11px; color: #3b82f6; margin-top: 6px; }
-    .input-hint { display: block; font-size: 11px; color: #555; margin-top: 6px; }
+    .input-link { display: block; font-size: 11px; color: var(--accent); margin-top: 6px; }
+    .input-hint { display: block; font-size: 11px; color: var(--muted); margin-top: 6px; }
 
-    .divider { height: 1px; background: #1e1e1e; margin: 24px 0; }
-    .section-title { font-size: 13px; font-weight: 600; color: #aaa; margin-bottom: 16px; text-align: left; }
+    .divider { height: 1px; background: var(--panel-border); margin: 24px 0; }
+    .section-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 16px; text-align: left; letter-spacing: 0.08em; text-transform: uppercase; }
 
     .checkbox-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-    .checkbox-row input { width: 17px; height: 17px; accent-color: #1d4ed8; }
+    .checkbox-row input { width: 17px; height: 17px; accent-color: #2a7fff; }
     .checkbox-row label { font-size: 14px; }
 
     /* ── Buttons ── */
     .btn {
       padding: 11px 28px;
       border: none;
-      border-radius: 8px;
+      border-radius: 12px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.15s, opacity 0.15s;
+      transition: background 0.15s, opacity 0.15s, transform 0.15s;
     }
-    .btn-primary { background: #1d4ed8; color: #fff; }
-    .btn-primary:hover { background: #2563eb; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary { background: linear-gradient(135deg, rgba(116, 209, 255, 0.96), rgba(41, 110, 173, 0.96)); color: #041018; }
+    .btn-primary:hover { background: linear-gradient(135deg, rgba(132, 216, 255, 0.98), rgba(48, 122, 190, 0.98)); }
     .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
-    .btn-secondary { background: #1e1e1e; color: #888; }
-    .btn-secondary:hover { background: #2a2a2a; color: #ccc; }
+    .btn-secondary { background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid var(--panel-border); }
+    .btn-secondary:hover { background: rgba(255,255,255,0.09); color: var(--text); }
     .btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 8px; }
 
     .link-btn {
-      background: #1a1a1a;
-      color: #3b82f6;
+      background: rgba(255,255,255,0.05);
+      color: var(--accent);
       border: none;
       padding: 7px 14px;
-      border-radius: 6px;
+      border-radius: 10px;
       font-size: 12px;
       cursor: pointer;
     }
-    .link-btn:hover { background: #222; }
+    .link-btn:hover { background: rgba(255,255,255,0.10); }
 
     /* ── Status ── */
     .status-box {
       margin-top: 14px;
       padding: 11px 14px;
-      border-radius: 8px;
+      border-radius: 12px;
       font-size: 13px;
       display: none;
+      border: 1px solid var(--panel-border);
     }
-    .status-box.success { background: #0a2e0a; color: #22c55e; }
-    .status-box.error   { background: #2e0a0a; color: #ef4444; }
-    .status-box.info    { background: #0a1a2e; color: #60a5fa; }
+    .status-box.success { background: rgba(19, 58, 40, 0.62); color: var(--good); }
+    .status-box.error   { background: rgba(79, 20, 20, 0.62); color: #ff9a9a; }
+    .status-box.info    { background: rgba(18, 37, 66, 0.62); color: var(--accent); }
+
+    .summary-panel {
+      background: rgba(10, 14, 22, 0.82);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 14px 18px;
+      margin-bottom: 24px;
+      text-align: left;
+      font-size: 13px;
+      color: var(--muted);
+    }
 
     /* ── Progress ── */
-    .progress-dots { display: flex; justify-content: center; gap: 8px; margin-bottom: 28px; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: #2a2a2a; }
-    .dot.active   { background: #1d4ed8; }
-    .dot.complete { background: #22c55e; }
+    .progress-dots { display: flex; justify-content: center; gap: 9px; margin-bottom: 28px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.10); box-shadow: 0 0 0 4px rgba(255,255,255,0.02); }
+    .dot.active   { background: var(--accent); box-shadow: 0 0 0 4px rgba(116,209,255,0.12); }
+    .dot.complete { background: var(--good); box-shadow: 0 0 0 4px rgba(103,240,174,0.10); }
 
     /* ── Extra providers collapsible ── */
     .extra-toggle {
       background: none;
       border: none;
-      color: #555;
+      color: var(--muted);
       font-size: 12px;
       cursor: pointer;
       padding: 4px 0;
@@ -177,20 +372,71 @@
       width: 100%;
       text-align: center;
     }
-    .extra-toggle:hover { color: #888; }
+    .extra-toggle:hover { color: var(--text); }
     .extra-providers { display: none; }
     .extra-providers.open { display: contents; }
 
     /* scrollable credentials panel */
     #step-3 { max-height: 70vh; overflow-y: auto; padding-right: 4px; }
-    #step-3::-webkit-scrollbar { width: 4px; }
-    #step-3::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+    #step-3::-webkit-scrollbar { width: 6px; }
+    #step-3::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 4px; }
+
+    @media (max-width: 680px) {
+      .setup-shell { grid-template-columns: 1fr; }
+      .setup-rail { position: relative; top: 0; }
+      .container { padding: 20px 16px; border-radius: 20px; }
+      .provider-grid { grid-template-columns: 1fr; }
+      .btn-group { flex-direction: column; justify-content: stretch; }
+    }
   </style>
 </head>
 <body>
-<div class="container">
+<div class="setup-shell">
+  <aside class="setup-rail">
+    <div class="rail-kicker">EDITH Control</div>
+    <div class="rail-title">Onboarding</div>
+    <div class="rail-copy">Configure the core once, operate in testing first, then promote the setup to edith only after the stack feels stable on this machine. Minimum system baseline stays at 1 GB RAM.</div>
+
+    <div class="rail-stack">
+      <div class="rail-card">
+        <span class="rail-label">Mission Path</span>
+        <div class="rail-steps">
+          <div class="rail-step active" id="rail-step-1">
+            <span class="rail-step-index">1</span>
+            <span><strong>Welcome</strong>Confirm the operator path and system baseline.</span>
+          </div>
+          <div class="rail-step" id="rail-step-2">
+            <span class="rail-step-index">2</span>
+            <span><strong>Provider</strong>Select the core model provider for EDITH.</span>
+          </div>
+          <div class="rail-step" id="rail-step-3">
+            <span class="rail-step-index">3</span>
+            <span><strong>Runtime</strong>Configure workbench, voice, vision, and proactive defaults.</span>
+          </div>
+          <div class="rail-step" id="rail-step-4">
+            <span class="rail-step-index">4</span>
+            <span><strong>Launch</strong>Save the control config, then start chatting.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rail-card">
+        <span class="rail-label">Current Target</span>
+        <span class="rail-value" id="selected-provider-label">Provider not selected yet</span>
+        <div class="rail-detail">Workbench <strong id="selected-workbench-label">Testing</strong></div>
+        <div class="rail-detail">System floor <strong>1 GB RAM minimum</strong></div>
+      </div>
+
+      <div class="rail-card">
+        <span class="rail-label">Operator Note</span>
+        <div class="rail-detail">Use <code>testing</code> for changes, prove the flow there, then promote to <code>edith</code> when setup, recovery, and daily usage are routine.</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="container">
   <div class="logo">EDITH</div>
-  <div class="subtitle">Your persistent AI companion</div>
+  <div class="subtitle">Control-room onboarding for your persistent AI companion. Configure the core once, operate in testing, then promote when the stack is ready.</div>
 
   <div class="progress-dots">
     <div class="dot" id="dot-1"></div>
@@ -350,13 +596,11 @@
       EDITH is configured and ready.<br>
       Your API key is saved in <code style="color:#3b82f6">edith.json</code> — no env file needed.
     </div>
-    <div id="configured-summary" style="
-      background:#141414; border:1px solid #222; border-radius:10px;
-      padding:14px 18px; margin-bottom:24px; text-align:left; font-size:13px; color:#aaa;
-    "></div>
+    <div id="configured-summary" class="summary-panel"></div>
     <button class="btn btn-primary" id="step4-done">Start Chatting →</button>
   </div>
-</div><!-- /container -->
+  </div><!-- /container -->
+</div><!-- /setup-shell -->
 
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -481,6 +725,46 @@ const PROVIDERS = {
   },
 }
 
+function normalizeVisionProfile(profile) {
+  return profile === "balanced" ? "balanced" : "minimum-spec"
+}
+
+const VISION_PROFILE_PRESETS = {
+  "minimum-spec": {
+    ocrEngine: "tesseract",
+    elementDetection: "accessibility",
+    monitorIntervalMs: 8000,
+    rateLimitMs: 12000,
+    maxImageBytesMb: 8,
+    maxImageEdgePx: 1280,
+    label: "Minimum Spec: Tesseract + Accessibility + on-demand multimodal",
+  },
+  balanced: {
+    ocrEngine: "tesseract",
+    elementDetection: "accessibility",
+    monitorIntervalMs: 4000,
+    rateLimitMs: 10000,
+    maxImageBytesMb: 20,
+    maxImageEdgePx: 2048,
+    label: "Balanced: larger images and faster refresh for stronger desktop vision",
+  },
+}
+
+const WORKBENCH_PRESETS = {
+  testing: {
+    label: "Testing",
+    workspace: "./workbenches/testing",
+    hint: "Recommended for first setup, experiments, and safe iteration.",
+  },
+  edith: {
+    label: "Edith",
+    workspace: "./workbenches/edith",
+    hint: "Use this when you want to promote a stable setup or improved identity.",
+  },
+}
+
+const DEFAULT_WORKBENCH_PRESET = "testing"
+
 // ─────────────────────────────────────────────────────────────────────────────
 // State
 // ─────────────────────────────────────────────────────────────────────────────
@@ -497,6 +781,28 @@ function updateDots() {
     d.className = "dot"
     if (i < currentStep) d.classList.add("complete")
     else if (i === currentStep) d.classList.add("active")
+  }
+  updateRail()
+}
+
+function updateRail() {
+  for (let i = 1; i <= 4; i++) {
+    const step = document.getElementById(`rail-step-${i}`)
+    if (!step) continue
+    step.classList.remove("active", "complete")
+    if (i < currentStep) step.classList.add("complete")
+    else if (i === currentStep) step.classList.add("active")
+  }
+
+  const providerLabel = document.getElementById("selected-provider-label")
+  if (providerLabel) {
+    providerLabel.textContent = selectedProvider ? PROVIDERS[selectedProvider].label : "Provider not selected yet"
+  }
+
+  const workbenchLabel = document.getElementById("selected-workbench-label")
+  if (workbenchLabel) {
+    const workbench = document.getElementById("workbench-preset") ? collectWorkbenchConfig().label : WORKBENCH_PRESETS[DEFAULT_WORKBENCH_PRESET].label
+    workbenchLabel.textContent = workbench
   }
 }
 
@@ -517,6 +823,7 @@ document.querySelectorAll(".provider-card").forEach(card => {
     card.querySelector("input[type=radio]").checked = true
     selectedProvider = card.dataset.provider
     document.getElementById("step2-next").disabled = false
+    updateRail()
   })
 })
 
@@ -551,7 +858,11 @@ function renderCredentialsForm() {
         <span class="input-hint">${p.hint || ""}</span>
         <a href="${p.docsUrl}" target="_blank" class="input-link">${p.docsLabel}</a>
       </div>
+      ${workbenchSection()}
       ${voiceSection()}
+      ${visionSection()}
+      ${proactiveSection()}
+      ${macrosSection()}
     `
   } else {
     form.innerHTML = `
@@ -561,7 +872,11 @@ function renderCredentialsForm() {
         <a href="${p.docsUrl}" target="_blank" class="input-link">${p.docsLabel}</a>
         ${p.hint ? `<span class="input-hint">${p.hint}</span>` : ""}
       </div>
+      ${workbenchSection()}
       ${voiceSection()}
+      ${visionSection()}
+      ${proactiveSection()}
+      ${macrosSection()}
     `
     // Auto-fill if we already have it
     const existing = savedCredentials[p.envKey]
@@ -574,6 +889,26 @@ function renderCredentialsForm() {
   }
 
   bindVoiceControls()
+  bindVisionControls()
+  bindWorkbenchControls()
+  updateRail()
+}
+
+function workbenchSection() {
+  return `
+    <div class="divider"></div>
+    <div class="section-title">Workbench</div>
+
+    <div class="input-group">
+      <label class="input-label">Setup Target</label>
+      <select class="input-field" id="workbench-preset">
+        <option value="testing">Testing (recommended)</option>
+        <option value="edith">Edith</option>
+      </select>
+      <span class="input-hint" id="workbench-hint">${WORKBENCH_PRESETS[DEFAULT_WORKBENCH_PRESET].hint}</span>
+      <span class="input-hint">EDITH will provision the selected workbench from the shared template on first start.</span>
+    </div>
+  `
 }
 
 function voiceSection() {
@@ -648,6 +983,7 @@ function voiceSection() {
       <div style="display:flex; gap:8px; align-items:center;">
         <input type="text" class="input-field" id="voice-wake-model-path" placeholder="C:\\models\\hey-edith.onnx" style="flex:1" />
         <button type="button" class="link-btn" id="voice-model-browse">Browse</button>
+        <button type="button" class="link-btn" id="voice-model-prepare">Prepare Recommended Model</button>
       </div>
       <div class="status-box" id="voice-model-status"></div>
     </div>
@@ -657,16 +993,55 @@ function voiceSection() {
       <input type="password" class="input-field" id="voice-deepgram-key" placeholder="dg_..." />
       <a href="https://console.deepgram.com" target="_blank" class="input-link">Get free key → console.deepgram.com</a>
     </div>
+
+    <div class="input-group">
+      <label class="input-label">Picovoice Access Key <span style="color:#555">(optional â€” for Porcupine wake word)</span></label>
+      <input type="password" class="input-field" id="voice-picovoice-key" placeholder="pv_..." />
+      <span class="input-hint">Only needed if you choose Porcupine and provide a custom .ppn model.</span>
+    </div>
   `
 }
 
 function bindVoiceControls() {
+  const statusEl = document.getElementById("voice-model-status")
+  const setWakeModelStatus = (type, message) => {
+    if (!statusEl) return
+    statusEl.className = `status-box ${type}`
+    statusEl.style.display = "block"
+    statusEl.textContent = message
+  }
+
   const browseBtn = document.getElementById("voice-model-browse")
   if (browseBtn && window.edith?.pickWakeModel) {
     browseBtn.addEventListener("click", async () => {
       const result = await window.edith.pickWakeModel()
       if (result?.ok && result.path) {
         document.getElementById("voice-wake-model-path").value = result.path
+        setWakeModelStatus("info", `Using host model: ${result.path}`)
+      }
+    })
+  }
+
+  const prepareBtn = document.getElementById("voice-model-prepare")
+  if (prepareBtn && window.edith?.prepareWakeModel) {
+    prepareBtn.addEventListener("click", async () => {
+      prepareBtn.disabled = true
+      setWakeModelStatus("info", "Preparing the recommended OpenWakeWord model on the host...")
+
+      try {
+        const result = await window.edith.prepareWakeModel({ modelName: "hey_mycroft" })
+        if (!result?.ok || !result.prepared?.modelPath) {
+          throw new Error(result?.error || "Failed to prepare wake model")
+        }
+
+        document.getElementById("voice-wake-engine").value = "openwakeword"
+        document.getElementById("voice-wake-word").value = result.prepared.keyword || "hey mycroft"
+        document.getElementById("voice-wake-model-path").value = result.prepared.modelPath
+        setWakeModelStatus("success", `Prepared ${result.prepared.keyword || "hey mycroft"} on the host.`)
+      } catch (err) {
+        setWakeModelStatus("error", err.message || "Failed to prepare wake model")
+      } finally {
+        prepareBtn.disabled = false
       }
     })
   }
@@ -675,6 +1050,141 @@ function bindVoiceControls() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Collect form data
 // ─────────────────────────────────────────────────────────────────────────────
+function visionSection() {
+  return `
+    <div class="divider"></div>
+    <div class="section-title">👁️ Vision (Phase 3 foundation)</div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="vision-enabled" checked />
+      <label for="vision-enabled">Enable desktop/mobile vision features</label>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Vision Profile</label>
+      <select class="input-field" id="vision-profile">
+        <option value="minimum-spec">Minimum Spec (recommended)</option>
+        <option value="balanced">Balanced</option>
+      </select>
+      <span class="input-hint" id="vision-profile-hint">${VISION_PROFILE_PRESETS["minimum-spec"].label}</span>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Multimodal Vision Engine</label>
+      <select class="input-field" id="vision-multimodal-engine">
+        <option value="auto">Auto (use the best configured multimodal provider)</option>
+        <option value="gemini">Gemini</option>
+        <option value="openai">OpenAI</option>
+        <option value="anthropic">Anthropic</option>
+      </select>
+      <span class="input-hint">
+        Minimum Spec keeps OCR on Tesseract and UI grounding on Accessibility so EDITH stays within its 1 GB RAM minimum system requirement.
+      </span>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Foundation Path</label>
+      <span class="input-hint">
+        Current onboarding path is Accessibility API first, Tesseract OCR, then on-demand multimodal describe/find.
+        OmniParser-style detectors stay off by default because they are not part of the minimum-system baseline.
+      </span>
+    </div>
+  `
+}
+
+function proactiveSection() {
+  return `
+    <div class="divider"></div>
+    <div class="section-title">⚡ Proactive (Phase 6 foundation)</div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="proactive-enabled" checked />
+      <label for="proactive-enabled">Enable proactive notifications</label>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Quiet Hours</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" class="input-field" id="proactive-quiet-start" value="22:00" placeholder="22:00" />
+        <input type="text" class="input-field" id="proactive-quiet-end" value="07:00" placeholder="07:00" />
+      </div>
+      <span class="input-hint">Notifications respect this window unless the event is marked urgent, such as a credential file change.</span>
+    </div>
+
+    <div class="section-title" style="margin-bottom:12px;">Notification Channels</div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="proactive-channel-desktop" checked />
+      <label for="proactive-channel-desktop">Desktop</label>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="proactive-channel-mobile" checked />
+      <label for="proactive-channel-mobile">Mobile / chat transport</label>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="proactive-channel-voice" />
+      <label for="proactive-channel-voice">Voice follow-up (reserved for later Phase 6 work)</label>
+    </div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="proactive-filewatch-enabled" />
+      <label for="proactive-filewatch-enabled">Enable host file watcher</label>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Watch Paths <span style="color:#555">(one per line, optional)</span></label>
+      <textarea class="input-field" id="proactive-watch-paths" rows="4" placeholder="C:\\Users\\test\\OneDrive\\Desktop\\EDITH\\workspace"></textarea>
+      <span class="input-hint">Phase 6 foundation keeps this conservative for EDITH's minimum system requirement. Start with a few high-value folders.</span>
+    </div>
+  `
+}
+
+function macrosSection() {
+  return `
+    <div class="divider"></div>
+    <div class="section-title">🧩 Macros (Phase 6 config)</div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="macros-enabled" checked />
+      <label for="macros-enabled">Enable macro runtime config</label>
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Macro YAML Path</label>
+      <input type="text" class="input-field" id="macros-yaml-path" value="macros.yaml" />
+      <span class="input-hint">Macro execution engine is the next Phase 6 landing. The config path is stored now so setup stays onboarding-first.</span>
+    </div>
+  `
+}
+
+function bindVisionControls() {
+  const profileSelect = document.getElementById("vision-profile")
+  const hintEl = document.getElementById("vision-profile-hint")
+  if (!profileSelect || !hintEl) return
+
+  const syncHint = () => {
+    const preset = VISION_PROFILE_PRESETS[normalizeVisionProfile(profileSelect.value)] || VISION_PROFILE_PRESETS["minimum-spec"]
+    hintEl.textContent = preset.label
+  }
+
+  profileSelect.addEventListener("change", syncHint)
+  syncHint()
+}
+
+function bindWorkbenchControls() {
+  const select = document.getElementById("workbench-preset")
+  const hint = document.getElementById("workbench-hint")
+  if (!select || !hint) return
+
+  const syncWorkbench = () => {
+    const preset = WORKBENCH_PRESETS[select.value] || WORKBENCH_PRESETS[DEFAULT_WORKBENCH_PRESET]
+    hint.textContent = preset.hint
+    updateRail()
+  }
+
+  select.addEventListener("change", syncWorkbench)
+  syncWorkbench()
+}
+
 function collectEnvKeys() {
   const p = PROVIDERS[selectedProvider]
   const env = {}
@@ -687,11 +1197,18 @@ function collectEnvKeys() {
     if (key) env[p.envKey] = key
   }
 
-  // Deepgram (optional voice)
-  const dgKey = document.getElementById("voice-deepgram-key")?.value?.trim()
-  if (dgKey) env["DEEPGRAM_API_KEY"] = dgKey
-
   return env
+}
+
+function collectWorkbenchConfig() {
+  const preset = document.getElementById("workbench-preset")?.value || DEFAULT_WORKBENCH_PRESET
+  const definition = WORKBENCH_PRESETS[preset] || WORKBENCH_PRESETS[DEFAULT_WORKBENCH_PRESET]
+
+  return {
+    preset,
+    label: definition.label,
+    workspace: definition.workspace,
+  }
 }
 
 function collectVoiceConfig() {
@@ -706,6 +1223,62 @@ function collectVoiceConfig() {
     wakeWord: document.getElementById("voice-wake-word")?.value?.trim() || "hey-edith",
     wakeModelPath: document.getElementById("voice-wake-model-path")?.value?.trim() || "",
     deepgramApiKey: document.getElementById("voice-deepgram-key")?.value?.trim() || "",
+    picovoiceAccessKey: document.getElementById("voice-picovoice-key")?.value?.trim() || "",
+  }
+}
+
+function collectVisionConfig() {
+  const profile = normalizeVisionProfile(document.getElementById("vision-profile")?.value || "minimum-spec")
+  const preset = VISION_PROFILE_PRESETS[profile] || VISION_PROFILE_PRESETS["minimum-spec"]
+
+  return {
+    enabled: document.getElementById("vision-enabled")?.checked ?? true,
+    profile,
+    multimodalEngine: document.getElementById("vision-multimodal-engine")?.value || "auto",
+    ocrEngine: preset.ocrEngine,
+    elementDetection: preset.elementDetection,
+    monitorIntervalMs: preset.monitorIntervalMs,
+    rateLimitMs: preset.rateLimitMs,
+    maxImageBytesMb: preset.maxImageBytesMb,
+    maxImageEdgePx: preset.maxImageEdgePx,
+  }
+}
+
+function parseWatchPaths(value) {
+  return (value || "")
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+function collectProactiveConfig() {
+  return {
+    enabled: document.getElementById("proactive-enabled")?.checked ?? true,
+    quietHours: {
+      start: document.getElementById("proactive-quiet-start")?.value?.trim() || "22:00",
+      end: document.getElementById("proactive-quiet-end")?.value?.trim() || "07:00",
+    },
+    channels: {
+      desktop: document.getElementById("proactive-channel-desktop")?.checked ?? true,
+      mobile: document.getElementById("proactive-channel-mobile")?.checked ?? true,
+      voice: document.getElementById("proactive-channel-voice")?.checked ?? false,
+    },
+    fileWatcher: {
+      enabled: document.getElementById("proactive-filewatch-enabled")?.checked ?? false,
+      paths: parseWatchPaths(document.getElementById("proactive-watch-paths")?.value),
+      debounceMs: 500,
+      summaryWindowMs: 300000,
+    },
+    schedulerIntervalMs: 10000,
+    maxWatchedPaths: 5,
+  }
+}
+
+function collectMacrosConfig() {
+  return {
+    enabled: document.getElementById("macros-enabled")?.checked ?? true,
+    yamlPath: document.getElementById("macros-yaml-path")?.value?.trim() || "macros.yaml",
+    maxConcurrent: 1,
   }
 }
 
@@ -726,6 +1299,11 @@ async function testConnection() {
   document.getElementById("test-status").style.display = "none"
 
   const env = collectEnvKeys()
+  const workbench = collectWorkbenchConfig()
+  const voice = collectVoiceConfig()
+  const vision = collectVisionConfig()
+  const proactive = collectProactiveConfig()
+  const macros = collectMacrosConfig()
 
   try {
     const result = await window.edith.testProvider(selectedProvider, env)
@@ -735,16 +1313,16 @@ async function testConnection() {
     }
 
     // Deepgram test if key provided
-    if (env.DEEPGRAM_API_KEY) {
-      const dgResult = await window.edith.testProvider("deepgram", { DEEPGRAM_API_KEY: env.DEEPGRAM_API_KEY })
+    if (voice.deepgramApiKey) {
+      const dgResult = await window.edith.testProvider("deepgram", { apiKey: voice.deepgramApiKey })
       if (!dgResult.ok) {
-        setStatus("error", `${PROVIDERS[selectedProvider].label} ✓ but Deepgram key is invalid.`)
+        setStatus("error", `${PROVIDERS[selectedProvider].label} connected, but the Deepgram key is invalid.`)
         return
       }
     }
 
     // Save to edith.json immediately on success
-    await saveToEdithJson(env, collectVoiceConfig())
+    await saveToEdithJson(env, workbench, voice, vision, proactive, macros)
 
     setStatus("success", `${PROVIDERS[selectedProvider].label} connected! Saving to edith.json...`)
     setTimeout(() => showStep(4), 900)
@@ -760,7 +1338,7 @@ async function testConnection() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Save to edith.json — THIS is the magic. No .env editing needed.
 // ─────────────────────────────────────────────────────────────────────────────
-async function saveToEdithJson(envKeys, voice) {
+async function saveToEdithJson(envKeys, workbench, voice, vision, proactive, macros) {
   const p = PROVIDERS[selectedProvider]
 
   const patch = {
@@ -784,9 +1362,37 @@ async function saveToEdithJson(envKeys, voice) {
         engine: voice.wakeEngine,
         keyword: voice.wakeWord,
         modelPath: voice.wakeModelPath || undefined,
-        providers: { picovoice: { accessKey: "" } },
+        providers: { picovoice: { accessKey: voice.picovoiceAccessKey || "" } },
       },
       vad: { engine: "silero" },
+    },
+
+    // vision config
+    vision: {
+      enabled: vision.enabled,
+      profile: vision.profile,
+      ocrEngine: vision.ocrEngine,
+      elementDetection: vision.elementDetection,
+      multimodalEngine: vision.multimodalEngine,
+      monitorIntervalMs: vision.monitorIntervalMs,
+      rateLimitMs: vision.rateLimitMs,
+      maxImageBytesMb: vision.maxImageBytesMb,
+      maxImageEdgePx: vision.maxImageEdgePx,
+    },
+
+    proactive: {
+      enabled: proactive.enabled,
+      quietHours: proactive.quietHours,
+      channels: proactive.channels,
+      fileWatcher: proactive.fileWatcher,
+      schedulerIntervalMs: proactive.schedulerIntervalMs,
+      maxWatchedPaths: proactive.maxWatchedPaths,
+    },
+
+    macros: {
+      enabled: macros.enabled,
+      yamlPath: macros.yamlPath,
+      maxConcurrent: macros.maxConcurrent,
     },
 
     // default model preference
@@ -796,7 +1402,7 @@ async function saveToEdithJson(envKeys, voice) {
           primary: p.defaultModel,
           fallbacks: [],
         },
-        workspace: "./workspace",
+        workspace: workbench.workspace,
       },
     },
 
@@ -818,15 +1424,31 @@ function renderSummary() {
   const p = PROVIDERS[selectedProvider]
   const summaryEl = document.getElementById("configured-summary")
   const lines = []
+  const workbench = document.getElementById("workbench-preset") ? collectWorkbenchConfig() : null
+  const vision = document.getElementById("vision-profile") ? collectVisionConfig() : null
+  const proactive = document.getElementById("proactive-enabled") ? collectProactiveConfig() : null
+  const macros = document.getElementById("macros-enabled") ? collectMacrosConfig() : null
 
   lines.push(`<div style="margin-bottom:6px"><b style="color:#e5e5e5">Provider</b>&nbsp; ${p.label}</div>`)
   lines.push(`<div style="margin-bottom:6px"><b style="color:#e5e5e5">Model</b>&nbsp; ${p.defaultModel}</div>`)
+  if (workbench) {
+    lines.push(`<div style="margin-bottom:6px"><b style="color:#e5e5e5">Workbench</b>&nbsp; ${workbench.label} <span style="color:#555; font-family:monospace">${workbench.workspace}</span></div>`)
+  }
+  if (vision) {
+    lines.push(`<div style="margin-bottom:6px"><b style="color:#e5e5e5">Vision</b>&nbsp; ${vision.enabled ? `${vision.profile} · ${vision.multimodalEngine}` : "disabled"}</div>`)
+  }
+  if (proactive) {
+    lines.push(`<div style="margin-bottom:6px"><b style="color:#e5e5e5">Proactive</b>&nbsp; ${proactive.enabled ? `${proactive.quietHours.start}–${proactive.quietHours.end} · ${proactive.fileWatcher.enabled ? `${proactive.fileWatcher.paths.length} watch path(s)` : "watcher off"}` : "disabled"}</div>`)
+  }
+  if (macros) {
+    lines.push(`<div style="margin-bottom:6px"><b style="color:#e5e5e5">Macros</b>&nbsp; ${macros.enabled ? macros.yamlPath : "disabled"}</div>`)
+  }
 
   const envKey = p.isLocal
     ? `${p.envKey}: ${savedCredentials[p.envKey] || p.defaultValue}`
     : `${p.envKey}: ${"•".repeat(12)}`
   lines.push(`<div style="margin-bottom:6px; color:#555; font-size:11px; font-family:monospace">${envKey}</div>`)
-  lines.push(`<div style="color:#555; font-size:11px">Saved to: edith.json → env</div>`)
+  lines.push(`<div style="color:#555; font-size:11px">Saved to: edith.json → env + top-level voice + top-level vision + proactive + macros</div>`)
 
   summaryEl.innerHTML = lines.join("")
 }
