@@ -19,35 +19,28 @@ This guide will get EDITH running in 5 minutes with minimal configuration.
 pnpm install
 ```
 
-### Step 2: Configure Environment
+### Step 2: Run the Setup Wizard (recommended)
 
 ```bash
-# Copy example environment file
-cp .env.example .env
-
-# Edit .env and add ONE of these:
-# GROQ_API_KEY=gsk_...           # Recommended (free, fast)
-# GEMINI_API_KEY=...             # Alternative (free)
-# OLLAMA_BASE_URL=http://localhost:11434  # Local (if you have Ollama running)
+pnpm onboard
 ```
 
-**Minimal `.env` for demo** (edit the file):
-```env
-# === Provider (choose ONE) ===
-GROQ_API_KEY=your_groq_key_here
+The wizard handles provider selection, API key entry, channel setup, and database init automatically.
 
-# === Database (default: SQLite) ===
-DATABASE_URL=file:./workspace/.edith/edith.db
+**Or configure manually:**
 
-# === Mode ===
-DEFAULT_USER_ID=demo-user
+```bash
+cp .env.example .env
+# Edit .env — add ONE of: GROQ_API_KEY, GEMINI_API_KEY, or OLLAMA_BASE_URL
 ```
 
 ### Step 3: Initialize Database
 
 ```bash
-pnpm db:push
+pnpm db:push        # sync schema to SQLite
 ```
+
+> **Note:** `pnpm onboard` runs this automatically — skip if you used the wizard.
 
 ### Step 4: Run EDITH
 
@@ -234,13 +227,15 @@ GMAIL_REFRESH_TOKEN=your_refresh_token
 
 | Command | Description |
 |---------|-------------|
+| `pnpm onboard` | **Interactive setup wizard (start here!)** |
+| `pnpm dev` | Start EDITH (default mode) |
 | `pnpm dev --mode text` | CLI text chat mode |
 | `pnpm dev --mode all` | All channels (WebChat + enabled channels) |
 | `pnpm dev --mode voice` | Voice mode (requires voice config) |
+| `pnpm doctor` | Health check — validate config + ports |
+| `pnpm db:push` | Sync database schema to SQLite |
 | `pnpm test` | Run test suite |
 | `pnpm typecheck` | TypeScript type checking |
-| `pnpm db:push` | Update database schema |
-| `pnpm onboard` | Interactive setup wizard |
 
 ---
 

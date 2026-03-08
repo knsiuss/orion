@@ -21,6 +21,67 @@ type DetectionResult =
   | { detected: false }
   | { detected: true; reason: string }
 
+/**
+ * Common homoglyph substitutions used in prompt injection bypass attempts.
+ * Maps lookalike Unicode characters to their ASCII equivalents.
+ */
+const HOMOGLYPH_MAP: Readonly<Record<string, string>> = {
+  // Cyrillic and Greek lookalikes for latin letters
+  "\u0430": "a", // Cyrillic а
+  "\u0435": "e", // Cyrillic е
+  "\u043e": "o", // Cyrillic о
+  "\u0440": "r", // Cyrillic р
+  "\u0441": "c", // Cyrillic с
+  "\u0443": "y", // Cyrillic у
+  "\u0445": "x", // Cyrillic х
+  "\u0456": "i", // Cyrillic і
+  "\u0391": "A", // Greek Α
+  "\u0392": "B", // Greek Β
+  "\u0395": "E", // Greek Ε
+  "\u0396": "Z", // Greek Ζ
+  "\u0397": "H", // Greek Η
+  "\u0399": "I", // Greek Ι
+  "\u039a": "K", // Greek Κ
+  "\u039c": "M", // Greek Μ
+  "\u039d": "N", // Greek Ν
+  "\u039f": "O", // Greek Ο
+  "\u03a1": "P", // Greek Ρ
+  "\u03a4": "T", // Greek Τ
+  "\u03a7": "X", // Greek Χ
+  "\u03b1": "a", // Greek α
+  "\u03b5": "e", // Greek ε
+  "\u03bf": "o", // Greek ο
+  // Mathematical bold/italic variants of common injection keywords
+  "\u2170": "i", // small roman numeral i → i
+  "\uff49": "i", // fullwidth i
+  "\uff4f": "o", // fullwidth o
+  "\uff41": "a", // fullwidth a
+  "\uff45": "e", // fullwidth e
+  "\uff53": "s", // fullwidth s
+  "\uff59": "y", // fullwidth y
+  "\uff52": "r", // fullwidth r
+}
+
+/**
+ * Normalizes text for injection detection by applying NFKC Unicode normalization
+ * followed by homoglyph replacement, making bypass attempts via lookalike characters
+ * ineffective.
+ *
+ * @param text - Raw input text
+ * @returns Normalized text safe for pattern matching
+ */
+function normalizeForDetection(text: string): string {
+  // NFKC decomposes compatibility characters (e.g., ﬁ → fi, ² → 2)
+  const nfkc = text.normalize("NFKC")
+
+  // Replace known homoglyphs char by char
+  let result = ""
+  for (const char of nfkc) {
+    result += HOMOGLYPH_MAP[char] ?? char
+  }
+  return result
+}
+
 const DIRECT_INJECTION_PATTERNS: readonly RegExp[] = [
   /ignore\s+(all\s+)?previous\s+instructions?/i,
   /disregard\s+(all\s+)?(previous\s+)?instructions?/i,
@@ -105,8 +166,10 @@ function matchesAnyPattern(content: string, patterns: readonly RegExp[]): boolea
 }
 
 function detectInjection(content: string): DetectionResult {
+  // Normalize first to defeat homoglyph bypass attempts
+  const normalized = normalizeForDetection(content)
   for (const group of DETECTION_RULE_GROUPS) {
-    if (matchesAnyPattern(content, group.patterns)) {
+    if (matchesAnyPattern(normalized, group.patterns)) {
       return { detected: true, reason: group.reason }
     }
   }
@@ -123,7 +186,9 @@ function applyReplaceRules(content: string, rules: readonly RegexReplaceRule[]):
 }
 
 function sanitizeContent(content: string): string {
-  const structuredSanitized = applyReplaceRules(content, SANITIZE_STRUCTURE_RULES)
+  // Normalize first so homoglyph-encoded injection phrases are sanitized too
+  const normalized = normalizeForDetection(content)
+  const structuredSanitized = applyReplaceRules(normalized, SANITIZE_STRUCTURE_RULES)
   return applyReplaceRules(structuredSanitized, SANITIZE_DIRECT_INJECTION_RULES)
 }
 

@@ -59,6 +59,27 @@ export type EDITHEvent =
     type: "system.heartbeat"
     timestamp: number
   }
+  | {
+    type: "hardware.print.completed"
+    jobId: string
+    filePath: string
+  }
+  | {
+    type: "hardware.print.failed"
+    jobId: string
+    filePath: string
+    reason: string
+  }
+  | {
+    type: "voice.handoff.initiated"
+    fromDeviceId: string
+    toDeviceId: string
+  }
+  | {
+    type: "voice.handoff.completed"
+    fromDeviceId: string
+    toDeviceId: string
+  }
 
 class EDITHEventBus extends EventEmitter {
   constructor() {

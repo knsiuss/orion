@@ -25,6 +25,8 @@ import { skillLoader } from "../skills/loader.js"
 import { getBootstrapLoader, type SessionMode } from "./bootstrap.js"
 import { userPreferenceEngine } from "../memory/user-preference.js"
 import { personalityEngine } from "./personality-engine.js"
+import { moodTracker } from "../emotion/mood-tracker.js"
+import { styleModifier } from "../emotion/style-modifier.js"
 
 const log = createLogger("core.system-prompt-builder")
 
@@ -155,6 +157,19 @@ export async function buildSystemPrompt(options: BuildPromptOptions = {}): Promi
       }
     } catch (err) {
       log.warn("personality fragment injection failed, continuing", { userId, err })
+    }
+  }
+
+  // Phase 21: Inject emotional context fragment (after personality, before date)
+  if (userId) {
+    try {
+      const moodProfile = moodTracker.getProfile(userId)
+      if (moodProfile) {
+        const styleDirective = styleModifier.getDirective(moodProfile)
+        sections.push(`User emotional state: ${moodProfile.dominant}. ${styleDirective}`)
+      }
+    } catch (err) {
+      log.warn("emotional context injection failed, continuing", { userId, err })
     }
   }
 

@@ -6,6 +6,9 @@ import { stdin as input, stdout as output } from "node:process"
 import { pathToFileURL } from "node:url"
 
 import dotenv from "dotenv"
+import { execa } from "execa"
+
+import { printBanner, colors, spinner } from "./banner.js"
 
 type ChannelChoice = "telegram" | "discord" | "whatsapp" | "webchat"
 type ProviderChoice = "groq" | "openrouter" | "anthropic" | "openai" | "gemini" | "ollama"
@@ -396,52 +399,58 @@ function defaultNextStepCommands(env: NodeJS.ProcessEnv = process.env): NextStep
 function buildNextSteps(plan: QuickstartPlan, commands: NextStepCommands = defaultNextStepCommands()): string[] {
   const lines: string[] = []
 
-  lines.push("Next steps:")
-  lines.push(`1. Run \`${commands.doctor}\` to validate config + ports.`)
-  lines.push(`2. Start EDITH with channels: \`${commands.all}\``)
+  lines.push(colors.accent("✅ Setup complete!"))
+  lines.push("")
+  lines.push("Start EDITH:")
+  lines.push(`  \`${commands.all}\`              # start all channels`)
+  lines.push("")
+  lines.push("Check status:")
+  lines.push(`  \`${commands.doctor}\`           # health check`)
+  lines.push(`  \`pnpm typecheck\`        # TypeScript check`)
+  lines.push("")
+  lines.push("Useful commands:")
+  lines.push(`  \`${commands.onboard}\`         # re-run wizard anytime`)
+  lines.push(`  \`pnpm dev -- --mode text\`    # text-only CLI mode`)
+  lines.push(`  \`pnpm dev -- --mode gateway\` # HTTP gateway only`)
 
   if (plan.channel === "telegram") {
-    lines.push("3. Open Telegram on your phone and DM your bot.")
-    lines.push("4. Run `/start`, `/id`, `/ping`, then send a normal message.")
+    lines.push("")
+    lines.push("Telegram setup:")
+    lines.push("  1. DM your bot and run /start, /id, /ping")
     if (!plan.updates.TELEGRAM_CHAT_ID) {
-      lines.push(`5. Copy \`/id\` result into \`TELEGRAM_CHAT_ID\` (allowlist) and rerun \`${commands.onboard}\`.`)
+      lines.push(`  2. Copy /id result into TELEGRAM_CHAT_ID and rerun \`${commands.onboard}\``)
     }
+    lines.push("  → docs/channels/telegram.md")
   } else if (plan.channel === "discord") {
-    lines.push("3. Enable Message Content Intent in Discord Developer Portal.")
-    lines.push("4. DM the bot (or use an allowlisted channel) and run `!help`, `!id`, `!ping`.")
+    lines.push("")
+    lines.push("Discord setup:")
+    lines.push("  1. Enable Message Content Intent in Discord Developer Portal")
+    lines.push("  2. DM the bot and run !help, !id, !ping")
     if (!plan.updates.DISCORD_CHANNEL_ID) {
-      lines.push(`5. If using a server channel, add the \`!id\` result to \`DISCORD_CHANNEL_ID\` and rerun \`${commands.onboard}\`.`)
+      lines.push(`  3. Add !id result to DISCORD_CHANNEL_ID and rerun \`${commands.onboard}\``)
     }
+    lines.push("  → docs/channels/discord.md")
   } else if (plan.channel === "whatsapp") {
     const isCloudMode = (plan.updates.WHATSAPP_MODE ?? "").trim().toLowerCase() === "cloud"
+    lines.push("")
+    lines.push("WhatsApp setup:")
     if (isCloudMode) {
-      lines.push("3. Expose your gateway publicly (e.g. Cloudflare Tunnel / ngrok) and point Meta webhook to `/webhooks/whatsapp`.")
-      lines.push("4. In Meta App dashboard, set verify token to `WHATSAPP_CLOUD_VERIFY_TOKEN` and subscribe to `messages` webhook events.")
-      lines.push("5. Run `/help`, `/id`, `/ping` from your WhatsApp test phone, then send a normal message.")
-      if (!plan.updates.WHATSAPP_CLOUD_ALLOWED_WA_IDS) {
-        lines.push(`6. Optional hardening: copy \`/id\` result into \`WHATSAPP_CLOUD_ALLOWED_WA_IDS\` and rerun \`${commands.onboard}\`.`)
-      }
+      lines.push("  1. Expose gateway publicly (Cloudflare Tunnel / ngrok)")
+      lines.push("  2. Point Meta webhook to /webhooks/whatsapp")
+      lines.push("  3. Set verify token = WHATSAPP_CLOUD_VERIFY_TOKEN")
     } else {
-      lines.push("3. Wait for the WhatsApp QR code in terminal.")
-      lines.push("4. On your phone: WhatsApp -> Linked Devices -> Link a Device, then scan the QR.")
-      lines.push("5. Send `/help`, `/id`, `/ping`, then a normal message from a test chat.")
-      lines.push("6. If QR does not appear, make sure `baileys` is installed and `WHATSAPP_MODE=baileys`.")
+      lines.push(`  1. Scan the QR code when it appears in terminal (WHATSAPP_MODE=baileys)`)
+      lines.push("  2. WhatsApp → Linked Devices → Link a Device")
     }
+    lines.push("  → docs/channels/whatsapp.md")
   } else {
-    lines.push("3. Open `http://127.0.0.1:8080` on this machine and test WebChat.")
-    lines.push(`4. For phone access, set up Telegram, Discord, or WhatsApp later with \`${commands.onboard}\`.`)
+    lines.push("")
+    lines.push("WebChat: open http://127.0.0.1:8080 after starting EDITH")
+    lines.push(`  Add more channels later with \`${commands.onboard}\``)
   }
 
   lines.push("")
-  lines.push("Docs:")
-  if (plan.channel === "telegram") {
-    lines.push("- `docs/channels/telegram.md`")
-  } else if (plan.channel === "discord") {
-    lines.push("- `docs/channels/discord.md`")
-  } else if (plan.channel === "whatsapp") {
-    lines.push("- `docs/channels/whatsapp.md`")
-  }
-  lines.push("- `docs/platform/onboarding.md`")
+  lines.push("Docs: docs/platform/onboarding.md")
 
   return lines
 }
@@ -452,10 +461,10 @@ async function askChoice<T extends string>(
   choices: ReadonlyArray<{ key: T; label: string; description: string }>,
 ): Promise<T> {
   console.log("")
-  console.log(prompt)
+  console.log(colors.label(prompt))
   choices.forEach((choice, index) => {
-    console.log(`  ${index + 1}. ${choice.label}`)
-    console.log(`     ${choice.description}`)
+    console.log(`  ${colors.accent(String(index + 1))}. ${colors.label(choice.label)}`)
+    console.log(`     ${colors.dim(choice.description)}`)
   })
 
   while (true) {
@@ -497,7 +506,7 @@ async function askInput(
   }
   const suffix = suffixParts.length > 0 ? ` (${suffixParts.join(", ")})` : ""
 
-  const prompt = `${label}${suffix}: `
+  const prompt = `${colors.label(label)}${colors.dim(suffix)}: `
   const raw = (await rl.question(prompt)).trim()
 
   if (!raw) {
@@ -529,12 +538,10 @@ async function askYesNo(
 }
 
 function buildQuickstartBanner(): void {
-  console.log("EDITH Setup Wizard (OpenClaw-inspired)")
-  console.log("======================================")
-  console.log("")
+  printBanner({ subtitle: "Setup Wizard" })
   console.log("This wizard helps you:")
-  console.log("- choose a test channel (Telegram / Discord / WhatsApp / WebChat)")
-  console.log("- for WhatsApp: choose Scan QR (quick test) or Cloud API (official)")
+  console.log(`- choose a test channel (${colors.accent("Telegram")} / ${colors.accent("Discord")} / ${colors.accent("WhatsApp")} / ${colors.accent("WebChat")})`)
+  console.log(`- for WhatsApp: choose ${colors.accent("Scan QR")} (quick test) or ${colors.accent("Cloud API")} (official)`)
   console.log("- choose a model provider")
   console.log("- write the minimum .env config for a phone-first quick test")
 }
@@ -725,20 +732,20 @@ async function collectQuickstartPlan(
 
 function printPlannedChanges(plan: QuickstartPlan, envPath: string, templateSource: EnvTemplate["source"]): void {
   console.log("")
-  console.log("Quickstart plan")
-  console.log("===============")
-  console.log(`Channel: ${plan.channel}`)
-  console.log(`Provider: ${plan.provider}`)
-  console.log(`Computer use defaults: ${plan.computerUseEnabled ? "enabled" : "disabled"}`)
-  console.log(`Target env file: ${envPath} (base: ${templateSource})`)
+  console.log(colors.label("Quickstart plan"))
+  console.log(colors.dim("═".repeat(40)))
+  console.log(`Channel:  ${colors.accent(plan.channel)}`)
+  console.log(`Provider: ${colors.accent(plan.provider)}`)
+  console.log(`Computer use: ${plan.computerUseEnabled ? colors.success("enabled") : colors.dim("disabled")}`)
+  console.log(`Target env: ${colors.dim(envPath)} ${colors.dim(`(base: ${templateSource})`)}`)
   console.log("")
   if (Object.keys(plan.updates).length === 0) {
-    console.log("No env changes collected (you can still run the next steps and set values later).")
+    console.log(colors.dim("No env changes collected (you can still run the next steps and set values later)."))
     return
   }
   console.log("Env updates:")
   for (const [key, value] of Object.entries(plan.updates)) {
-    console.log(`- ${key}=${redactSecretValue(key, value)}`)
+    console.log(`  ${colors.label(key)}=${colors.dim(redactSecretValue(key, value))}`)
   }
 }
 
@@ -779,14 +786,37 @@ async function runOnboarding(argv: string[]): Promise<void> {
     }
 
     if (shouldWrite) {
+      spinner.start("Writing configuration...")
       await writeEnvFile(cwd, template, plan.updates)
       const configPath = await writeComputerUseConfig(cwd, plan.computerUseEnabled)
+      spinner.stop("Configuration saved", "ok")
+      console.log(`  ${colors.dim(envPath)}`)
+      console.log(`  ${colors.dim(configPath)}`)
+
+      // ── Database setup ─────────────────────────────────────
       console.log("")
-      console.log(`Wrote ${envPath}`)
-      console.log(`Wrote ${configPath}`)
+      spinner.start("Setting up database...")
+      try {
+        await execa("pnpm", ["exec", "prisma", "db", "push", "--skip-generate"], {
+          stdio: "pipe",
+          cwd,
+        })
+        spinner.stop("Database ready", "ok")
+      } catch {
+        spinner.stop("Database setup failed — run `pnpm db:push` manually", "error")
+      }
+
+      // ── Auto health check ──────────────────────────────────
+      console.log("")
+      console.log(colors.label("Running health check..."))
+      try {
+        await execa("pnpm", ["doctor"], { stdio: "inherit", cwd })
+      } catch {
+        console.log(colors.dim("  Some checks failed — see above. Re-run `pnpm doctor` anytime."))
+      }
     } else {
       console.log("")
-      console.log("Skipped writing .env")
+      console.log(colors.dim("Skipped writing .env"))
     }
   }
 

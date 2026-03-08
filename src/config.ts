@@ -65,6 +65,8 @@ const ConfigSchema = z.object({
   WHATSAPP_CLOUD_API_VERSION: z.string().default("v20.0"),
   SIGNAL_PHONE_NUMBER: z.string().default(""),
   SIGNAL_CLI_PATH: z.string().default(""),
+  /** Base URL of the signal-cli REST API daemon (e.g. http://localhost:8080). Leave empty to use CLI mode. */
+  SIGNAL_REST_API_URL: z.string().default(""),
   LINE_CHANNEL_TOKEN: z.string().default(""),
   LINE_CHANNEL_SECRET: z.string().default(""),
   MATRIX_HOMESERVER: z.string().default(""),
@@ -131,6 +133,13 @@ const ConfigSchema = z.object({
   OUTLOOK_CALENDAR_CLIENT_ID: z.string().default(""),
   OUTLOOK_CALENDAR_CLIENT_SECRET: z.string().default(""),
   OUTLOOK_CALENDAR_REFRESH_TOKEN: z.string().default(""),
+  /**
+   * Runtime bearer token for Microsoft Graph Calendar API.
+   * Populated at startup by CalendarService.initOutlook() via OAuth2
+   * refresh-token exchange.  Can also be set directly via env var for
+   * service-principal / CI flows that supply a short-lived token directly.
+   */
+  OUTLOOK_CALENDAR_ACCESS_TOKEN: z.string().default(""),
   // Phase 8: SMS (Twilio + Android ADB)
   TWILIO_ACCOUNT_SID: z.string().default(""),
   TWILIO_AUTH_TOKEN: z.string().default(""),
@@ -138,6 +147,10 @@ const ConfigSchema = z.object({
   // Phase 8: Phone (Twilio Voice)
   TWILIO_TWIML_APP_SID: z.string().default(""),
   PHONE_WEBHOOK_URL: z.string().default(""),
+  /** Enable the PhoneChannel WebSocket audio server. */
+  PHONE_ENABLED: boolFromEnv.default(false),
+  /** Port for the standalone Twilio Media Streams WebSocket server. */
+  PHONE_WS_PORT: intFromEnv.default(8082),
   // Phase 8: Android ADB (self-hosted SMS fallback)
   ANDROID_ADB_HOST: z.string().default("127.0.0.1"),
   ANDROID_ADB_PORT: intFromEnv.default(5037),
@@ -155,6 +168,16 @@ const ConfigSchema = z.object({
   KOKORO_TTS_ENABLED: boolFromEnv.default(false),
   KOKORO_TTS_DTYPE: z.enum(["fp32", "fp16", "q8", "q4"]).default("q8"),
   KOKORO_TTS_VOICE: z.string().default("af_heart"),
+  // Fish Audio TTS (S1 / S1-mini / Fish-Speech 1.5)
+  FISH_AUDIO_ENABLED: boolFromEnv.default(false),
+  FISH_AUDIO_API_KEY: z.string().default(""),
+  // Default reference_id — S1-mini public model or your custom clone
+  FISH_AUDIO_MODEL_ID: z.string().default("s1"),
+  // Latency mode: "normal" | "balanced" (balanced is faster, slightly lower quality)
+  FISH_AUDIO_LATENCY: z.enum(["normal", "balanced"]).default("balanced"),
+  // Optional per-emotion reference_id overrides (comma-separated key:id pairs)
+  // e.g. "warm:abc123,urgent:def456" — if empty, FISH_AUDIO_MODEL_ID is used for all
+  FISH_AUDIO_EMOTION_MODELS: z.string().default(""),
   // nodejs-whisper offline STT
   WHISPER_CPP_ENABLED: boolFromEnv.default(false),
   WHISPER_CPP_MODEL: z.string().default("base"),
@@ -199,6 +222,14 @@ const ConfigSchema = z.object({
   PUSH_QUIET_HOURS_END: z.string().default("07:00"),
   PUSH_MAX_DAILY_LOW_PRIORITY: intFromEnv.default(10),
   PUSH_DRY_RUN: boolFromEnv.default(false),
+  // Phase 23: Hardware Bridge
+  HARDWARE_ENABLED: boolFromEnv.default(false),
+  HARDWARE_SERIAL_PORTS: z.string().default(""),
+  HARDWARE_MQTT_BROKER: z.string().default(""),
+  HARDWARE_LED_ENABLED: boolFromEnv.default(false),
+  HARDWARE_MONITOR_DDC_BUS: intFromEnv.default(0),
+  OCTOPRINT_URL: z.string().default(""),
+  OCTOPRINT_API_KEY: z.string().default(""),
 })
 
 const parsed = ConfigSchema.safeParse(process.env)

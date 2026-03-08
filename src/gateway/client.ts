@@ -2,7 +2,7 @@ import crypto from "node:crypto"
 
 export class GatewayClient {
   private ws: WebSocket | null = null
-  private pending = new Map<string, (value: any) => void>()
+  private pending = new Map<string, (value: unknown) => void>()
 
   constructor(private url = "ws://127.0.0.1:18789/ws") {}
 

@@ -1,3 +1,14 @@
+/**
+ * @file runner.ts
+ * @description Top-level agent orchestrator that plans, executes, reviews, and returns multi-agent task results.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - AgentRunner.run() is the main entry point called by message-pipeline.ts for complex tasks.
+ *   - Uses task-planner.ts to decompose goals into a TaskDAG, then execution-monitor.ts to run nodes.
+ *   - Integrates LATS planning (lats-planner.ts), dual-agent review (security/dual-agent-reviewer.ts),
+ *     ACP message signing (acp/protocol.ts + acp/router.ts), and SharedTaskMemory (acp/shared-memory.ts).
+ *   - Applies capability-scoped tool access via permissions/task-scope.ts and security/tool-guard.ts.
+ */
 import crypto from "node:crypto"
 
 import { generateText } from "ai"

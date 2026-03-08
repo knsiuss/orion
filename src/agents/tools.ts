@@ -1,3 +1,14 @@
+/**
+ * @file tools.ts
+ * @description Assembles and exports the complete edithTools array of Vercel AI SDK tool definitions.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - Aggregates tools from agents/tools/ sub-modules: browser, http, email, system, notes,
+ *     channel, screenshot, code-runner, weather-time, file-agent, and MCP.
+ *   - Also defines inline tools: memory_search, memory_save, shell_exec, and file read/write/list.
+ *   - edithTools is consumed by runner.ts and passed to generateText() for tool-use capable agents.
+ *   - All tool results are sanitized via security/prompt-filter.ts before being returned.
+ */
 import { tool } from "ai"
 import { z } from "zod"
 import { execa } from "execa"

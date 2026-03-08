@@ -1,4 +1,15 @@
-﻿import crypto from "node:crypto"
+﻿/**
+ * @file router.ts
+ * @description Routes signed ACP messages between registered agents with capability enforcement and state-transition validation.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - ACPRouter.register() is called by runner.ts to enrol each agent with its credential and handler.
+ *   - ACPRouter.route() validates HMAC signatures (acp/protocol.ts), enforces capability-based action
+ *     authorization, guards legal state transitions, and dispatches to the target agent's handler.
+ *   - All inbound message content is filtered via security/prompt-filter.ts before handler dispatch.
+ *   - Persists messages to the database via database/index.ts for audit and replay purposes.
+ */
+import crypto from "node:crypto"
 
 import { saveMessage } from "../database/index.js"
 import { createLogger } from "../logger.js"

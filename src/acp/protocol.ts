@@ -1,4 +1,14 @@
-﻿import crypto from "node:crypto"
+﻿/**
+ * @file protocol.ts
+ * @description Agent Communication Protocol (ACP) message schema, state machine, and HMAC signing utilities.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - Defines ACPMessage, AgentCredential, ACPState, and STATE_TRANSITIONS used across the ACP subsystem.
+ *   - signMessage() and verifyMessage() are used by runner.ts and router.ts to authenticate inter-agent messages.
+ *   - STATE_TRANSITIONS enforces the legal state machine: idle → requested → approved → executing → done/failed.
+ *   - Consumed by acp/router.ts for dispatch validation and by agents/runner.ts for outbound message signing.
+ */
+import crypto from "node:crypto"
 
 export type ACPState = "idle" | "requested" | "approved" | "executing" | "done" | "failed"
 

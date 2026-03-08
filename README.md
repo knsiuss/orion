@@ -1,35 +1,19 @@
 # EDITH
 
-Personal AI companion platform.
+Personal AI companion — runs locally, multi-channel, learns from every interaction.
 
-Repo root:
-- `C:\Users\test\OneDrive\Desktop\EDITH`
+## Quick Start
 
-Main code:
-- `src`
-- `bin`
-- `apps/desktop`
-- `apps/mobile`
-- `docs`
-
-Runtime/local state:
-- `.env`
-- `edith.json`
-- `models`
-- `workbenches`
-- `prisma/*.db`
-
-Main commands:
-```powershell
+```bash
 pnpm install
-pnpm dev -- --mode all
-pnpm doctor
-pnpm test:ci
+pnpm onboard        # interactive setup wizard (recommended)
 ```
 
-CLI:
-```powershell
-pnpm link --global
-edith --help
-edith dashboard --open
+After setup:
+
+```bash
+pnpm dev            # start EDITH
+pnpm doctor         # health check
 ```
+
+Full docs: `docs/` folder | `CLAUDE.md` for architecture reference.

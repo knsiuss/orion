@@ -45,9 +45,9 @@ export class WebChatChannel implements BaseChannel {
       return reply.sendFile("index.html")
     })
 
-    this.app.get("/ws/:userId", { websocket: true }, (connection: any, req) => {
+    this.app.get("/ws/:userId", { websocket: true }, (socket: WebSocket, req) => {
       const userId = (req.params as { userId: string }).userId
-      this.handleWebSocket(connection.socket as WebSocket, userId)
+      this.handleWebSocket(socket, userId)
     })
 
     await this.app.listen({ host: this.host, port: this.port })

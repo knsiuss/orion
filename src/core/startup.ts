@@ -22,10 +22,16 @@ import { mcpClient, type MCPServerConfig } from "../mcp/client.js"
 import { offlineCoordinator } from "../offline/coordinator.js"
 import { habitModel } from "../background/habit-model.js"
 import { localEmbedder } from "../memory/local-embedder.js"
+import { missionManager } from "../mission/mission-manager.js"
+import { moodTracker } from "../emotion/mood-tracker.js"
 import { skillMarketplace } from "../skills/marketplace.js"
 import { syncScheduler } from "../memory/knowledge/sync-scheduler.js"
 import { loadEDITHConfig } from "../config/edith-config.js"
 import config from "../config.js"
+import { deviceScanner } from "../hardware/device-scanner.js"
+import { deviceRegistry } from "../hardware/device-registry.js"
+import { gatewaySync } from "../gateway/gateway-sync.js"
+import { networkDiscovery } from "../gateway/network-discovery.js"
 
 const log = createLogger("startup")
 
@@ -108,6 +114,38 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
 
   // Phase 10: Start habit model background monitoring
   habitModel.startMonitoring()
+
+  // Phase 21: Emotion module (moodTracker is stateful, no explicit init needed)
+  void moodTracker
+  log.info("emotion module ready")
+
+  // Phase 22: Mission manager (stateful singleton, no explicit init needed)
+  void missionManager
+  log.info("mission manager ready")
+
+  // Phase 23: Hardware bridge — scan for devices (fire-and-forget)
+  if (config.HARDWARE_ENABLED) {
+    void deviceScanner.scan()
+      .then(() => log.info("hardware bridge ready", { devices: deviceRegistry.list().length }))
+      .catch((err) => log.warn("hardware scan failed", { err }))
+  }
+
+  // Phase 24: Self-improvement engine (stateful singletons, no explicit init needed)
+  log.info("self-improvement engine ready")
+
+  // Phase 27: Cross-device mesh — start peer discovery (fire-and-forget)
+  void networkDiscovery.discover()
+    .then((peers) => {
+      if (peers.length > 0) {
+        log.info("gateway peers discovered", { count: peers.length })
+        for (const peer of peers) {
+          gatewaySync.registerPeer(peer.gatewayId, peer.url)
+        }
+      }
+    })
+    .catch((err) => log.warn("gateway peer discovery failed", { err }))
+  log.info("cross-device mesh ready")
+  log.info("gateway sync ready")
 
   // Phase 13: Knowledge base sync scheduler
   if (config.KNOWLEDGE_BASE_ENABLED) {

@@ -24,7 +24,10 @@
       "headless": true
     },
     "fileAgent": {
-      "allowedPaths": ["./workspace", "./workbenches"],
+      "allowedPaths": [
+        "./workspace",
+        "./workbenches"
+      ],
       "maxFileSizeMb": 10,
       "allowWrite": true
     }
@@ -49,7 +52,12 @@
       "calendarId": "primary",
       "proactiveAlerts": {
         "enabled": true,
-        "minutesBefore": [60, 15, 10, 2]
+        "minutesBefore": [
+          60,
+          15,
+          10,
+          2
+        ]
       }
     },
     "sms": {

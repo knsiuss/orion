@@ -5,7 +5,8 @@
  * ARCHITECTURE:
  *   Provider priority (TTS):
  *     1. Kokoro.js (kokoro-js, pure TS, offline) — when KOKORO_TTS_ENABLED=true
- *     2. Python streaming pipeline (Kokoro + Whisper Python) — legacy fallback
+ *     2. Fish Audio (S1 / S1-mini / Fish-Speech 1.5) — when FISH_AUDIO_ENABLED=true
+ *     3. Python streaming pipeline (Kokoro + Whisper Python) — legacy fallback
  *
  *   Provider priority (STT):
  *     1. WhisperCpp via nodejs-whisper (offline) — when WHISPER_CPP_ENABLED=true
@@ -37,6 +38,7 @@ import os from "node:os"
 import config from "../config.js"
 import { createLogger } from "../logger.js"
 import { offlineCoordinator } from "../offline/coordinator.js"
+import { fishAudioSpeak, fishAudioSpeakStreaming } from "./fish-audio.js"
 
 const logger = createLogger("voice.bridge")
 const PY = config.PYTHON_PATH ?? "python"
@@ -215,6 +217,13 @@ export class VoiceBridge {
   }
 
   /**
+   * Determine if Fish Audio TTS is available (enabled + API key set + online).
+   */
+  private shouldUseFishAudio(): boolean {
+    return config.FISH_AUDIO_ENABLED && Boolean(config.FISH_AUDIO_API_KEY) && !offlineCoordinator.isOffline()
+  }
+
+  /**
    * Determine if local STT should be preferred over Python.
    * True when: WHISPER_CPP_ENABLED=true OR system is offline.
    */
@@ -237,9 +246,18 @@ export class VoiceBridge {
       return
     }
 
-    // Phase 9: Try Kokoro.js first
+    // Phase 9: Try Kokoro.js first (local / offline)
     if (this.shouldPreferLocalTTS()) {
       const audioBuffer = await kokoroSpeak(text)
+      if (audioBuffer) {
+        await this.playAudioBuffer(audioBuffer)
+        return
+      }
+    }
+
+    // Fish Audio (S1 / S1-mini / Fish-Speech 1.5) — cloud TTS with emotion support
+    if (this.shouldUseFishAudio()) {
+      const audioBuffer = await fishAudioSpeak(text)
       if (audioBuffer) {
         await this.playAudioBuffer(audioBuffer)
         return
@@ -281,9 +299,17 @@ export class VoiceBridge {
       return
     }
 
-    // Phase 9: Try Kokoro.js streaming
+    // Phase 9: Try Kokoro.js streaming (local / offline)
     if (this.shouldPreferLocalTTS()) {
       const success = await this.kokoroStreamSpeak(text, onChunk)
+      if (success) {
+        return
+      }
+    }
+
+    // Fish Audio streaming (S1 / S1-mini)
+    if (this.shouldUseFishAudio()) {
+      const success = await fishAudioSpeakStreaming(text, undefined, onChunk)
       if (success) {
         return
       }

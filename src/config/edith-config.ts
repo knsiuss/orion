@@ -125,6 +125,16 @@ const KnowledgeBaseSchema = z.object({
   }).default({ enabled: false, jsonPath: "" }),
 }).default({ enabled: false, obsidian: { enabled: false, vaultPath: "", syncIntervalMs: 300_000 }, notion: { enabled: false, syncIntervalMs: 3_600_000, databaseIds: [] }, bookmarks: { enabled: false, jsonPath: "" } })
 
+/** Credentials that can be set in edith.json instead of .env */
+const CredentialsSchema = z.record(z.string(), z.string()).default({})
+
+/** Feature flags configurable from edith.json */
+const FeaturesSchema = z.object({
+  voice: z.boolean().optional(),
+  knowledgeBase: z.boolean().optional(),
+  computerUse: z.boolean().optional(),
+}).default({})
+
 const EDITHConfigSchema = z.object({
   identity: AgentIdentitySchema.default({
     name: "EDITH",
@@ -214,6 +224,8 @@ const EDITHConfigSchema = z.object({
   telemetry: TelemetrySchema,
   update: UpdateSchema,
   knowledgeBase: KnowledgeBaseSchema,
+  credentials: CredentialsSchema,
+  features: FeaturesSchema,
 })
 
 export type EDITHConfig = z.infer<typeof EDITHConfigSchema>

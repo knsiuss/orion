@@ -1,3 +1,13 @@
+/**
+ * @file task-planner.ts
+ * @description Decomposes a user goal into a directed acyclic graph (DAG) of typed TaskNodes via LLM planning.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - Exports AgentType, TaskNode, and TaskDAG types consumed throughout the agents/ subsystem.
+ *   - taskPlanner.plan() is called by runner.ts (AgentRunner) to produce the execution graph.
+ *   - The resulting TaskDAG is executed node-by-node by execution-monitor.ts.
+ *   - Uses engines/orchestrator.ts with TaskType 'reasoning' for the planning prompt.
+ */
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
 

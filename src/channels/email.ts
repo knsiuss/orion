@@ -33,6 +33,7 @@ import type { BaseChannel } from "./base.js"
 import { emailContentFilter, type RawEmail } from "./email-filter.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
+import { eventBus } from "../core/event-bus.js"
 import config from "../config.js"
 
 const log = createLogger("channels.email")
@@ -107,16 +108,11 @@ export class EmailChannel implements BaseChannel {
   private pendingDrafts = new Map<string, EmailDraft>()
 
   /**
-   * TODO: Implement incremental polling
-   *
-   * Currently polls all unread emails on each cycle.
-   * For production: track lastCheckedAt and only fetch emails newer than that.
-   *
-   * Implementation:
-   *   - Add: private lastCheckedAt = new Date(0)
-   *   - Gmail: Use query `after:${lastCheckedAt.getTime() / 1000}`
-   *   - Outlook: Use filter `receivedDateTime gt ${lastCheckedAt.toISOString()}`
+   * Cursor for incremental Gmail polling.
+   * On each poll, only emails newer than this timestamp are fetched.
+   * Initialized to epoch so the first poll fetches recent unread emails.
    */
+  private lastCheckedAt = new Date(0)
 
   /**
    * Polling interval for checking new emails (milliseconds).
@@ -258,9 +254,13 @@ export class EmailChannel implements BaseChannel {
 
     log.info("draft created, awaiting user confirmation", { draftId, to: draft.to })
 
-    // TODO: Send preview to user via ChannelManager
-    // This requires integration with ChannelManager.sendWithConfirm()
-    // For now, log the draft (will be completed in ChannelManager integration)
+    // Notify via event bus so other modules (e.g. channel manager) can surface the draft preview
+    eventBus.dispatch("email.draft.created" as Parameters<typeof eventBus.dispatch>[0], {
+      draftId,
+      to: draft.to,
+      subject: draft.subject,
+      previewText: draft.previewText,
+    } as never)
 
     return true
   }
@@ -315,13 +315,17 @@ export class EmailChannel implements BaseChannel {
    */
   private async pollInbox(): Promise<void> {
     try {
+      const pollStartedAt = new Date()
       const emails = await this.fetchUnread()
 
-      log.debug("inbox poll completed", { count: emails.length })
+      log.debug("inbox poll completed", { count: emails.length, since: this.lastCheckedAt.toISOString() })
 
       for (const email of emails) {
         await this.processEmail(email)
       }
+
+      // Advance cursor so next poll only fetches newer emails
+      this.lastCheckedAt = pollStartedAt
     } catch (error) {
       log.error("inbox polling error", { error })
     }
@@ -360,8 +364,12 @@ export class EmailChannel implements BaseChannel {
       // Only notify user for high-importance emails
       if (importance === "high") {
         log.info("high-importance email received", { emailId: email.id, from: email.from })
-        // TODO: Send notification via ChannelManager
-        // await channelManager.send(userId, `New email from ${email.from}: ${email.subject}`)
+        eventBus.dispatch("email.high_importance" as Parameters<typeof eventBus.dispatch>[0], {
+          userId: config.DEFAULT_USER_ID,
+          emailId: email.id,
+          from: email.from,
+          subject: email.subject,
+        } as never)
       }
     } catch (error) {
       log.error("email processing failed", { emailId: email.id, error })
@@ -466,9 +474,15 @@ Return ONLY one word: high, medium, low, or spam`
       return []
     }
 
+    // Use `after:` epoch-seconds cursor for incremental polling
+    const afterEpochSec = Math.floor(this.lastCheckedAt.getTime() / 1000)
+    const query = afterEpochSec > 0
+      ? `is:unread after:${afterEpochSec}`
+      : "is:unread"
+
     const response = await this.gmailClient.users.messages.list({
       userId: "me",
-      q: "is:unread",
+      q: query,
       maxResults: EmailChannel.MAX_EMAILS_PER_POLL,
     })
 

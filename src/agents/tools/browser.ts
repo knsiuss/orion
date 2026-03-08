@@ -28,9 +28,32 @@ import { createLogger } from "../../logger.js"
 
 const log = createLogger("tools.browser")
 
+/** Local interface covering the Playwright Browser methods used in this file. */
+interface PlaywrightBrowser {
+  isConnected(): boolean
+  newPage(): Promise<PlaywrightPage>
+  close(): Promise<void>
+}
+
+/** Local interface covering the Playwright Page methods used in this file. */
+interface PlaywrightPage {
+  isClosed(): boolean
+  url(): string
+  title(): Promise<string>
+  goto(url: string, options?: Record<string, unknown>): Promise<unknown>
+  click(selector: string, options?: Record<string, unknown>): Promise<void>
+  fill(selector: string, value: string): Promise<void>
+  goBack(options?: Record<string, unknown>): Promise<unknown>
+  waitForLoadState(state: string, options?: Record<string, unknown>): Promise<void>
+  screenshot(options?: Record<string, unknown>): Promise<Buffer>
+  evaluate<T>(fn: string | (() => T)): Promise<T>
+  setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>
+  accessibility: { snapshot(): Promise<unknown> }
+}
+
 // One browser instance per EDITH session — reused across tool calls
-let browserInstance: any = null
-let currentPage: any = null
+let browserInstance: PlaywrightBrowser | null = null
+let currentPage: PlaywrightPage | null = null
 const MAX_CONTENT_CHARS = 8_000
 const PAGE_TIMEOUT_MS = 15_000
 const MAX_ELEMENTS = 50
@@ -74,7 +97,7 @@ const CAPTCHA_SIGNALS = ["captcha", "challenge", "cloudflare", "recaptcha", "hca
  * @param page - Playwright page
  * @returns true if CAPTCHA detected
  */
-async function detectCaptcha(page: any): Promise<boolean> {
+async function detectCaptcha(page: PlaywrightPage): Promise<boolean> {
   const title = (await page.title().catch(() => "")).toLowerCase()
   const url = page.url().toLowerCase()
   return CAPTCHA_SIGNALS.some((s) => title.includes(s) || url.includes(s))
@@ -174,10 +197,10 @@ async function getBrowser() {
     browserInstance = await playwright.chromium.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-    })
+    }) as unknown as PlaywrightBrowser
     log.info("browser instance started")
   }
-  return browserInstance
+  return browserInstance!
 }
 
 async function getPage() {

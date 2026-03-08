@@ -1,3 +1,11 @@
+/**
+ * @file doctor.ts
+ * @description EDITH health check CLI. Validates database, API keys, ports, and tools.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Standalone CLI entry point (pnpm doctor). Uses banner.ts for consistent branding.
+ */
+
 import fs from "node:fs/promises"
 import net from "node:net"
 
@@ -7,6 +15,7 @@ import config from "../config.js"
 import { prisma } from "../database/index.js"
 import { createLogger } from "../logger.js"
 import { memory } from "../memory/store.js"
+import { printBanner, printStatusBox, colors, type StatusItem, type StatusSection } from "./banner.js"
 
 const log = createLogger("cli.doctor")
 
@@ -16,12 +25,6 @@ interface CheckResult {
   level: Level
   label: string
   detail: string
-}
-
-function icon(level: Level): string {
-  if (level === "ok") return "OK"
-  if (level === "warn") return "WARN"
-  return "ERR"
 }
 
 async function checkPortAvailable(port: number): Promise<boolean> {
@@ -116,23 +119,54 @@ async function runChecks(): Promise<CheckResult[]> {
   return results
 }
 
-async function main(): Promise<void> {
-  const results = await runChecks()
+/** Groups flat check results into themed StatusSections. */
+function groupResults(results: CheckResult[]): StatusSection[] {
+  const storageLabels = new Set(["Database", "LanceDB"])
+  const apiLabels = new Set(["Anthropic", "OpenAI", "Gemini", "Groq", "OpenRouter"])
+  const networkLabels = new Set(["Gateway Port", "WebChat Port"])
 
+  const toItem = (r: CheckResult): StatusItem => ({
+    label: r.label,
+    value: r.detail,
+    level: r.level,
+  })
+
+  const storage = results.filter((r) => storageLabels.has(r.label)).map(toItem)
+  const apiKeys = results.filter((r) => apiLabels.has(r.label)).map(toItem)
+  const network = results.filter((r) => networkLabels.has(r.label)).map(toItem)
+  const tools = results.filter(
+    (r) => !storageLabels.has(r.label) && !apiLabels.has(r.label) && !networkLabels.has(r.label),
+  ).map(toItem)
+
+  const sections: StatusSection[] = []
+  if (storage.length > 0) sections.push({ title: "Storage", items: storage })
+  if (apiKeys.length > 0) sections.push({ title: "API Keys", items: apiKeys })
+  if (network.length > 0) sections.push({ title: "Network", items: network })
+  if (tools.length > 0) sections.push({ title: "Tools & Config", items: tools })
+
+  return sections
+}
+
+async function main(): Promise<void> {
+  printBanner({ subtitle: "Doctor" })
+
+  const results = await runChecks()
   const errors = results.filter((item) => item.level === "error").length
   const warnings = results.filter((item) => item.level === "warn").length
 
-  console.log("EDITH Doctor")
-  console.log("============")
+  const sections = groupResults(results)
+  printStatusBox(sections)
 
-  for (const result of results) {
-    console.log(`${icon(result.level)} ${result.label} - ${result.detail}`)
+  // Summary line
+  if (errors > 0) {
+    process.stdout.write(colors.error(`  ${errors} error(s), ${warnings} warning(s)\n`))
+  } else if (warnings > 0) {
+    process.stdout.write(colors.warning(`  0 errors, ${warnings} warning(s)\n`))
+  } else {
+    process.stdout.write(colors.success("  All checks passed\n"))
   }
 
-  console.log("")
-  console.log(`Issues: ${errors} errors, ${warnings} warnings`)
-
-  await prisma.$disconnect().catch((error) => log.warn("prisma disconnect failed", error))
+  await prisma.$disconnect().catch((error: unknown) => log.warn("prisma disconnect failed", error))
 
   process.exit(errors > 0 ? 1 : 0)
 }

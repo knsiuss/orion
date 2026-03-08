@@ -11,8 +11,10 @@ import { iMessageChannel } from "./imessage.js"
 import { emailChannel } from "./email.js"
 import { smsChannel } from "./sms.js"
 import { phoneChannel } from "./phone.js"
+import { channelCircuitBreaker } from "./circuit-breaker.js"
 import { createLogger } from "../logger.js"
 import config from "../config.js"
+import { channelHealthMonitor } from "../gateway/channel-health-monitor.js"
 import { sandbox } from "../permissions/sandbox.js"
 import { outputScanner } from "../security/output-scanner.js"
 
@@ -62,8 +64,16 @@ export class ChannelManager {
       },
     })
 
+    // Start health monitoring for all registered channels
+    channelHealthMonitor.startMonitoring(this.channels)
+
     this.initialized = true
     log.info("channel manager initialized")
+  }
+
+  /** Expose the internal channel map for health monitoring. */
+  getChannels(): ReadonlyMap<string, BaseChannel> {
+    return this.channels
   }
 
   async send(userId: string, message: string): Promise<boolean> {
@@ -95,9 +105,16 @@ export class ChannelManager {
         continue
       }
 
-      const sent = await channel.send(userId, safeMessage)
-      if (sent) {
-        return true
+      try {
+        const sent = await channelCircuitBreaker.execute(name, () =>
+          channel.send(userId, safeMessage),
+        )
+        if (sent) {
+          return true
+        }
+      } catch (err) {
+        log.warn("channel send failed (circuit breaker)", { channel: name, error: String(err) })
+        continue
       }
     }
 

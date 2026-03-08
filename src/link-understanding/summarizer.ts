@@ -1,95 +1,63 @@
+/**
+ * @file summarizer.ts
+ * @description LLM-based URL content summarization.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - Uses orchestrator.generate('fast', ...) for quick summarization.
+ *   - Called as a fire-and-forget side effect; injects summary into context.
+ */
+
 import { orchestrator } from "../engines/orchestrator.js"
-import { linkExtractor } from "./extractor.js"
 import { createLogger } from "../logger.js"
+import type { LinkMetadata } from "./extractor.js"
 
 const log = createLogger("link-understanding.summarizer")
-const MAX_SUMMARIZED_LINKS = 5
 
-const SUMMARIZE_PROMPT = `Summarize this web page content in 2-3 sentences. Focus on the main points.
+/** Prompt template for metadata-based summarization. */
+const SUMMARIZE_PROMPT = `Summarize this web page in 1-2 concise sentences based on its metadata.
 
 Title: {title}
+Description: {description}
+Site: {site}
+Type: {type}
 URL: {url}
-Content:
-{content}
 
 Summary:`
 
+/**
+ * Generates LLM-powered summaries of link metadata.
+ *
+ * Uses the orchestrator's "fast" task type for low-latency summarization.
+ * Gracefully degrades to a markdown link on failure.
+ */
 export class LinkSummarizer {
-  async summarize(content: {
-    title: string
-    text: string
-    url: string
-  }): Promise<string> {
+  /**
+   * Produces a 1-2 sentence summary of a link from its metadata.
+   *
+   * Sends the link's Open Graph / meta tag metadata to the LLM via the
+   * orchestrator's "fast" route. On failure, returns a fallback markdown link.
+   *
+   * @param metadata - Structured metadata from {@link LinkMetadata}.
+   * @returns A concise summary string, or a markdown link fallback.
+   */
+  async summarizeLink(metadata: LinkMetadata): Promise<string> {
     try {
-      const prompt = SUMMARIZE_PROMPT.replace("{title}", content.title)
-        .replace("{url}", content.url)
-        .replace("{content}", content.text.slice(0, 3000))
+      const prompt = SUMMARIZE_PROMPT
+        .replace("{title}", metadata.title ?? "Unknown")
+        .replace("{description}", metadata.description ?? "No description available")
+        .replace("{site}", metadata.siteName ?? "Unknown site")
+        .replace("{type}", metadata.type ?? "unknown")
+        .replace("{url}", metadata.url)
 
       const summary = await orchestrator.generate("fast", { prompt })
+      log.debug("summarization complete", { url: metadata.url })
       return summary.trim()
     } catch (error) {
-      log.error("summarize failed", error)
-      return `[${content.title}](${content.url})`
-    }
-  }
-
-  async processMessage(message: string): Promise<{
-    original: string
-    linkSummaries: Array<{ url: string; summary: string }>
-    enrichedContext: string
-  }> {
-    try {
-      const urls = linkExtractor.extractUrls(message)
-
-      if (urls.length === 0) {
-        return {
-          original: message,
-          linkSummaries: [],
-          enrichedContext: message,
-        }
-      }
-
-      const linkSummaries: Array<{ url: string; summary: string }> = []
-
-      const fetched = await Promise.all(
-        urls.slice(0, MAX_SUMMARIZED_LINKS).map(async (url) => ({
-          url,
-          content: await linkExtractor.fetchContent(url),
-        })),
-      )
-
-      for (const item of fetched) {
-        if (!item.content) {
-          continue
-        }
-        const summary = await this.summarize(item.content)
-        linkSummaries.push({ url: item.url, summary })
-      }
-
-      let enrichedContext = message
-
-      if (linkSummaries.length > 0) {
-        const summariesText = linkSummaries
-          .map((s) => `[Link Summary] ${s.url}\n${s.summary}`)
-          .join("\n\n")
-
-        enrichedContext = `${message}\n\n---\n${summariesText}`
-      }
-
-      return {
-        original: message,
-        linkSummaries,
-        enrichedContext,
-      }
-    } catch (error) {
-      log.error("processMessage failed", error)
-      return {
-        original: message,
-        linkSummaries: [],
-        enrichedContext: message,
-      }
+      log.error("summarizeLink failed", { url: metadata.url, error })
+      return `[${metadata.title ?? metadata.url}](${metadata.url})`
     }
   }
 }
 
+/** Singleton LinkSummarizer instance. */
 export const linkSummarizer = new LinkSummarizer()

@@ -1,3 +1,13 @@
+/**
+ * @file specialized-agents.ts
+ * @description Defines per-role LLM configuration presets and the runSpecializedAgent() dispatcher.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - AGENT_CONFIGS maps each AgentType (researcher, coder, writer, analyst, executor, reviewer)
+ *     to a system prompt, preferred TaskType, and token hint.
+ *   - runSpecializedAgent() is called by execution-monitor.ts for every TaskDAG node.
+ *   - Dispatches to engines/orchestrator.ts using the role's preferred TaskType.
+ */
 import { orchestrator } from "../engines/orchestrator.js"
 import type { AgentType } from "./task-planner.js"
 

@@ -18,7 +18,32 @@
       "Bash(pnpm approve-builds:*)",
       "Read(//c/Users/test/OneDrive/Desktop/EDITH/src/config//**)",
       "Read(//c/Users/test/OneDrive/Desktop/EDITH/src//**)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "mcp__github__get_file_contents",
+      "Bash(mkdir:*)",
+      "Bash(npx prisma:*)",
+      "Bash(npx:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(ls:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(pnpm list:*)",
+      "Bash(git:*)",
+      "Bash(pnpm exec:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(pnpm tsx:*)",
+      "WebSearch",
+      "Bash(tasklist:*)",
+      "WebFetch(domain:docs.openclaw.ai)",
+      "Bash(SUBDIR=\"/c/Users/test/.claude/projects/c--Users-test-OneDrive-Desktop-EDITH/ca540570-1f04-4326-9baa-a3bcd0487f6b/subagents\")",
+      "Bash(__NEW_LINE_7addd372cb0457f6__ for id in a9f58cee9603a9c19 ae4b3d4efa3270f17 aac1e4f47a148f5a0)",
+      "Bash(do)",
+      "Bash(echo \"=== Agent $id ===\")",
+      "Read(//c/Users/test/OneDrive/Desktop/EDITH/$SUBDIR/**)",
+      "Bash(done)",
+      "Bash(python:*)",
+      "Bash(npm ls:*)"
     ]
   }
 }

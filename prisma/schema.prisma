@@ -475,3 +475,160 @@ model PushToken {
 
   @@index([userId])
 }
+
+/**
+ * Phase 21 — Aggregated emotion session snapshot per user.
+ *
+ * Persisted when a session ends or the mood tracker flushes,
+ * enabling cross-session emotion trend analysis.
+ */
+model EmotionSession {
+  id           String   @id @default(cuid())
+  userId       String
+  dominant     String
+  valence      Float
+  arousal      Float
+  sampleCount  Int
+  sessionStart DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+/**
+ * Phase 22 — Persisted record of an autonomous mission.
+ *
+ * Stores the full plan DAG and final report for auditing and resumption.
+ * dagJson: serialized MissionPlan.steps array
+ * budgetJson: serialized MissionBudget
+ * reportJson: serialized MissionReport (null while running)
+ */
+model MissionRecord {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String
+  goal       String
+  status     String
+  dagJson    Json
+  budgetJson Json
+  reportJson Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+}
+
+/**
+ * Phase 24 — Feedback signal from an interaction for self-improvement.
+ */
+model FeedbackRecord {
+  id             String   @id @default(cuid())
+  userId         String
+  interactionId  String
+  signal         String
+  reason         String
+  topic          String
+  skillUsed      String?
+  promptVersion  String
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+/**
+ * Phase 24 — Versioned system prompt zone for prompt optimization.
+ */
+model PromptVersionRecord {
+  id             String   @id @default(cuid())
+  zone           String
+  oldContent     String
+  newContent     String
+  reason         String
+  evidenceJson   Json
+  rollbackTarget String?
+  createdAt      DateTime @default(now())
+
+  @@index([zone])
+}
+
+/**
+ * Phase 25 — Pre-action state snapshot for rollback support.
+ */
+model ActionSnapshotRecord {
+  id             String   @id @default(cuid())
+  actionId       String
+  type           String
+  target         String
+  preState       String
+  postState      String?
+  childSnapshots Json     @default("[]")
+  reversible     Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@index([actionId])
+}
+
+/**
+ * Phase 26 — Registered Legion instance for multi-instance orchestration.
+ */
+model LegionInstance {
+  id         String   @id @default(cuid())
+  instanceId String   @unique
+  role       String
+  url        String
+  online     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+/**
+ * Phase 27 — Paired user device for cross-device mesh routing.
+ */
+model PairedDevice {
+  id           String   @id @default(cuid())
+  deviceId     String   @unique
+  userId       String
+  name         String
+  os           String
+  type         String
+  gatewayId    String
+  capabilities Json     @default("[]")
+  lastSeen     DateTime @default(now())
+  paired       DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+/**
+ * Phase 27 — Gateway peer for cross-network sync.
+ */
+model GatewayPeer {
+  id        String   @id @default(cuid())
+  gatewayId String   @unique
+  userId    String
+  url       String
+  online    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+/**
+ * Auto-reply template for automated responses (keyword/regex/schedule-based).
+ * Created via API or skill command; matched by auto-reply matcher in the pipeline.
+ */
+model AutoReplyTemplate {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  trigger     String
+  triggerType String   @default("keyword")
+  response    String
+  channels    Json     @default("[]")
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}

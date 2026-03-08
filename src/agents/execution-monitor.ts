@@ -1,3 +1,13 @@
+/**
+ * @file execution-monitor.ts
+ * @description Executes individual TaskDAG nodes via specialized agents with retry logic and loop-break detection.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   - Called by runner.ts (AgentRunner) after task-planner.ts produces a TaskDAG.
+ *   - Delegates each node to specialized-agents.ts via runSpecializedAgent().
+ *   - Integrates with loop-detector.ts to circuit-break runaway retry cycles.
+ *   - Returns TaskResult objects that runner.ts aggregates into the final response.
+ */
 import { createLogger } from "../logger.js"
 import type { TaskNode } from "./task-planner.js"
 import { runSpecializedAgent } from "./specialized-agents.js"

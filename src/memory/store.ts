@@ -36,6 +36,9 @@ import { localEmbedder } from "./local-embedder.js"
 const log = createLogger("memory.store")
 
 const VECTOR_DIMENSION = 768
+
+/** Maximum allowed content length for a single memory entry (50 000 chars ≈ ~12 500 tokens). */
+const MAX_MEMORY_CONTENT_LENGTH = 50_000
 const LEGACY_VECTOR_DIMENSION = 1536
 const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
 const OLLAMA_EMBEDDING_MODEL = "nomic-embed-text"
@@ -411,6 +414,28 @@ export class MemoryStore {
   ): Promise<string | null> {
     if (!this.table) {
       log.warn("memory table not initialized")
+      return null
+    }
+
+    // Write-time content validation
+    if (!content || content.trim().length === 0) {
+      log.warn("memory save rejected: empty content", { userId })
+      return null
+    }
+
+    if (content.length > MAX_MEMORY_CONTENT_LENGTH) {
+      log.warn("memory save rejected: content exceeds max length", {
+        userId,
+        length: content.length,
+        maxLength: MAX_MEMORY_CONTENT_LENGTH,
+      })
+      return null
+    }
+
+    // Validate entries before embedding
+    const entries = validateMemoryEntries([{ content, metadata }])
+    if (entries.clean.length === 0) {
+      log.warn("memory save rejected: failed validation", { userId })
       return null
     }
 

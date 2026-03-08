@@ -16,6 +16,9 @@ import { eventBus } from "../core/event-bus.js"
 import { heartbeat } from "./heartbeat.js"
 import { isWithinHardQuietHours } from "./quiet-hours.js"
 import { calendarService } from "../services/calendar.js"
+import { wellnessDetector } from "../emotion/wellness-detector.js"
+import { missionManager } from "../mission/mission-manager.js"
+import { learningReport } from "../self-improve/learning-report.js"
 
 const logger = createLogger("daemon")
 const TRIGGERS_FILE = "permissions/triggers.yaml"
@@ -171,6 +174,9 @@ export class EDITHDaemon {
       await this.checkForActivity(userId)
       await this.checkCalendarAlerts(userId) // Phase 8: Calendar proactive alerts
       await this.maybeRunTemporalMaintenance(userId)
+      await this.checkWellness(userId) // Phase 21: Emotional wellness monitoring
+      await missionManager.checkpointAll() // Phase 22: Mission health monitoring
+      await this.maybeGenerateLearningReport() // Phase 24: Weekly self-improvement report
 
       const now = new Date()
       const blockedByQuietHours = isWithinHardQuietHours(now)
@@ -231,6 +237,55 @@ export class EDITHDaemon {
       }
     } catch (error) {
       logger.error("Daemon cycle failed", error)
+    }
+  }
+
+  /**
+   * Checks for emotional wellness concerns and logs alerts.
+   * Phase 21: Detects burnout risk, persistent sadness, or overwork patterns.
+   *
+   * @param userId - User to check wellness for
+   */
+  private async checkWellness(userId: string): Promise<void> {
+    try {
+      const signal = await wellnessDetector.check(userId)
+      if (signal.signal !== "none") {
+        logger.info("wellness signal detected", {
+          userId,
+          signal: signal.signal,
+          confidence: signal.confidence,
+          reason: signal.reason,
+        })
+      }
+    } catch (error) {
+      logger.warn("wellness check failed", { userId, error })
+    }
+  }
+
+  /**
+   * Generate a weekly learning report on Sunday midnight.
+   * Phase 24: Self-improvement reporting.
+   */
+  private async maybeGenerateLearningReport(): Promise<void> {
+    const now = new Date()
+    // Only run on Sundays (0) at midnight (0:00-0:05 window)
+    if (now.getDay() !== 0 || now.getHours() !== 0 || now.getMinutes() > 5) return
+
+    const previous = this.lastTemporalMaintenanceAt.get("__learning_report__") ?? 0
+    if (Date.now() - previous < WEEK_MS) return
+
+    try {
+      const report = learningReport.generate()
+      const formatted = learningReport.format(report)
+      logger.info("weekly learning report generated", {
+        weekOf: report.weekOf,
+        totalInteractions: report.totalInteractions,
+        improvements: report.improvements.length,
+      })
+      logger.debug("learning report content", { report: formatted.slice(0, 200) })
+      this.lastTemporalMaintenanceAt.set("__learning_report__", Date.now())
+    } catch (err) {
+      logger.warn("learning report generation failed", { err })
     }
   }
 

@@ -37,6 +37,7 @@ import {
   getAuthFailure,
   type AuthContext,
 } from "./auth-middleware.js"
+import { channelHealthMonitor } from "./channel-health-monitor.js"
 import { createRateLimiter } from "./rate-limiter.js"
 
 const logger = createLogger("gateway")
@@ -89,8 +90,20 @@ const rateLimiter = createRateLimiter({
   windowMs: RATE_LIMIT_WINDOW_MS,
 })
 
+/** Per-user rate limiter — catches authenticated abuse that per-IP misses. */
+const userRateLimiter = createRateLimiter({
+  maxRequests: RATE_LIMIT_MAX,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  backend: "memory",
+})
+
 function isRateLimited(ip: string): boolean {
   return rateLimiter.consume(ip).limited
+}
+
+/** Generate a short request ID for correlation across pipeline logs. */
+function generateRequestId(): string {
+  return crypto.randomUUID().slice(0, 8)
 }
 
 // Cleanup stale rate limit entries every 5 minutes
@@ -554,16 +567,35 @@ export class GatewayServer {
         await this.attachAuthenticatedClient(socket as unknown as SocketLike, auth)
       })
 
-      app.get("/health", async () => ({
-        status: "ok",
-        version: APP_VERSION,
-        uptime: Math.floor(process.uptime()),
-        engines: orchestrator.getAvailableEngines(),
-        channels: channelManager.getConnectedChannels(),
-        users: multiUser.listUsers().length,
-        memory: { initialized: true },
-        daemon: daemon.isRunning(),
-      }))
+      app.get("/health", async () => {
+        const engines = orchestrator.getAvailableEngines()
+        const channels = channelManager.getConnectedChannels()
+        const healthy = engines.length > 0 && channels.length > 0
+
+        return {
+          status: healthy ? "ok" : "degraded",
+          version: APP_VERSION,
+          uptime: Math.floor(process.uptime()),
+          engines,
+          channels,
+          users: multiUser.listUsers().length,
+          memory: { initialized: true },
+          daemon: daemon.isRunning(),
+        }
+      })
+
+      app.get("/api/channels/health", async (req, reply) => {
+        const token = extractBearerToken(req as { headers: Record<string, string | undefined> })
+        if (!token) {
+          return reply.code(401).send({ error: "Authorization header with Bearer token required" })
+        }
+        const auth = await authenticateWebSocket(token)
+        if (!auth) {
+          return reply.code(403).send({ error: "Invalid or expired token" })
+        }
+
+        return { channels: channelHealthMonitor.getHealth() }
+      })
 
       app.post<{ Body?: { message?: unknown; userId?: unknown } }>(
         "/message",
@@ -939,7 +971,15 @@ export class GatewayServer {
 
     switch (msg.type) {
       case "message": {
+        // Per-user rate limiting (catches authenticated abuse)
+        const userDecision = userRateLimiter.consume(userId)
+        if (userDecision.limited) {
+          return { type: "error", message: "Rate limit exceeded", requestId: msg.requestId }
+        }
+
         const content = ensureMessageContent(msg.content, "message")
+        const reqId = generateRequestId()
+        logger.debug("processing message", { requestId: reqId, userId })
         const response = await this.handleUserMessage(userId, content, "webchat")
         return { type: "response", content: response, requestId: msg.requestId }
       }
@@ -1079,6 +1119,7 @@ export class GatewayServer {
       this.stopVoiceSession(userId, "shutdown")
     }
 
+    channelHealthMonitor.stopMonitoring()
     this.clients.clear()
     await this.app.close()
   }

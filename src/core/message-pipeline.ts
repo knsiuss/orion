@@ -41,6 +41,8 @@ import { personalityEngine } from "./personality-engine.js"
 import { queryClassifier } from "../memory/knowledge/query-classifier.js"
 import { retrievalEngine } from "../memory/knowledge/retrieval-engine.js"
 import { syncScheduler } from "../memory/knowledge/sync-scheduler.js"
+import { textSentiment } from "../emotion/text-sentiment.js"
+import { moodTracker } from "../emotion/mood-tracker.js"
 
 const log = createLogger("core.pipeline")
 
@@ -338,6 +340,11 @@ export async function processMessage(
     return blockedResult()
   }
   const safeText = inputSafety.sanitized
+
+  // Phase 21: Emotion detection (fire-and-forget — must not delay response)
+  void textSentiment.detect(safeText)
+    .then((sample) => moodTracker.record(userId, sample))
+    .catch((err) => log.warn("emotion detection failed", { userId, err }))
 
   // Stage 2: Persist user input and build retrieval context
   const { messages, systemContext, retrievedMemoryIds } = await persistUserMessageAndBuildContext(

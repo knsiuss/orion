@@ -23,6 +23,9 @@ import { daemon } from "./background/daemon.js"
 import { initialize } from "./core/startup.js"
 import { eventBus } from "./core/event-bus.js"
 import { memory } from "./memory/store.js"
+import { orchestrator } from "./engines/orchestrator.js"
+import { ENGINE_MODEL_CATALOG } from "./engines/model-preferences.js"
+import { printBanner, printStatusBox, colors, type StatusSection } from "./cli/banner.js"
 
 const log = createLogger("main")
 
@@ -122,21 +125,62 @@ async function start(): Promise<void> {
   const { processMessage, shutdown } = await initialize(workspaceDir)
   log.info("available engines", { engines: "loaded" })
 
-  console.log("=== EDITH TS ===")
-  console.log(`Mode: ${mode}`)
+  printBanner()
+
+  // Build engine status section
+  const availableEngines = orchestrator.getAvailableEngines()
+  const engineItems = Object.entries(ENGINE_MODEL_CATALOG).map(([key, entry]) => {
+    const isAvailable = availableEngines.includes(key)
+    return {
+      label: entry.displayName,
+      value: isAvailable
+        ? colors.success(`ready (${entry.models[0]})`)
+        : colors.dim("no API key"),
+      level: isAvailable ? "ok" as const : "warn" as const,
+    }
+  })
+
+  const sections: StatusSection[] = [
+    { title: "Engines", items: engineItems },
+  ]
 
   if (mode === "gateway" || mode === "all") {
     await channelManager.init()
     await daemon.start()
     await gateway.start()
-    console.log("Gateway: ws://127.0.0.1:18789")
-    console.log("WebChat: http://127.0.0.1:8080")
   }
 
   if (mode !== "text") {
-    console.log(`Channels: ${channelManager.getConnectedChannels().join(", ") || "none"}`)
-    console.log(`Daemon: ${daemon.isRunning() ? "running" : "stopped"}`)
+    const connected = channelManager.getConnectedChannels()
+    const channelItems = connected.length > 0
+      ? connected.map((ch) => ({
+          label: ch,
+          value: colors.success("connected"),
+          level: "ok" as const,
+        }))
+      : [{ label: "Channels", value: colors.dim("none"), level: "warn" as const }]
+
+    sections.push({ title: "Channels", items: channelItems })
+
+    sections.push({
+      title: "System",
+      items: [
+        { label: "Mode", value: mode, level: "ok" },
+        { label: "Daemon", value: daemon.isRunning() ? colors.success("running") : colors.dim("stopped"), level: daemon.isRunning() ? "ok" : "warn" },
+        { label: "Gateway", value: colors.brand(`ws://127.0.0.1:${config.GATEWAY_PORT}`), level: "ok" },
+        { label: "WebChat", value: colors.brand(`http://127.0.0.1:${config.WEBCHAT_PORT}`), level: "ok" },
+      ],
+    })
+  } else {
+    sections.push({
+      title: "System",
+      items: [
+        { label: "Mode", value: mode, level: "ok" },
+      ],
+    })
   }
+
+  printStatusBox(sections)
 
   process.on("SIGINT", async () => {
     await shutdown()
