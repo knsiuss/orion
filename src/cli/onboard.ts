@@ -805,9 +805,18 @@ async function runOnboarding(argv: string[]): Promise<void> {
       console.log("")
       spinner.start("Setting up database...")
       try {
+        // Re-read the just-written .env so DATABASE_URL from the file takes
+        // precedence over any conflicting system-level env var (e.g. a stale
+        // postgresql:// URL that may exist in the user's shell environment).
+        const writtenEnv = readEnvValueMap(await fs.readFile(envPath, "utf-8").catch(() => ""))
+        const dbUrl = writtenEnv.DATABASE_URL ?? plan.updates.DATABASE_URL ?? currentEnv.DATABASE_URL
         await execa("pnpm", ["exec", "prisma", "db", "push", "--skip-generate"], {
           stdio: "pipe",
           cwd,
+          env: {
+            ...process.env,
+            ...(dbUrl ? { DATABASE_URL: dbUrl } : {}),
+          },
         })
         spinner.stop("Database ready", "ok")
       } catch {
