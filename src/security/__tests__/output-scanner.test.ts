@@ -70,16 +70,16 @@ describe("OutputScanner — GitHub token (ghp_...)", () => {
 
 // ---------------------------------------------------------------------------
 // AWS access key — AKIA prefix
-// The scanner does NOT currently implement an AKIA pattern; this test documents
-// that intentional gap so it is explicit rather than silently assumed.
 // ---------------------------------------------------------------------------
 
-describe("OutputScanner — AWS access key (AKIA...) — gap documentation", () => {
-  it("does NOT redact AKIA-style keys (pattern not yet implemented)", () => {
+describe("OutputScanner — AWS access key (AKIA...)", () => {
+  it("detects and redacts AKIA-style AWS access keys", () => {
     const awsKey = "AKIAIOSFODNN7EXAMPLE"
     const result = outputScanner.scan(`AWS key: ${awsKey}`)
-    // Behaviour is documented: not caught until pattern is added
-    expect(result.sanitized).toContain(awsKey)
+    expect(result.safe).toBe(false)
+    expect(result.issues).toContain("AWS access key in output")
+    expect(result.sanitized).not.toContain(awsKey)
+    expect(result.sanitized).toContain("[AWS_KEY_REDACTED]")
   })
 })
 

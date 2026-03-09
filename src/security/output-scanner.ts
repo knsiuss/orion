@@ -38,6 +38,30 @@ const SENSITIVE_OUTPUT_PATTERNS = [
     replace: "password: [REDACTED]",
     issue: "Password in output",
   },
+  {
+    // AWS Access Key IDs (AKIA prefix + 16 uppercase alphanumeric)
+    pattern: /AKIA[0-9A-Z]{16}/g,
+    replace: "[AWS_KEY_REDACTED]",
+    issue: "AWS access key in output",
+  },
+  {
+    // Database connection strings containing credentials
+    pattern: /(?:postgresql|postgres|mysql|mongodb|redis):?\/\/[^:]+:[^@\s]{3,}@[^\s"\'`]{4,}/gi,
+    replace: "[DB_URL_REDACTED]",
+    issue: "Database URL with credentials in output",
+  },
+  {
+    // Private key / certificate blocks
+    pattern: /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g,
+    replace: "[PRIVATE_KEY_REDACTED]",
+    issue: "Private key in output",
+  },
+  {
+    // Stripe secret keys
+    pattern: /sk_(?:live|test)_[a-zA-Z0-9]{24,}/g,
+    replace: "[STRIPE_KEY_REDACTED]",
+    issue: "Stripe secret key in output",
+  },
 ]
 
 const WARNING_PATTERNS = [

@@ -627,6 +627,7 @@ export class WhatsAppChannel implements BaseChannel {
     const next = current
       .catch(() => undefined)
       .then(task)
+      .catch((err: unknown) => log.error("WhatsApp serialized task failed", { sourceId, err }))
       .finally(() => {
         if (this.inboundChains.get(sourceId) === next) {
           this.inboundChains.delete(sourceId)

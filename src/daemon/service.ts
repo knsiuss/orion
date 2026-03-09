@@ -66,8 +66,8 @@ class DaemonManager {
 </dict>
 </plist>`)
     log.info('launchd plist installed', { path: plistPath })
-    const { execSync } = await import('node:child_process')
-    execSync(`launchctl load ${plistPath}`)
+    const { execFileSync } = await import('node:child_process')
+    execFileSync('launchctl', ['load', plistPath])
   }
 
   /** Install systemd user unit for Linux auto-start. */
@@ -89,16 +89,26 @@ RestartSec=10
 
 [Install]
 WantedBy=default.target`)
-    const { execSync } = await import('node:child_process')
-    execSync('systemctl --user daemon-reload && systemctl --user enable edith && systemctl --user start edith')
+    const { execFileSync } = await import('node:child_process')
+    execFileSync('systemctl', ['--user', 'daemon-reload'])
+    execFileSync('systemctl', ['--user', 'enable', 'edith'])
+    execFileSync('systemctl', ['--user', 'start', 'edith'])
     log.info('systemd unit installed')
   }
 
   /** Install Windows Task Scheduler entry for auto-start. */
   private async installSchtasks(): Promise<void> {
-    const { execSync } = await import('node:child_process')
+    const { execFileSync } = await import('node:child_process')
     const cmd = `node "${process.argv[1] ?? 'edith'}" --mode gateway`
-    execSync(`schtasks /create /tn "EDITH Gateway" /tr "${cmd}" /sc onlogon /ru "${process.env.USERNAME ?? 'User'}" /f`)
+    const username = process.env.USERNAME ?? 'User'
+    // Use array args to prevent shell injection via USERNAME or path
+    execFileSync('schtasks', [
+      '/create', '/tn', 'EDITH Gateway',
+      '/tr', cmd,
+      '/sc', 'onlogon',
+      '/ru', username,
+      '/f',
+    ])
     log.info('windows task scheduler entry created')
   }
 
@@ -119,16 +129,16 @@ WantedBy=default.target`)
    * Uninstall the EDITH daemon service for the current platform.
    */
   async uninstall(): Promise<void> {
-    const { execSync } = await import('node:child_process')
+    const { execFileSync } = await import('node:child_process')
     switch (platform()) {
       case 'darwin':
-        try { execSync('launchctl unload ~/Library/LaunchAgents/ai.edith.gateway.plist') } catch { /* not installed */ }
+        try { execFileSync('launchctl', ['unload', `${process.env.HOME ?? '~'}/Library/LaunchAgents/ai.edith.gateway.plist`]) } catch { /* not installed */ }
         break
       case 'linux':
-        try { execSync('systemctl --user disable edith') } catch { /* not installed */ }
+        try { execFileSync('systemctl', ['--user', 'disable', 'edith']) } catch { /* not installed */ }
         break
       case 'win32':
-        try { execSync('schtasks /delete /tn "EDITH Gateway" /f') } catch { /* not installed */ }
+        try { execFileSync('schtasks', ['/delete', '/tn', 'EDITH Gateway', '/f']) } catch { /* not installed */ }
         break
     }
     log.info('daemon uninstalled')

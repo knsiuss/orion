@@ -87,6 +87,7 @@ model DocumentChunk {
 
   @@index([documentId])
   @@index([userId])
+  @@index([userId, documentId, chunkIndex])
 }
 
 /**
@@ -125,6 +126,7 @@ model KnowledgeEdge {
 
   @@unique([fromId, toId, relation])
   @@index([userId])
+  @@index([userId, fromId, toId])
 }
 
 model PairingCode {
@@ -343,11 +345,12 @@ model CausalEdge {
   evidence  Int      @default(1)
   createdAt DateTime @default(now())
 
-  from CausalNode @relation("from", fields: [fromId], references: [id])
-  to   CausalNode @relation("to", fields: [toId], references: [id])
+  from CausalNode @relation("from", fields: [fromId], references: [id], onDelete: Cascade)
+  to   CausalNode @relation("to", fields: [toId], references: [id], onDelete: Cascade)
 
   @@unique([fromId, toId])
   @@index([userId])
+  @@index([userId, fromId, toId])
 }
 
 model HyperEdge {
@@ -367,8 +370,8 @@ model HyperEdgeMembership {
   hyperEdgeId String
   nodeId      String
 
-  hyperEdge HyperEdge  @relation(fields: [hyperEdgeId], references: [id])
-  node      CausalNode @relation(fields: [nodeId], references: [id])
+  hyperEdge HyperEdge  @relation(fields: [hyperEdgeId], references: [id], onDelete: Cascade)
+  node      CausalNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 
   @@id([hyperEdgeId, nodeId])
 }

@@ -46,7 +46,14 @@ export interface CamelCheckResult {
 }
 
 function getCapabilitySecret(): string {
-  return process.env.EDITH_CAPABILITY_SECRET?.trim() || "edith-local-dev-capability-secret"
+  const secret = process.env.EDITH_CAPABILITY_SECRET?.trim()
+  if (!secret) {
+    log.warn(
+      "EDITH_CAPABILITY_SECRET not set — using insecure dev fallback. Set this env var in production.",
+    )
+    return "edith-local-dev-capability-secret"
+  }
+  return secret
 }
 
 function uniqueTaintSources(taintedSources: TaintSource[]): TaintSource[] {

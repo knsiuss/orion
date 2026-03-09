@@ -59,6 +59,11 @@ export class IMessageChannel implements BaseChannel {
   /** Deduplication set — prevents re-processing messages seen in earlier poll ticks. */
   private readonly seenGuids = new Set<string>()
 
+  /** Maximum entries in seenGuids before oldest-first eviction kicks in. */
+  private static readonly SEEN_GUIDS_MAX = 20_000
+  /** Target size after evicting oldest entries from seenGuids. */
+  private static readonly SEEN_GUIDS_TRIM_TO = 10_000
+
   private readonly replies = new Map<string, Array<{ content: string; ts: number }>>()
 
   /** Serialises inbound processing per-chat so replies never interleave. */
@@ -184,6 +189,16 @@ export class IMessageChannel implements BaseChannel {
         continue
       }
       this.seenGuids.add(msg.guid)
+
+      // Evict oldest entries if the set grows too large (JS Sets maintain insertion order).
+      if (this.seenGuids.size > IMessageChannel.SEEN_GUIDS_MAX) {
+        let evicted = 0
+        for (const guid of this.seenGuids) {
+          this.seenGuids.delete(guid)
+          if (++evicted >= IMessageChannel.SEEN_GUIDS_MAX - IMessageChannel.SEEN_GUIDS_TRIM_TO) break
+        }
+        log.debug("iMessage seenGuids evicted", { evicted, remaining: this.seenGuids.size })
+      }
 
       if (msg.isFromMe || !msg.text?.trim()) {
         continue

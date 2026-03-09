@@ -250,6 +250,16 @@ export async function fishAudioSpeakStreaming(
         started = true
       })
 
+      // Store the timer ID so we can cancel it when the stream ends normally,
+      // preventing ws.close() from firing on an already-closed socket.
+      let safetyTimer: ReturnType<typeof setTimeout> | null = null
+      const clearSafetyTimer = (): void => {
+        if (safetyTimer !== null) {
+          clearTimeout(safetyTimer)
+          safetyTimer = null
+        }
+      }
+
       ws.addEventListener("message", (event: MessageEvent) => {
         if (!(event.data instanceof ArrayBuffer)) return
         const msg = msgpack!.decode(new Uint8Array(event.data)) as Record<string, unknown>
@@ -257,25 +267,30 @@ export async function fishAudioSpeakStreaming(
         if (msg["event"] === "audio" && msg["audio"]) {
           onChunk(Buffer.from(msg["audio"] as Uint8Array))
         } else if (msg["event"] === "finish") {
+          clearSafetyTimer()
           ws.close()
           resolve(true)
         } else if (msg["event"] === "error") {
           log.warn("Fish Audio WS error", { msg })
+          clearSafetyTimer()
           ws.close()
           resolve(started)
         }
       })
 
       ws.addEventListener("error", () => {
+        clearSafetyTimer()
         resolve(false)
       })
 
       ws.addEventListener("close", () => {
+        clearSafetyTimer()
         resolve(started)
       })
 
-      // Safety timeout: 30 seconds
-      setTimeout(() => {
+      // Safety timeout: 30 seconds. Cleared above on normal finish to avoid close() on reused socket.
+      safetyTimer = setTimeout(() => {
+        safetyTimer = null
         ws.close()
         resolve(started)
       }, 30_000)

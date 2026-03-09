@@ -37,6 +37,12 @@ interface RedisClientLike {
 export class RedisSessionStore {
   private client: RedisClientLike | null = null
   private connected = false
+  /**
+   * Per-key write locks to serialize concurrent addMessage() calls for the
+   * same history key. Prevents TOCTOU race conditions (read-modify-write)
+   * in single-process deployments.
+   */
+  private readonly writeLocks = new Map<string, Promise<void>>()
 
   constructor(
     private readonly redisUrl: string,
@@ -115,23 +121,37 @@ export class RedisSessionStore {
     const histKey = this.historyKey(userId, channel)
     const sessKey = this.sessionKey(userId, channel)
 
-    // Get current history
-    const raw = await this.client.get(histKey)
-    const messages: Message[] = raw ? JSON.parse(raw) as Message[] : []
-    messages.push(message)
+    // Serialize writes per history key to prevent TOCTOU race conditions.
+    // Two concurrent addMessage() calls for the same key without this would
+    // cause one message to be silently lost (last-write-wins overwrite).
+    const previous = this.writeLocks.get(histKey) ?? Promise.resolve()
+    const current = previous.then(async () => {
+      const client = this.client
+      if (!client) return
 
-    // Cap at 200 messages to prevent unbounded growth
-    const trimmed = messages.slice(-200)
+      const raw = await client.get(histKey)
+      const messages: Message[] = raw ? JSON.parse(raw) as Message[] : []
+      messages.push(message)
 
-    await this.client.set(histKey, JSON.stringify(trimmed), { EX: this.ttlSeconds })
+      // Cap at 200 messages to prevent unbounded growth
+      const trimmed = messages.slice(-200)
+      await client.set(histKey, JSON.stringify(trimmed), { EX: this.ttlSeconds })
 
-    // Refresh session TTL
-    const sessRaw = await this.client.get(sessKey)
-    if (sessRaw) {
-      const session = JSON.parse(sessRaw) as Session
-      session.lastActivityAt = Date.now()
-      await this.client.set(sessKey, JSON.stringify(session), { EX: this.ttlSeconds })
-    }
+      // Refresh session TTL
+      const sessRaw = await client.get(sessKey)
+      if (sessRaw) {
+        const session = JSON.parse(sessRaw) as Session
+        session.lastActivityAt = Date.now()
+        await client.set(sessKey, JSON.stringify(session), { EX: this.ttlSeconds })
+      }
+    }).finally(() => {
+      if (this.writeLocks.get(histKey) === current) {
+        this.writeLocks.delete(histKey)
+      }
+    })
+
+    this.writeLocks.set(histKey, current)
+    return current
   }
 
   /** Clear a specific session and its history. */
