@@ -189,10 +189,29 @@ async function start(): Promise<void> {
 
   printStatusBox(sections)
 
-  process.on("SIGINT", async () => {
-    await shutdown()
+  let shuttingDown = false
+  const gracefulShutdown = async (signal: string) => {
+    if (shuttingDown) return
+    shuttingDown = true
+    log.info(`received ${signal}, shutting down gracefully…`)
+
+    const forceTimeout = setTimeout(() => {
+      log.error("graceful shutdown timed out after 30s, forcing exit")
+      process.exit(1)
+    }, 30_000)
+    forceTimeout.unref()
+
+    try {
+      await shutdown()
+    } catch (err) {
+      log.error("error during shutdown", { err })
+    }
+    clearTimeout(forceTimeout)
     process.exit(0)
-  })
+  }
+
+  process.on("SIGINT", () => void gracefulShutdown("SIGINT"))
+  process.on("SIGTERM", () => void gracefulShutdown("SIGTERM"))
 
   if (mode === "gateway") {
     await new Promise(() => {})

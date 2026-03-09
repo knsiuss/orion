@@ -3,6 +3,10 @@ generator client {
 }
 
 datasource db {
+  // Default: SQLite for development. For production PostgreSQL:
+  //   1. Change provider to "postgresql"
+  //   2. Set DATABASE_URL="postgresql://user:pass@host:5432/edith"
+  //   3. Run: pnpm prisma migrate deploy
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
@@ -294,10 +298,10 @@ model Tenant {
   tier        String   @default("free") // free, pro, enterprise
   
   // Resource limits (JSON for flexibility)
-  limits Json @default("{\"maxMessagesPerDay\": 100, \"maxStorageMb\": 50, \"maxSkills\": 3, \"apiRateLimit\": 60}")
+  limits Json?
   
   // Feature flags
-  features Json @default("{\"enableVoice\": false, \"enableVision\": false, \"enableCustomSkills\": false, \"enableApi\": false}")
+  features Json?
   
   // Custom configuration
   customConfig Json?
@@ -419,7 +423,7 @@ model UserPreference {
  */
 model UserChannelPreference {
   userId       String   @id
-  channelOrder Json     @default("[]")
+  channelOrder Json?
   updatedAt    DateTime @updatedAt
 }
 
@@ -574,7 +578,7 @@ model ActionSnapshotRecord {
   target         String
   preState       String
   postState      String?
-  childSnapshots Json     @default("[]")
+  childSnapshots Json?
   reversible     Boolean  @default(true)
   createdAt      DateTime @default(now())
 
@@ -605,7 +609,7 @@ model PairedDevice {
   os           String
   type         String
   gatewayId    String
-  capabilities Json     @default("[]")
+  capabilities Json?
   lastSeen     DateTime @default(now())
   paired       DateTime @default(now())
   createdAt    DateTime @default(now())
@@ -639,7 +643,7 @@ model AutoReplyTemplate {
   trigger     String
   triggerType String   @default("keyword")
   response    String
-  channels    Json     @default("[]")
+  channels    Json?
   enabled     Boolean  @default(true)
   createdAt   DateTime @default(now())
 
@@ -657,7 +661,7 @@ model AuditRecord {
   input     String?
   output    String?
   risk      String   @default("low")
-  metadata  Json     @default("{}")
+  metadata  Json?
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -724,4 +728,18 @@ model MessageScore {
 
   @@index([userId])
   @@index([messageId])
+}
+
+/**
+ * Persisted session state — survives restarts without Redis.
+ * In-memory SessionStore writes through to this table and restores on startup.
+ */
+model ActiveSession {
+  key            String   @id
+  userId         String
+  channel        String
+  createdAt      DateTime @default(now())
+  lastActivityAt DateTime @updatedAt
+
+  @@index([userId])
 }

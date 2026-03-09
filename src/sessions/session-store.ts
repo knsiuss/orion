@@ -1,5 +1,6 @@
 import { createLogger } from "../logger.js"
 import { getHistory } from "../database/index.js"
+import { prisma } from "../database/index.js"
 import { edithMetrics } from "../observability/metrics.js"
 
 const log = createLogger("sessions.store")
@@ -33,6 +34,49 @@ class SessionStore {
   private sessions = new Map<string, Session>()
   private histories = new Map<string, Message[]>()
 
+  /** Restore active sessions from DB on startup. */
+  async restoreFromDb(): Promise<void> {
+    try {
+      const rows = await prisma.activeSession.findMany()
+      for (const row of rows) {
+        const session: Session = {
+          key: row.key,
+          userId: row.userId,
+          channel: row.channel,
+          createdAt: row.createdAt.getTime(),
+          lastActivityAt: row.lastActivityAt.getTime(),
+        }
+        this.sessions.set(session.key, session)
+      }
+      edithMetrics.activeSessions.set(this.sessions.size)
+      log.info("Restored sessions from DB", { count: rows.length })
+    } catch (err) {
+      log.warn("Failed to restore sessions from DB, starting fresh", { err })
+    }
+  }
+
+  /** Write-through: persist session state to DB. */
+  private persistSession(session: Session): void {
+    void prisma.activeSession
+      .upsert({
+        where: { key: session.key },
+        create: {
+          key: session.key,
+          userId: session.userId,
+          channel: session.channel,
+        },
+        update: {},
+      })
+      .catch((err: unknown) => log.debug("session persist failed", { key: session.key, err }))
+  }
+
+  /** Remove session from DB on eviction/clear. */
+  private unpersistSession(key: string): void {
+    void prisma.activeSession
+      .delete({ where: { key } })
+      .catch(() => {/* ignore if not found */})
+  }
+
   getOrCreateSession(userId: string, channel: string): Session {
     const key = makeSessionKey(userId, channel)
     const now = Date.now()
@@ -48,6 +92,7 @@ class SessionStore {
       }
       this.sessions.set(key, session)
       log.debug("Session created", { key })
+      this.persistSession(session)
       this.evictIfOverCapacity()
     } else {
       session.lastActivityAt = now
@@ -121,12 +166,14 @@ class SessionStore {
     const key = makeSessionKey(userId, channel)
     this.sessions.delete(key)
     this.histories.delete(key)
+    this.unpersistSession(key)
     log.debug("Session cleared", { key })
   }
 
   clearAllSessions(): void {
     this.sessions.clear()
     this.histories.clear()
+    void prisma.activeSession.deleteMany().catch(() => {/* ignore */})
     edithMetrics.activeSessions.set(0)
     log.info("All sessions cleared")
   }
@@ -154,6 +201,7 @@ class SessionStore {
     if (lruKey) {
       this.sessions.delete(lruKey)
       this.histories.delete(lruKey)
+      this.unpersistSession(lruKey)
       log.debug("LRU session evicted", { key: lruKey, sessionCount: this.sessions.size })
     }
 
@@ -196,6 +244,7 @@ class SessionStore {
       if (now - session.lastActivityAt > maxInactiveMs) {
         this.sessions.delete(key)
         this.histories.delete(key)
+        this.unpersistSession(key)
         cleaned += 1
       }
     }

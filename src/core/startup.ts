@@ -155,6 +155,9 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
   // Run pending DB migrations before any service initializes
   await runMigrationsIfEnabled()
 
+  // Restore persisted sessions so they survive restarts
+  await sessionStore.restoreFromDb()
+
   await memory.init()
   await orchestrator.init()
   await skillLoader.buildSnapshot()

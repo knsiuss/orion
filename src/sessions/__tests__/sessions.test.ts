@@ -19,6 +19,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("../../database/index.js", () => ({
   getHistory: vi.fn().mockResolvedValue([]),
+  prisma: {
+    activeSession: {
+      findMany: vi.fn().mockResolvedValue([]),
+      upsert: vi.fn().mockResolvedValue({}),
+      delete: vi.fn().mockResolvedValue({}),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+  },
 }))
 
 vi.mock("../../pairing/device-registry.js", () => ({
