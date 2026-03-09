@@ -16,6 +16,9 @@ const DEV_PROFILE_NAME = "dev"
 const LOCAL_PACKAGE_NAME = "edith"
 const SUPPORTED_CHANNELS = ["telegram", "discord", "whatsapp", "webchat"]
 
+// Resolved at startup: the npm package root is one directory above this bin/ file.
+const _EDITH_PKG_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+
 function testIcon(level) {
   if (level === "ok") return "OK"
   if (level === "warn") return "WARN"
@@ -164,6 +167,72 @@ export function shouldUseShellForCommand(command, platform = process.platform) {
     return false
   }
   return /\.(cmd|bat)$/i.test(String(command ?? "").trim())
+}
+
+/**
+ * Returns true when EDITH is running from a compiled npm-install bundle.
+ * Detection: dist/main.js present AND src/main.ts absent.
+ */
+async function isBundledMode() {
+  try {
+    await fs.access(path.join(_EDITH_PKG_DIR, "src", "main.ts"))
+    return false // source checkout — use pnpm
+  } catch {
+    try {
+      await fs.access(path.join(_EDITH_PKG_DIR, "dist", "main.js"))
+      return true // bundled npm install
+    } catch {
+      return false
+    }
+  }
+}
+
+/** Maps pnpm script names to [distEntryFile, ...predefinedArgs] for bundled mode. */
+const BUNDLED_SCRIPT_MAP = {
+  all: ["dist/main.js", "--mode", "all"],
+  gateway: ["dist/main.js", "--mode", "gateway"],
+  "gateway:watch": ["dist/main.js", "--mode", "gateway"],
+  doctor: ["dist/cli/doctor.js"],
+  onboard: ["dist/cli/onboard.js"],
+  quickstart: ["dist/cli/onboard.js", "--flow", "quickstart"],
+  setup: ["dist/cli/onboard.js", "--flow", "quickstart"],
+  configure: ["dist/cli/onboard.js", "--flow", "quickstart"],
+  "wa:scan": ["dist/cli/onboard.js", "--flow", "quickstart", "--channel", "whatsapp", "--whatsapp-mode", "scan"],
+  "wa:cloud": ["dist/cli/onboard.js", "--flow", "quickstart", "--channel", "whatsapp", "--whatsapp-mode", "cloud"],
+}
+
+/** Run a pnpm-script by name using compiled dist/ in bundled npm-install mode. */
+async function runBundledScript(script, profileDir, extraArgs = []) {
+  const mapping = BUNDLED_SCRIPT_MAP[script]
+  if (!mapping) {
+    throw new Error(`Unknown script '${script}' in bundled mode. Run \`edith help\`.`)
+  }
+  const [entryFile, ...predefinedArgs] = mapping
+  const entryPath = path.join(_EDITH_PKG_DIR, entryFile)
+  const code = await runChild(process.execPath, [entryPath, ...predefinedArgs, ...extraArgs], {
+    env: buildEDITHChildEnv(process.env, profileDir),
+  })
+  process.exit(code)
+}
+
+/**
+ * Run a prisma CLI command using the package-local node_modules (bundled mode)
+ * or via `pnpm exec prisma` (source-checkout mode).
+ */
+async function runPrismaArgs(repoDir, prismaArgs, env) {
+  if (await isBundledMode()) {
+    const ext = process.platform === "win32" ? ".cmd" : ""
+    const prismaBin = path.join(_EDITH_PKG_DIR, "node_modules", ".bin", `prisma${ext}`)
+    return await runChildCapture(prismaBin, prismaArgs, {
+      env,
+      shell: shouldUseShellForCommand(prismaBin),
+    })
+  }
+  return await runChildCapture(
+    getPnpmCommand(),
+    ["--dir", repoDir, "exec", "prisma", ...prismaArgs],
+    { env },
+  )
 }
 
 function printHelp() {
@@ -1543,12 +1612,10 @@ async function maybeAutoMigrateProfileDb(repoDir, profileDir, triggerCommand) {
   }
 
   console.log(`Ensuring profile database schema is up to date before \`edith ${triggerCommand}\`...`)
-  const result = await runChildCapture(getPnpmCommand(), ["--dir", repoDir, "exec", "prisma", "migrate", "deploy"], {
-    env: {
-      ...buildEDITHChildEnv(process.env, profileDir),
-      DATABASE_URL: databaseUrl,
-      PRISMA_HIDE_UPDATE_MESSAGE: "1",
-    },
+  const result = await runPrismaArgs(repoDir, ["migrate", "deploy"], {
+    ...buildEDITHChildEnv(process.env, profileDir),
+    DATABASE_URL: databaseUrl,
+    PRISMA_HIDE_UPDATE_MESSAGE: "1",
   })
 
   if (result.code !== 0) {
@@ -1572,12 +1639,10 @@ async function runProfileDbMigrationPreflight(repoDir, profileDir, triggerComman
     }
   }
 
-  const result = await runChildCapture(getPnpmCommand(), ["--dir", repoDir, "exec", "prisma", "migrate", "deploy"], {
-    env: {
-      ...buildEDITHChildEnv(process.env, profileDir),
-      DATABASE_URL: databaseUrl,
-      PRISMA_HIDE_UPDATE_MESSAGE: "1",
-    },
+  const result = await runPrismaArgs(repoDir, ["migrate", "deploy"], {
+    ...buildEDITHChildEnv(process.env, profileDir),
+    DATABASE_URL: databaseUrl,
+    PRISMA_HIDE_UPDATE_MESSAGE: "1",
   })
 
   const summary = summarizeMigrateOutput(result.stdout, result.stderr, result.code)
@@ -1845,6 +1910,11 @@ async function resolveRepoDir(repoOverride) {
     throw new Error(`Linked repo not found or invalid: ${resolved}. Run \`edith link <path>\` again.`)
   }
 
+  // Bundled npm-install mode: the npm package dir is itself a valid EDITH package.
+  if (await isBundledMode() && await isEDITHRepoDir(_EDITH_PKG_DIR)) {
+    return _EDITH_PKG_DIR
+  }
+
   throw new Error("No EDITH repo linked. Run `edith link <path-to-EDITH>` first.")
 }
 
@@ -1989,6 +2059,10 @@ function tryOpenUrl(url) {
 }
 
 async function runPnpmScript(repoDir, profileDir, script, extraArgs = []) {
+  if (await isBundledMode()) {
+    await runBundledScript(script, profileDir, extraArgs)
+    return
+  }
   const args = ["--dir", repoDir, script, ...extraArgs]
   const code = await runChild(getPnpmCommand(), args, {
     env: buildEDITHChildEnv(process.env, profileDir),
@@ -1997,6 +2071,11 @@ async function runPnpmScript(repoDir, profileDir, script, extraArgs = []) {
 }
 
 async function runPnpmScriptFiltered(repoDir, profileDir, script, lineMatcher, extraArgs = [], options = {}) {
+  if (await isBundledMode()) {
+    // In bundled mode, line-level filtering is not supported; fall back to unfiltered output.
+    await runBundledScript(script, profileDir, extraArgs)
+    return
+  }
   const args = ["--dir", repoDir, script, ...extraArgs]
   const hintChannel = normalizeChannelName(options.hintChannel ?? "") ?? null
   const shownHints = new Set()
@@ -2022,6 +2101,14 @@ async function runPnpmScriptFiltered(repoDir, profileDir, script, lineMatcher, e
 }
 
 async function runPnpmRaw(repoDir, profileDir, args) {
+  if (await isBundledMode()) {
+    // args is typically ["<script>", "--", ...forwardArgs]
+    const delimIdx = args.indexOf("--")
+    const script = args[0] ?? ""
+    const forwardArgs = delimIdx >= 0 ? args.slice(delimIdx + 1) : args.slice(1)
+    await runBundledScript(script, profileDir, forwardArgs)
+    return
+  }
   const code = await runChild(getPnpmCommand(), ["--dir", repoDir, ...args], {
     env: buildEDITHChildEnv(process.env, profileDir),
   })
