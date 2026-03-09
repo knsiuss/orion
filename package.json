@@ -6,6 +6,7 @@
   "files": [
     "dist/",
     "bin/",
+    "scripts/postinstall.mjs",
     "prisma/schema.prisma",
     "prisma/migrations/",
     "permissions/",
@@ -45,8 +46,8 @@
     "db:generate": "prisma generate",
     "dedupe:causal-graph": "tsx src/cli/causal-graph-dedupe.ts --apply",
     "dedupe:causal-graph:dry-run": "tsx src/cli/causal-graph-dedupe.ts --dry-run",
-    "postinstall": "prisma generate",
-    "prepare": "husky",
+    "postinstall": "node scripts/postinstall.mjs",
+    "prepare": "node -e \"try{require('child_process').execSync('husky',{stdio:'inherit',shell:true})}catch{}\"",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
@@ -74,7 +75,6 @@
     "groq-sdk": "^0.37.0",
     "js-yaml": "^4.1.0",
     "kokoro-js": "^1.2.1",
-    "msedge-tts": "^2.0.4",
     "node-cron": "^4.2.1",
     "nodejs-whisper": "^0.2.9",
     "openai": "^6.22.0",
@@ -98,6 +98,7 @@
     "vitest": "^4.0.18"
   },
   "optionalDependencies": {
+    "msedge-tts": "^2.0.4",
     "playwright": "^1.58.2"
   }
 }
