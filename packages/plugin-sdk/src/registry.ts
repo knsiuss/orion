@@ -7,7 +7,7 @@
  */
 import type { ExtensionManifest } from './types.js'
 
-class ExtensionRegistry {
+export class ExtensionRegistry {
   private extensions = new Map<string, ExtensionManifest>()
 
   register(manifest: ExtensionManifest): void {
