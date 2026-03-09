@@ -315,6 +315,14 @@ const ConfigSchema = z.object({
   SESSION_PERSIST_ENABLED: z.coerce.boolean().default(true),
   /** Maximum number of sessions to persist on shutdown. */
   SESSION_PERSIST_MAX: z.coerce.number().int().positive().default(50),
+  /** Redis connection URL. When set, sessions are stored in Redis with sliding TTL. */
+  REDIS_URL: z.string().default(""),
+  /** Session TTL in seconds (default 24h). Reset on every activity (sliding expiry). */
+  REDIS_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
+  /** Sentry DSN for error tracking. Leave empty to disable. */
+  SENTRY_DSN: z.string().default(""),
+  /** Daily LLM cost budget in USD. Alert triggers when exceeded. */
+  LLM_DAILY_BUDGET_USD: z.coerce.number().default(10),
 })
 
 const parsed = ConfigSchema.safeParse(process.env)

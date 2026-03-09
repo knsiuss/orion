@@ -2,6 +2,8 @@ import { createLogger } from "../logger.js"
 import { getHistory } from "../database/index.js"
 import { prisma } from "../database/index.js"
 import { edithMetrics } from "../observability/metrics.js"
+import config from "../config.js"
+import type { RedisSessionStore } from "./redis-session-store.js"
 
 const log = createLogger("sessions.store")
 
@@ -33,6 +35,24 @@ function makeSessionKey(userId: string, channel: string): string {
 class SessionStore {
   private sessions = new Map<string, Session>()
   private histories = new Map<string, Message[]>()
+  private redisBackend: RedisSessionStore | null = null
+
+  /** Initialize Redis backend if REDIS_URL is configured. */
+  async initRedis(): Promise<void> {
+    if (!config.REDIS_URL) {
+      log.debug("REDIS_URL not set — using in-memory sessions")
+      return
+    }
+    try {
+      const { RedisSessionStore: RedisCls } = await import("./redis-session-store.js")
+      this.redisBackend = new RedisCls(config.REDIS_URL, config.REDIS_SESSION_TTL_SECONDS)
+      await this.redisBackend.connect()
+      log.info("Redis session backend active")
+    } catch (err) {
+      log.warn("Redis unavailable — falling back to in-memory sessions", { err })
+      this.redisBackend = null
+    }
+  }
 
   /** Restore active sessions from DB on startup. */
   async restoreFromDb(): Promise<void> {
@@ -110,6 +130,15 @@ class SessionStore {
     channel: string,
     limit = 50
   ): Promise<Message[]> {
+    // Try Redis first
+    if (this.redisBackend?.isConnected()) {
+      try {
+        return await this.redisBackend.getSessionHistory(userId, channel, limit)
+      } catch (err) {
+        log.debug("Redis getSessionHistory failed, falling back to memory", { err })
+      }
+    }
+
     const key = makeSessionKey(userId, channel)
 
     let history = this.histories.get(key)
@@ -145,6 +174,13 @@ class SessionStore {
     }
 
     history.push(message)
+
+    // Replicate to Redis (fire-and-forget)
+    if (this.redisBackend?.isConnected()) {
+      void this.redisBackend.addMessage(userId, channel, message)
+        .catch((err) => log.debug("Redis addMessage failed", { err }))
+    }
+
     void this.maybeCompressAsync(userId, channel)
   }
 
