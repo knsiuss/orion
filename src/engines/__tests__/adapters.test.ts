@@ -95,10 +95,10 @@ describe("AnthropicEngine", () => {
   })
 
   it("isAvailable() returns false when API key is empty", () => {
-    const saved = (config as Record<string, string>).ANTHROPIC_API_KEY
-    ;(config as Record<string, string>).ANTHROPIC_API_KEY = ""
+    const saved = (config as unknown as Record<string, string>).ANTHROPIC_API_KEY
+    ;(config as unknown as Record<string, string>).ANTHROPIC_API_KEY = ""
     expect(engine.isAvailable()).toBe(false)
-    ;(config as Record<string, string>).ANTHROPIC_API_KEY = saved
+    ;(config as unknown as Record<string, string>).ANTHROPIC_API_KEY = saved
   })
 
   it("generate() returns text from Anthropic response", async () => {
@@ -107,11 +107,11 @@ describe("AnthropicEngine", () => {
   })
 
   it("generate() returns empty string when unavailable", async () => {
-    const saved = (config as Record<string, string>).ANTHROPIC_API_KEY
-    ;(config as Record<string, string>).ANTHROPIC_API_KEY = ""
+    const saved = (config as unknown as Record<string, string>).ANTHROPIC_API_KEY
+    ;(config as unknown as Record<string, string>).ANTHROPIC_API_KEY = ""
     const result = await engine.generate(baseOptions)
     expect(result).toBe("")
-    ;(config as Record<string, string>).ANTHROPIC_API_KEY = saved
+    ;(config as unknown as Record<string, string>).ANTHROPIC_API_KEY = saved
   })
 
   it("generate() returns empty string on SDK error", async () => {

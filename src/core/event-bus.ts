@@ -90,6 +90,13 @@ export type EDITHEvent =
     fromDeviceId: string
     toDeviceId: string
   }
+  | {
+    /** Emitted by SecretStore when one or more env-file secrets are rotated. */
+    type: "security.secrets_rotated"
+    /** Names of the keys that changed — values are never included. */
+    changedKeys: string[]
+    rotatedAt: string
+  }
 
 class EDITHEventBus extends EventEmitter {
   constructor() {

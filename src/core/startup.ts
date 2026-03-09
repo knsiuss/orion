@@ -44,6 +44,7 @@ import { memoryGuard } from "./memory-guard.js"
 import { ambientScheduler } from "../ambient/ambient-scheduler.js"
 import { briefingScheduler } from "../protocols/briefing-scheduler.js"
 import { hookLoader } from "../hooks/loader.js"
+import { secretStore } from "../security/secret-store.js"
 
 const log = createLogger("startup")
 
@@ -292,6 +293,14 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
   // Memory pressure guard — evicts sessions at warn threshold, graceful shutdown at critical
   memoryGuard.start()
 
+  // Secret rotation — watch .env file for live secret updates (zero-downtime key rotation)
+  secretStore.watch()
+  eventBus.on("security.secrets_rotated", (data) => {
+    log.info("API keys rotated — engines will use new values on next call", {
+      keys: data.changedKeys,
+    })
+  })
+
   // Outbox: persist to .edith/ dir + start retry flusher
   outbox.setPersistPath(path.join(workspaceDir, "..", ".edith"))
 
@@ -337,6 +346,8 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
     if (config.KNOWLEDGE_BASE_ENABLED) {
       syncScheduler.stop()
     }
+    // Secret store — stop fs.watch before process exits
+    secretStore.stopWatch()
     // Shutdown MCP clients
     await mcpClient.shutdown().catch((err) => log.warn("MCP shutdown error", err))
     // Delegate remaining teardown (outbox flush, WAL checkpoint, prisma, channels, sidecars)

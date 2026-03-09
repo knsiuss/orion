@@ -4,7 +4,6 @@
  * evaluating scheduled/inactivity triggers, CRUD operations.
  */
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest"
-import path from "node:path"
 
 // ── Mock dependencies ─────────────────────────────────────────────────────────
 vi.mock("../../database/index.js", () => ({

@@ -77,7 +77,7 @@ describe("ENGINE_MODEL_CATALOG", () => {
   })
 
   it("every catalog entry has displayName and models array", () => {
-    for (const [key, entry] of Object.entries(ENGINE_MODEL_CATALOG)) {
+    for (const [_key, entry] of Object.entries(ENGINE_MODEL_CATALOG)) {
       expect(typeof entry.displayName).toBe("string")
       expect(entry.displayName.length).toBeGreaterThan(0)
       expect(Array.isArray(entry.models)).toBe(true)
@@ -98,7 +98,7 @@ describe("ENGINE_MODEL_CATALOG", () => {
   it("modelInfo entries have required fields when present", () => {
     for (const [_, entry] of Object.entries(ENGINE_MODEL_CATALOG)) {
       if (entry.modelInfo) {
-        for (const [modelId, info] of Object.entries(entry.modelInfo)) {
+        for (const [_modelId, info] of Object.entries(entry.modelInfo)) {
           expect(typeof info.id).toBe("string")
           expect(typeof info.displayName).toBe("string")
           expect(typeof info.contextWindow).toBe("number")

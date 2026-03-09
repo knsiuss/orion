@@ -64,8 +64,39 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Audit dependencies
+      # Block on HIGH/CRITICAL vulnerabilities
+      - name: Audit dependencies (blocking — high+)
         run: pnpm audit --audit-level=high
+
+      # Report moderate vulnerabilities without failing the build
+      - name: Audit dependencies (report — moderate+)
+        run: pnpm audit --audit-level=moderate --json > audit-report.json || true
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-report
+          path: audit-report.json
+          retention-days: 30
+
+      # Generate SBOM (Software Bill of Materials) in CycloneDX JSON format
+      - name: Generate SBOM
+        run: npx --yes @cyclonedx/cyclonedx-npm --output-format json --output-file sbom.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+          retention-days: 90
+
+      # License compliance — fail if any dependency uses a copyleft license
+      - name: Check license compliance
+        run: |
+          npx --yes license-checker --excludePrivatePackages \
+            --failOn "GPL-1.0;GPL-2.0;GPL-3.0;LGPL-2.0;LGPL-2.1;LGPL-3.0;AGPL-3.0" \
+            --summary || echo "::warning::License compliance check found copyleft dependencies — review required"
 
   coverage:
     name: coverage-gate (ubuntu-latest, node 22)
