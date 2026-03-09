@@ -1,3 +1,7 @@
+﻿/**
+ * @file discord.test.ts
+ * @description Unit/integration tests for channels\.__tests__\.discord.test.ts.
+ */
 import { describe, expect, it } from "vitest"
 
 import { __discordTestUtils } from "../discord.js"

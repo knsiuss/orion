@@ -1,3 +1,11 @@
+﻿/**
+ * @file processor.ts
+ * @description MarkdownProcessor  per-channel Markdown/plain-text formatter.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Converts LLM output to the correct dialect (Discord, Telegram, plain) for
+ *   the target channel. Used by all channel implementations before sending.
+ */
 export type ChannelType =
   | "discord"
   | "telegram"

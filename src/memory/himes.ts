@@ -1,3 +1,11 @@
+﻿/**
+ * @file himes.ts
+ * @description HiMeS (Hierarchical Memory System)  fuses short-term session context with long-term memory.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Coordinates session history, profiler facts, causal graph, and hybrid retrieval
+ *   into a single fused context array for the system prompt.
+ */
 import type { Message } from "@prisma/client"
 
 import { getHistory } from "../database/index.js"
@@ -12,7 +20,7 @@ import config from "../config.js"
 const log = createLogger("memory.himes")
 
 /**
- * HiMeS — Hierarchical Memory System.
+ * HiMeS â€” Hierarchical Memory System.
  *
  * Fuses short-term session context with long-term persistent memory to
  * assemble the most relevant context for each agent turn.
@@ -24,9 +32,9 @@ const log = createLogger("memory.himes")
  *
  * Memory retrieval uses HybridRetriever (vector + FTS + RRF reranking)
  * rather than pure semantic search. This handles:
- *   - Exact matches (names, dates, IDs) → FTS
- *   - Semantic similarity (concepts, intent) → vector
- *   - Final ranking → MemRL Q-value weighting
+ *   - Exact matches (names, dates, IDs) â†’ FTS
+ *   - Semantic similarity (concepts, intent) â†’ vector
+ *   - Final ranking â†’ MemRL Q-value weighting
  *
  * Additional features:
  *   - Temporal index for time-sensitive queries
@@ -34,7 +42,7 @@ const log = createLogger("memory.himes")
  *   - User profiling for personalization
  *
  * Research basis: arXiv 2601.06152 (HiMeS),
- * arXiv 2512.13564 (Memory in the Age of AI Agents — taxonomy),
+ * arXiv 2512.13564 (Memory in the Age of AI Agents â€” taxonomy),
  * arXiv 2506.00054 (Hybrid Search + RAG Survey)
  */
 

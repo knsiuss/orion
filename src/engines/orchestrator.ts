@@ -1,18 +1,10 @@
-/**
- * Orchestrator - multi-provider LLM routing with adaptive selection and fallback.
+﻿/**
+ * @file orchestrator.ts
+ * @description LLM Orchestrator  multi-provider routing with adaptive fallback.
  *
- * Routes each request to the most appropriate LLM engine based on:
- *   - task type priority order
- *   - engine availability
- *   - rolling engine performance (when ENGINE_STATS_ENABLED=true)
- *   - fallback attempts when an engine errors or returns an empty response
- *
- * Supported providers: Anthropic, OpenAI, Gemini, Groq, OpenRouter, Ollama, DeepSeek, Mistral, Together, Fireworks, Cohere, GitHub Copilot
- *
- * After every successful generation, lastUsedEngine is updated. Callers (pipeline)
- * read this to record accurate telemetry. Never hardcode provider names in callers.
- *
- * @module engines/orchestrator
+ * ARCHITECTURE / INTEGRATION:
+ *   Routes each request to the best available provider based on TaskType.
+ *   Implements adaptive engine selection, circuit breaking, and priority maps.
  */
 
 import config from "../config.js"

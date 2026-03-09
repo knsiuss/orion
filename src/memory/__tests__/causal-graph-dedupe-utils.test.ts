@@ -1,3 +1,7 @@
+﻿/**
+ * @file causal-graph-dedupe-utils.test.ts
+ * @description Unit/integration tests for memory\.__tests__\.causal-graph-dedupe-utils.test.ts.
+ */
 import { describe, expect, it } from "vitest"
 
 import {

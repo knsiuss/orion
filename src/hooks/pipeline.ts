@@ -1,4 +1,12 @@
-﻿import { createLogger } from "../logger.js"
+﻿/**
+ * @file pipeline.ts
+ * @description HookPipeline  runs registered hooks at each pipeline stage (pre/post message, tool, send).
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Wraps the hook registry to provide ordered, error-isolated hook execution.
+ *   Called from message-pipeline.ts at each stage boundary.
+ */
+import { createLogger } from "../logger.js"
 import { hookRegistry, type HookContext, type HookType, type HookRegistry } from "./registry.js"
 
 const log = createLogger("hooks.pipeline")

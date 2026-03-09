@@ -1,0 +1,729 @@
+openapi: 3.1.0
+info:
+  title: EDITH Gateway API
+  description: |
+    REST and WebSocket API for the EDITH AI companion gateway.
+
+    **Authentication** — most endpoints require a Bearer token in the
+    `Authorization` header.  Obtain a token via the pairing/QR-code flow
+    or by setting a static `API_TOKEN` in `.env`.
+
+    **CSRF** — state-changing requests from browser clients must include
+    the `x-csrf-token` header (value obtained from `GET /api/csrf-token`).
+
+  version: "2.0.0"
+  contact:
+    name: EDITH Project
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:{port}
+    description: Local development
+    variables:
+      port:
+        default: "3000"
+        description: Gateway port (GATEWAY_PORT env var)
+
+tags:
+  - name: system
+    description: Health, metrics, and CSRF helpers
+  - name: messaging
+    description: Send messages to EDITH
+  - name: models
+    description: List and select LLM engine/model preferences
+  - name: usage
+    description: Token usage and cost summaries
+  - name: mobile
+    description: Push token registration and background sync (mobile app)
+  - name: webhooks
+    description: Inbound webhooks from external messaging platforms
+  - name: websocket
+    description: Real-time WebSocket transport
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: JWT or static API token
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: "Authorization header with Bearer token required"
+
+    HealthStatus:
+      type: object
+      required: [status, version, uptime]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        version:
+          type: string
+          example: "2.0.0"
+        uptime:
+          type: number
+          description: Process uptime in seconds
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [ok, fail, warn]
+          description: Per-subsystem health status map
+
+    ChannelHealth:
+      type: object
+      required: [channels]
+      properties:
+        channels:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [ok, degraded, down]
+              latencyMs:
+                type: number
+              lastCheckAt:
+                type: string
+                format: date-time
+
+    CsrfTokenResponse:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: CSRF token to include as x-csrf-token header on subsequent state-changing requests
+
+    MessageRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: Plaintext message to send to EDITH
+          example: "What's on my calendar today?"
+        userId:
+          type: string
+          description: Override userId (admin only); defaults to authenticated user
+
+    MessageResponse:
+      type: object
+      required: [response]
+      properties:
+        response:
+          type: string
+          description: EDITH's reply to the message
+
+    EngineEntry:
+      type: object
+      required: [name, displayName, models]
+      properties:
+        name:
+          type: string
+          example: "anthropic"
+        displayName:
+          type: string
+          example: "Anthropic Claude"
+        models:
+          type: array
+          items:
+            type: string
+          example: ["claude-opus-4-5", "claude-sonnet-4-5"]
+
+    ModelsResponse:
+      type: object
+      required: [engines, count]
+      properties:
+        engines:
+          type: array
+          items:
+            $ref: "#/components/schemas/EngineEntry"
+        count:
+          type: integer
+
+    ModelSelectRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+        engine:
+          type: string
+          description: Engine name to select (required)
+          example: "anthropic"
+        model:
+          type: string
+          description: Specific model within that engine (optional; uses engine default if omitted)
+          example: "claude-opus-4-5"
+
+    ModelSelectResponse:
+      type: object
+      required: [ok, userId, preference]
+      properties:
+        ok:
+          type: boolean
+        userId:
+          type: string
+        preference:
+          type: object
+          description: Saved preference object
+
+    UsageSummary:
+      type: object
+      properties:
+        userId:
+          type: string
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+            days:
+              type: integer
+        summary:
+          type: object
+          description: Aggregate token counts and estimated cost
+          properties:
+            totalTokens:
+              type: integer
+            promptTokens:
+              type: integer
+            completionTokens:
+              type: integer
+            estimatedCostUsd:
+              type: number
+
+    GlobalUsage:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+            days:
+              type: integer
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageSummary"
+
+    PushTokenRequest:
+      type: object
+      required: [token, platform]
+      properties:
+        token:
+          type: string
+          description: Expo push notification token
+          example: "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+        platform:
+          type: string
+          enum: [ios, android]
+        appVersion:
+          type: string
+          example: "2.0.0"
+
+    SyncDelta:
+      type: object
+      properties:
+        since:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              role:
+                type: string
+                enum: [user, assistant]
+              content:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+        hasMore:
+          type: boolean
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid Bearer token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Authenticated but not authorised to access this resource
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadRequest:
+      description: Invalid request body or query parameters
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ── System ──────────────────────────────────────────────────────────────────
+
+  /health:
+    get:
+      tags: [system]
+      summary: Health check
+      description: Returns 200 when all subsystems are healthy, 503 when any are degraded.
+      security: []
+      operationId: getHealth
+      responses:
+        "200":
+          description: All systems operational
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: One or more subsystems degraded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /api/channels/health:
+    get:
+      tags: [system]
+      summary: Channel health
+      description: Returns per-channel connectivity status. Requires Bearer token.
+      operationId: getChannelsHealth
+      responses:
+        "200":
+          description: Channel health map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChannelHealth"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /metrics:
+    get:
+      tags: [system]
+      summary: Prometheus metrics
+      description: |
+        Exposes OpenMetrics/Prometheus-format metrics.
+        Requires `ADMIN_TOKEN` to be configured; pass it as `?adminToken=…`
+        or in the `Authorization: Bearer …` header.
+      security: []
+      operationId: getMetrics
+      parameters:
+        - name: adminToken
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          description: Admin token missing or invalid
+        "503":
+          description: ADMIN_TOKEN not configured
+
+  /api/csrf-token:
+    get:
+      tags: [system]
+      summary: Get CSRF token
+      description: |
+        Returns a CSRF token for use in subsequent state-changing requests.
+        Store the token and echo it back as the `x-csrf-token` header on
+        POST/PUT/DELETE requests from browser clients.
+      operationId: getCsrfToken
+      responses:
+        "200":
+          description: CSRF token issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CsrfTokenResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ── Messaging ───────────────────────────────────────────────────────────────
+
+  /message:
+    post:
+      tags: [messaging]
+      summary: Send message to EDITH
+      description: |
+        Synchronous HTTP alternative to the WebSocket `/ws` channel.
+        Submits a message and blocks until EDITH's reply is ready.
+        Browser clients must include `x-csrf-token`.
+      operationId: postMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageRequest"
+      responses:
+        "200":
+          description: EDITH's reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ── Models ──────────────────────────────────────────────────────────────────
+
+  /api/models:
+    get:
+      tags: [models]
+      summary: List available LLM engines and models
+      description: Returns all configured and currently reachable LLM engines with their model lists.
+      operationId: listModels
+      responses:
+        "200":
+          description: Available engines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/models/select:
+    post:
+      tags: [models]
+      summary: Set preferred engine or model
+      description: Saves the user's engine (and optionally model) preference for future requests.
+      operationId: selectModel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelSelectRequest"
+      responses:
+        "200":
+          description: Preference saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSelectResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    delete:
+      tags: [models]
+      summary: Reset model preference
+      description: Clears the user's engine/model preference, reverting to global defaults.
+      operationId: resetModel
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Preference cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ── Usage ───────────────────────────────────────────────────────────────────
+
+  /api/usage/summary:
+    get:
+      tags: [usage]
+      summary: Per-user usage summary
+      description: Returns token counts and estimated cost for the authenticated user over the specified period.
+      operationId: getUsageSummary
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          description: User ID to query (admin only; defaults to authenticated user)
+          schema:
+            type: string
+        - name: days
+          in: query
+          required: false
+          description: Number of days to look back (default 30)
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Usage summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/usage/global:
+    get:
+      tags: [usage]
+      summary: Global usage summary (admin)
+      description: Returns aggregated usage across all users. Requires admin token.
+      operationId: getGlobalUsage
+      parameters:
+        - name: days
+          in: query
+          required: false
+          description: Number of days to look back (default 30)
+          schema:
+            type: integer
+            default: 30
+        - name: adminToken
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Global usage breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlobalUsage"
+        "401":
+          description: Admin token invalid
+        "503":
+          description: Admin endpoint not configured (ADMIN_TOKEN not set)
+
+  # ── Mobile ──────────────────────────────────────────────────────────────────
+
+  /api/mobile/register-token:
+    post:
+      tags: [mobile]
+      summary: Register push notification token
+      description: Called by the mobile app on startup to register its Expo push token.
+      operationId: registerPushToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushTokenRequest"
+      responses:
+        "200":
+          description: Token registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  userId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/sync/delta:
+    get:
+      tags: [mobile]
+      summary: Background sync delta
+      description: |
+        Polled by the mobile background task for battery-efficient sync.
+        Returns messages and events that occurred after the `since` timestamp.
+      operationId: getSyncDelta
+      parameters:
+        - name: since
+          in: query
+          required: false
+          description: ISO 8601 timestamp to fetch changes since
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Delta payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncDelta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ── Webhooks ─────────────────────────────────────────────────────────────────
+
+  /webhooks/whatsapp:
+    get:
+      tags: [webhooks]
+      summary: WhatsApp webhook verification
+      description: |
+        Meta Platform verification challenge. Called once when the webhook URL
+        is registered in the Meta Developer Console.
+      security: []
+      operationId: verifyWhatsAppWebhook
+      parameters:
+        - name: hub.mode
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [subscribe]
+        - name: hub.verify_token
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: hub.challenge
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Challenge echoed back (plain text)
+          content:
+            text/plain:
+              schema:
+                type: string
+        "403":
+          description: Verify token mismatch
+    post:
+      tags: [webhooks]
+      summary: WhatsApp inbound message
+      description: |
+        Receives inbound WhatsApp Cloud API events (messages, status updates).
+        Payload must include a valid `X-Hub-Signature-256` HMAC header.
+      security: []
+      operationId: ingestWhatsAppWebhook
+      parameters:
+        - name: X-Hub-Signature-256
+          in: header
+          required: true
+          description: HMAC-SHA256 signature of the raw request body
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: WhatsApp Cloud API webhook payload (see Meta docs)
+      responses:
+        "200":
+          description: Payload received and queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+                  processed:
+                    type: integer
+                  ignored:
+                    type: integer
+        "401":
+          description: Invalid webhook signature
+        "503":
+          description: WhatsApp Cloud webhook is not configured
+
+  # ── WebSocket ────────────────────────────────────────────────────────────────
+
+  /ws:
+    get:
+      tags: [websocket]
+      summary: WebSocket connection
+      description: |
+        Upgrades to a WebSocket connection for real-time bidirectional messaging.
+
+        **Authentication** — Include the Bearer token as the `?token=…` query
+        parameter (browser WebSocket API cannot set headers).
+
+        **Client → Server messages:**
+        ```json
+        { "type": "message", "content": "Hello EDITH" }
+        { "type": "voice_start" }
+        { "type": "voice_audio", "data": "<base64 PCM>" }
+        { "type": "voice_stop" }
+        { "type": "ping" }
+        ```
+
+        **Server → Client messages:**
+        ```json
+        { "type": "message", "content": "Hi! How can I help?" }
+        { "type": "voice_transcript", "content": "Hello EDITH" }
+        { "type": "voice_response", "audio": "<base64 WAV>" }
+        { "type": "pong" }
+        { "type": "error", "message": "..." }
+        ```
+      operationId: connectWebSocket
+      parameters:
+        - name: token
+          in: query
+          required: true
+          description: Bearer token for authentication
+          schema:
+            type: string
+      responses:
+        "101":
+          description: Switching Protocols — WebSocket upgrade successful
+        "401":
+          description: Missing or invalid token
+        "403":
+          description: Token valid but not authorised

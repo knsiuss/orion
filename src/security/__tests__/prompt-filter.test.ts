@@ -1,3 +1,7 @@
+﻿/**
+ * @file prompt-filter.test.ts
+ * @description Unit/integration tests for security\.__tests__\.prompt-filter.test.ts.
+ */
 import { describe, expect, it, vi } from "vitest"
 
 import { filterPrompt, filterToolResult } from "../prompt-filter.js"

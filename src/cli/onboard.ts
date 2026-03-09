@@ -1,3 +1,11 @@
+﻿/**
+ * @file onboard.ts
+ * @description Interactive onboarding CLI  guided first-run setup wizard for EDITH.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Prompts for API keys, channel tokens, and persona configuration, then writes
+ *   to .env and edith.json.
+ */
 import crypto from "node:crypto"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -399,7 +407,7 @@ function defaultNextStepCommands(env: NodeJS.ProcessEnv = process.env): NextStep
 function buildNextSteps(plan: QuickstartPlan, commands: NextStepCommands = defaultNextStepCommands()): string[] {
   const lines: string[] = []
 
-  lines.push(colors.accent("✅ Setup complete!"))
+  lines.push(colors.accent("âœ… Setup complete!"))
   lines.push("")
   lines.push("Start EDITH:")
   lines.push(`  \`${commands.all}\`              # start all channels`)
@@ -420,7 +428,7 @@ function buildNextSteps(plan: QuickstartPlan, commands: NextStepCommands = defau
     if (!plan.updates.TELEGRAM_CHAT_ID) {
       lines.push(`  2. Copy /id result into TELEGRAM_CHAT_ID and rerun \`${commands.onboard}\``)
     }
-    lines.push("  → docs/channels/telegram.md")
+    lines.push("  â†’ docs/channels/telegram.md")
   } else if (plan.channel === "discord") {
     lines.push("")
     lines.push("Discord setup:")
@@ -429,7 +437,7 @@ function buildNextSteps(plan: QuickstartPlan, commands: NextStepCommands = defau
     if (!plan.updates.DISCORD_CHANNEL_ID) {
       lines.push(`  3. Add !id result to DISCORD_CHANNEL_ID and rerun \`${commands.onboard}\``)
     }
-    lines.push("  → docs/channels/discord.md")
+    lines.push("  â†’ docs/channels/discord.md")
   } else if (plan.channel === "whatsapp") {
     const isCloudMode = (plan.updates.WHATSAPP_MODE ?? "").trim().toLowerCase() === "cloud"
     lines.push("")
@@ -440,9 +448,9 @@ function buildNextSteps(plan: QuickstartPlan, commands: NextStepCommands = defau
       lines.push("  3. Set verify token = WHATSAPP_CLOUD_VERIFY_TOKEN")
     } else {
       lines.push(`  1. Scan the QR code when it appears in terminal (WHATSAPP_MODE=baileys)`)
-      lines.push("  2. WhatsApp → Linked Devices → Link a Device")
+      lines.push("  2. WhatsApp â†’ Linked Devices â†’ Link a Device")
     }
-    lines.push("  → docs/channels/whatsapp.md")
+    lines.push("  â†’ docs/channels/whatsapp.md")
   } else {
     lines.push("")
     lines.push("WebChat: open http://127.0.0.1:8080 after starting EDITH")
@@ -733,7 +741,7 @@ async function collectQuickstartPlan(
 function printPlannedChanges(plan: QuickstartPlan, envPath: string, templateSource: EnvTemplate["source"]): void {
   console.log("")
   console.log(colors.label("Quickstart plan"))
-  console.log(colors.dim("═".repeat(40)))
+  console.log(colors.dim("â•".repeat(40)))
   console.log(`Channel:  ${colors.accent(plan.channel)}`)
   console.log(`Provider: ${colors.accent(plan.provider)}`)
   console.log(`Computer use: ${plan.computerUseEnabled ? colors.success("enabled") : colors.dim("disabled")}`)
@@ -793,7 +801,7 @@ async function runOnboarding(argv: string[]): Promise<void> {
       console.log(`  ${colors.dim(envPath)}`)
       console.log(`  ${colors.dim(configPath)}`)
 
-      // ── Database setup ─────────────────────────────────────
+      // â”€â”€ Database setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       console.log("")
       spinner.start("Setting up database...")
       try {
@@ -803,16 +811,16 @@ async function runOnboarding(argv: string[]): Promise<void> {
         })
         spinner.stop("Database ready", "ok")
       } catch {
-        spinner.stop("Database setup failed — run `pnpm db:push` manually", "error")
+        spinner.stop("Database setup failed â€” run `pnpm db:push` manually", "error")
       }
 
-      // ── Auto health check ──────────────────────────────────
+      // â”€â”€ Auto health check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       console.log("")
       console.log(colors.label("Running health check..."))
       try {
         await execa("pnpm", ["doctor"], { stdio: "inherit", cwd })
       } catch {
-        console.log(colors.dim("  Some checks failed — see above. Re-run `pnpm doctor` anytime."))
+        console.log(colors.dim("  Some checks failed â€” see above. Re-run `pnpm doctor` anytime."))
       }
     } else {
       console.log("")

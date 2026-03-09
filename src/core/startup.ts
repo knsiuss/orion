@@ -1,7 +1,10 @@
-/**
- * EDITH startup and dependency initialization.
- * Sets up all services and returns a configured MessagePipeline ready to use.
- * Separated from main.ts so startup can be tested and reused by gateway.
+﻿/**
+ * @file startup.ts
+ * @description EDITH startup orchestrator  initialises all services and returns a ready MessagePipeline.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Called by main.ts and gateway/server.ts. Bootstraps database, memory, channels,
+ *   voice, daemon, and the pipeline in dependency order.
  */
 
 import { exec } from "node:child_process"
@@ -121,7 +124,7 @@ function validateRequiredEnv(): void {
 /**
  * Run `prisma migrate deploy` if RUN_MIGRATIONS_ON_STARTUP is enabled.
  * Uses `pnpm exec prisma migrate deploy` to apply any pending migrations.
- * Never throws — migration failures are logged as warnings (graceful degradation).
+ * Never throws â€” migration failures are logged as warnings (graceful degradation).
  * Calling this at startup ensures the DB schema matches the Prisma schema.
  */
 export async function runMigrationsIfEnabled(): Promise<void> {
@@ -129,7 +132,7 @@ export async function runMigrationsIfEnabled(): Promise<void> {
   return new Promise((resolve) => {
     exec("pnpm exec prisma migrate deploy", (err) => {
       if (err) {
-        log.warn("migration failed — continuing with existing schema", { err: String(err) })
+        log.warn("migration failed â€” continuing with existing schema", { err: String(err) })
       } else {
         log.info("database migrations applied")
       }
@@ -181,7 +184,7 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
         if (ok) {
           log.info("local embedder initialized")
         } else {
-          log.warn("local embedder unavailable — cloud embedding will be used")
+          log.warn("local embedder unavailable â€” cloud embedding will be used")
         }
       })
       .catch((err) => log.warn("local embedder init error", { err }))
@@ -192,7 +195,7 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
   offlineCoordinator.on("statechange", (state: string, previous: string) => {
     log.info("connectivity state changed", { from: previous, to: state })
     if (state === "offline") {
-      log.warn("EDITH is now in offline mode — all local providers active")
+      log.warn("EDITH is now in offline mode â€” all local providers active")
     }
   })
 
@@ -207,7 +210,7 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
   void missionManager
   log.info("mission manager ready")
 
-  // Phase 23: Hardware bridge — scan for devices (fire-and-forget)
+  // Phase 23: Hardware bridge â€” scan for devices (fire-and-forget)
   if (config.HARDWARE_ENABLED) {
     void deviceScanner.scan()
       .then(() => log.info("hardware bridge ready", { devices: deviceRegistry.list().length }))
@@ -217,19 +220,19 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
   // Phase 24: Self-improvement engine (stateful singletons, no explicit init needed)
   log.info("self-improvement engine ready")
 
-  // Ambient intelligence — start ambient scheduler for weather/market cache warming
+  // Ambient intelligence â€” start ambient scheduler for weather/market cache warming
   void Promise.resolve(ambientScheduler.start())
     .catch((err) => log.warn("ambient scheduler start failed", { err }))
 
-  // Protocols — start morning briefing scheduler
+  // Protocols â€” start morning briefing scheduler
   void Promise.resolve(briefingScheduler.start())
     .catch((err) => log.warn("briefing scheduler start failed", { err }))
 
-  // Hooks — load bundled hooks (gmail-watch, calendar-sync, github-events)
+  // Hooks â€” load bundled hooks (gmail-watch, calendar-sync, github-events)
   void hookLoader.loadAll()
     .catch((err) => log.warn("hook loader failed", { err }))
 
-  // Voice — start wake word detector if enabled
+  // Voice â€” start wake word detector if enabled
   if (config.WAKE_WORD_ENABLED === "true") {
     const { wakeWordDetector } = await import("../voice/wake-word.js")
     void wakeWordDetector.start()
@@ -237,7 +240,7 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
     log.info("wake word detection enabled")
   }
 
-  // Phase 27: Cross-device mesh — start peer discovery (fire-and-forget)
+  // Phase 27: Cross-device mesh â€” start peer discovery (fire-and-forget)
   void networkDiscovery.discover()
     .then((peers) => {
       if (peers.length > 0) {
@@ -290,13 +293,13 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
   }, SESSION_CLEANUP_INTERVAL_MS)
   sessionCleanupTimer.unref()
 
-  // Memory pressure guard — evicts sessions at warn threshold, graceful shutdown at critical
+  // Memory pressure guard â€” evicts sessions at warn threshold, graceful shutdown at critical
   memoryGuard.start()
 
-  // Secret rotation — watch .env file for live secret updates (zero-downtime key rotation)
+  // Secret rotation â€” watch .env file for live secret updates (zero-downtime key rotation)
   secretStore.watch()
   eventBus.on("security.secrets_rotated", (data) => {
-    log.info("API keys rotated — engines will use new values on next call", {
+    log.info("API keys rotated â€” engines will use new values on next call", {
       keys: data.changedKeys,
     })
   })
@@ -346,7 +349,7 @@ export async function initialize(workspaceDir: string): Promise<StartupResult> {
     if (config.KNOWLEDGE_BASE_ENABLED) {
       syncScheduler.stop()
     }
-    // Secret store — stop fs.watch before process exits
+    // Secret store â€” stop fs.watch before process exits
     secretStore.stopWatch()
     // Shutdown MCP clients
     await mcpClient.shutdown().catch((err) => log.warn("MCP shutdown error", err))

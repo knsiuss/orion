@@ -1,3 +1,7 @@
+﻿/**
+ * @file edith-global.test.ts
+ * @description Unit/integration tests for cli\.__tests__\.edith-global.test.ts.
+ */
 import path from "node:path"
 import net from "node:net"
 

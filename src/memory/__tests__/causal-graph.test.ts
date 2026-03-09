@@ -1,3 +1,7 @@
+﻿/**
+ * @file causal-graph.test.ts
+ * @description Unit/integration tests for memory\.__tests__\.causal-graph.test.ts.
+ */
 import { describe, expect, it } from "vitest"
 
 import { __causalGraphTestUtils } from "../causal-graph.js"

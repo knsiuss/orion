@@ -1,3 +1,7 @@
+﻿/**
+ * @file usage.test.ts
+ * @description Unit/integration tests for gateway\.routes\.__tests__\.usage.test.ts.
+ */
 import { describe, it, expect, vi } from "vitest"
 import Fastify from "fastify"
 import { registerUsage } from "../usage.js"

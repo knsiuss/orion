@@ -1,3 +1,7 @@
+﻿/**
+ * @file server.test.ts
+ * @description Unit/integration tests for gateway\.__tests__\.server.test.ts.
+ */
 import crypto from "node:crypto"
 
 import { describe, expect, it, vi } from "vitest"

@@ -1,3 +1,11 @@
+﻿/**
+ * @file device-store.ts
+ * @description DeviceStore  CRUD for paired device registrations.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Wraps Prisma to securely store and retrieve paired device records.
+ *   Called by pairing/manager.ts during QR-code pairing flows.
+ */
 import crypto from "node:crypto"
 
 import { prisma } from "../database/index.js"

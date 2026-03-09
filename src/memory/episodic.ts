@@ -1,29 +1,10 @@
-/**
- * episodic.ts — Episodic Memory for Structured Experience Recall
+﻿/**
+ * @file episodic.ts
+ * @description Episodic memory  structured storage and recall of notable life experiences.
  *
- * Implementation based on:
- *   Sumers et al., "Cognitive Architectures for Language Agents" (CoALA)
- *   (arXiv:2309.02427, 2023) — episodic memory component
- *
- *   Park et al., "Generative Agents: Interactive Simulacra of Human Behavior"
- *   (UIST 2023, arXiv:2304.03442) — importance scoring & reflection
- *
- *   Packer et al., "MemGPT: Towards LLMs as Operating Systems"
- *   (arXiv:2310.08560, 2023) — tiered memory with paging
- *
- * Episodic memory stores structured *episodes* — complete task executions with:
- *   - What: the task, approach, and outcome
- *   - When: timestamps for temporal recall
- *   - Why: causal context and user intent
- *   - How: which tools/strategies were used
- *   - Result: success/failure + a verbal lesson learned
- *
- * This enables the agent to:
- *   - recall "last time you asked about X, we did Y and it worked"
- *   - avoid repeating past mistakes (failure episodes inform future attempts)
- *   - transfer learnings across similar tasks
- *
- * @module memory/episodic
+ * ARCHITECTURE / INTEGRATION:
+ *   Stores significant user events (trips, milestones, decisions) as episodes.
+ *   Retrieved during context building to provide long-horizon personalisation.
  */
 
 import crypto from "node:crypto"
@@ -38,12 +19,12 @@ import {
 
 const log = createLogger("memory.episodic")
 
-// ── Configuration ────────────────────────────────────────────────────────────
+// â”€â”€ Configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** Maximum episodes kept in memory */
 const MAX_EPISODES = 200
 
-/** Importance threshold for retention (below this → candidate for eviction) */
+/** Importance threshold for retention (below this â†’ candidate for eviction) */
 const MIN_IMPORTANCE = 0.2
 
 /** Recency decay half-life in milliseconds (7 days) */
@@ -54,7 +35,7 @@ const MAX_RETRIEVAL = 5
 const EPISODIC_PERSISTENCE_VERSION = 1
 const EPISODIC_STORAGE_RELATIVE_PATH = ["memory", "episodic.json"] as const
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type EpisodeOutcome = "success" | "failure" | "partial" | "abandoned"
 
@@ -74,7 +55,7 @@ export interface Episode {
   result: string
   /** Verbal lesson learned from this episode */
   lesson: string
-  /** Importance score (0–1), higher = more impactful/memorable */
+  /** Importance score (0â€“1), higher = more impactful/memorable */
   importance: number
   /** Number of times this episode has been recalled (access frequency) */
   accessCount: number
@@ -98,7 +79,7 @@ export interface EpisodeQuery {
 
 export interface ScoredEpisode {
   episode: Episode
-  /** Combined retrieval score (recency × importance × relevance) */
+  /** Combined retrieval score (recency Ã— importance Ã— relevance) */
   retrievalScore: number
 }
 
@@ -113,7 +94,7 @@ interface EpisodicPersistencePayload {
   episodes: Episode[]
 }
 
-// ── EpisodicMemory Class ────────────────────────────────────────────────────
+// â”€â”€ EpisodicMemory Class â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export class EpisodicMemory {
   private episodes: Episode[] = []
@@ -181,7 +162,7 @@ export class EpisodicMemory {
   /**
    * Retrieve most relevant episodes for a query.
    * Uses a three-factor scoring model:
-   *   score = recency_weight × importance × relevance
+   *   score = recency_weight Ã— importance Ã— relevance
    *
    * Based on the Generative Agents retrieval mechanism.
    */
@@ -255,7 +236,7 @@ export class EpisodicMemory {
 
     return failures.map(
       ({ episode }) =>
-        `[Previous failure] Task: "${episode.task.slice(0, 100)}" → Lesson: ${episode.lesson}`,
+        `[Previous failure] Task: "${episode.task.slice(0, 100)}" â†’ Lesson: ${episode.lesson}`,
     )
   }
 
@@ -272,7 +253,7 @@ export class EpisodicMemory {
 
     return successes.map(
       ({ episode }) =>
-        `[Past success] Task: "${episode.task.slice(0, 100)}" → Approach: ${episode.approach.slice(0, 200)}`,
+        `[Past success] Task: "${episode.task.slice(0, 100)}" â†’ Approach: ${episode.approach.slice(0, 200)}`,
     )
   }
 
@@ -284,11 +265,11 @@ export class EpisodicMemory {
 
     if (relevant.length === 0) return ""
 
-    const lines: string[] = ["[Episodic Memory — Relevant Past Experiences]"]
+    const lines: string[] = ["[Episodic Memory â€” Relevant Past Experiences]"]
     let totalChars = lines[0].length
 
     for (const { episode, retrievalScore } of relevant) {
-      const line = `- [${episode.outcome}] "${episode.task.slice(0, 80)}" → ${episode.lesson} (relevance: ${retrievalScore.toFixed(2)})`
+      const line = `- [${episode.outcome}] "${episode.task.slice(0, 80)}" â†’ ${episode.lesson} (relevance: ${retrievalScore.toFixed(2)})`
       if (totalChars + line.length > maxChars) break
       lines.push(line)
       totalChars += line.length
@@ -313,7 +294,7 @@ export class EpisodicMemory {
     this.persistToDisk()
   }
 
-  // ── Private ─────────────────────────────────────────────────────────────
+  // â”€â”€ Private â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /**
    * Estimate importance based on heuristics.
@@ -416,7 +397,7 @@ export class EpisodicMemory {
   }
 }
 
-// ── Scoring Utilities ───────────────────────────────────────────────────────
+// â”€â”€ Scoring Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Exponential recency decay.
@@ -444,7 +425,7 @@ function computeTextRelevance(query: string, episode: Episode): number {
   }
 
   const jaccard = overlap / (queryTokens.size + episodeTokens.size - overlap)
-  // Scale to 0.1–1.0 range (never zero to give all episodes a chance)
+  // Scale to 0.1â€“1.0 range (never zero to give all episodes a chance)
   return 0.1 + 0.9 * jaccard
 }
 
@@ -533,11 +514,11 @@ function coerceEpisode(value: unknown): Episode | null {
   }
 }
 
-// ── Singleton ───────────────────────────────────────────────────────────────
+// â”€â”€ Singleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const episodicMemory = new EpisodicMemory()
 
-// ── Test Utilities ──────────────────────────────────────────────────────────
+// â”€â”€ Test Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const __episodicTestUtils = {
   computeRecency,

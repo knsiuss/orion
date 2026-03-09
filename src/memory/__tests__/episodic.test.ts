@@ -1,3 +1,7 @@
+﻿/**
+ * @file episodic.test.ts
+ * @description Unit/integration tests for memory\.__tests__\.episodic.test.ts.
+ */
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"

@@ -1,3 +1,11 @@
+﻿/**
+ * @file whatsapp.ts
+ * @description WhatsApp channel implementation using the Baileys library.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Implements BaseChannel. Supports both QR-link (personal) and Cloud API modes.
+ *   Routes to handleIncomingUserMessage() in core/incoming-message-service.ts.
+ */
 import { createRequire } from "node:module"
 import path from "node:path"
 

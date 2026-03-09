@@ -1,3 +1,11 @@
+﻿/**
+ * @file affordance-checker.ts
+ * @description AffordanceChecker  LLM-assisted safety check for ambiguous user requests.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Classifies whether a user request has a plausible safe affordance before
+ *   executing tool chains. Reduces false-positive prompt-filter blocks.
+ */
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
 

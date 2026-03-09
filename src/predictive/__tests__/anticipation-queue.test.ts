@@ -1,3 +1,7 @@
+﻿/**
+ * @file anticipation-queue.test.ts
+ * @description Unit/integration tests for predictive\.__tests__\.anticipation-queue.test.ts.
+ */
 import { describe, it, expect } from "vitest"
 import { anticipationQueue } from "../anticipation-queue.js"
 

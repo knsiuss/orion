@@ -1,3 +1,11 @@
+﻿/**
+ * @file audio.ts
+ * @description Audio media handler  transcribes voice messages via VoiceBridge (Whisper).
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Delegates to voice/bridge.ts STT pipeline. Called from message-pipeline.ts
+ *   when an inbound message contains an audio attachment.
+ */
 import { voice } from "../voice/bridge.js"
 import { createLogger } from "../logger.js"
 

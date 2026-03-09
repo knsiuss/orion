@@ -1,5 +1,6 @@
 /**
- * systemTool — OS-level operations for Jarvis-style awareness.
+ * @file system.ts
+ * @description systemTool — OS-level operations for Jarvis-style awareness.
  *
  * Actions:
  *   clipboard_read   — Read current clipboard content

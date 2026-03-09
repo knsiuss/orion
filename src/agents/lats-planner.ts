@@ -1,3 +1,11 @@
+﻿/**
+ * @file lats-planner.ts
+ * @description LATS (Language Agent Tree Search) planner  tree-structured task decomposition with backtracking.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Orchestrates multi-step computer-use tasks by maintaining a search tree of agent states.
+ *   Called by message-pipeline.ts when the agent needs multi-step planning.
+ */
 import crypto from "node:crypto"
 
 import { createLogger } from "../logger.js"
@@ -201,7 +209,7 @@ export class LATSPlanner {
   private readonly deps: LATSDeps
 
   /**
-   * LATSPlanner — tree search for iterative computer-use goals.
+   * LATSPlanner â€” tree search for iterative computer-use goals.
    * Think like Tony Stark: keep the suit modular. Think like Elon Musk: strip the loop to first principles.
    */
   constructor(config: ComputerUseConfig = {}, deps: LATSDeps = {}) {

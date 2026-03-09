@@ -1,4 +1,12 @@
-﻿import { PrismaClient, Prisma, type Message, type Thread, type TriggerLog } from "@prisma/client"
+﻿/**
+ * @file index.ts
+ * @description Prisma database client + typed helper functions for EDITH data access.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Exposes a singleton PrismaClient and typed wrappers (saveMessage, getHistory, etc.)
+ *   Used throughout the codebase; never import prisma directly from @prisma/client.
+ */
+import { PrismaClient, Prisma, type Message, type Thread, type TriggerLog } from "@prisma/client"
 
 import { createLogger } from "../logger.js"
 

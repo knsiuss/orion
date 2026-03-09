@@ -1,3 +1,7 @@
+﻿/**
+ * @file sentiment-monitor.test.ts
+ * @description Unit/integration tests for comm-intel\.__tests__\.sentiment-monitor.test.ts.
+ */
 import { describe, it, expect } from "vitest"
 import { sentimentMonitor } from "../sentiment-monitor.js"
 

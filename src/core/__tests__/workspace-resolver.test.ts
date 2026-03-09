@@ -1,3 +1,7 @@
+﻿/**
+ * @file workspace-resolver.test.ts
+ * @description Unit/integration tests for core\.__tests__\.workspace-resolver.test.ts.
+ */
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"

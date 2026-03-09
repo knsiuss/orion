@@ -1,3 +1,7 @@
+﻿/**
+ * @file session-manager.test.ts
+ * @description Unit/integration tests for browser\.__tests__\.session-manager.test.ts.
+ */
 /**
  * Session manager — encrypt/decrypt, save/restore, prune expired sessions.
  */

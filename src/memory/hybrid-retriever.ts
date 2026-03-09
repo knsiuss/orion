@@ -1,25 +1,17 @@
-/**
- * HybridRetriever - OC-10 Implementation
- * 
- * Based on research:
- * - Hybrid Search + RAG Survey (arXiv 2506.00054)
- * 
- * Implements a hybrid retrieval system combining:
- * 1. Full-Text Search (FTS) using SQLite FTS5 for keyword matching
- * 2. Vector Search using LanceDB for semantic similarity
- * 3. Reciprocal Rank Fusion (RRF) for intelligent result combination
- * 
- * The RRF formula: score = Σ(1 / (k + rank))
- * where k = 60 (constant) and rank = position in each result list
- * 
- * @module memory/hybrid-retriever
+﻿/**
+ * @file hybrid-retriever.ts
+ * @description HybridRetriever  combines FTS5 full-text search with LanceDB vector search via RRF.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Implements Reciprocal Rank Fusion (arXiv 2312.10997) for optimal result ranking.
+ *   Called from himes.ts during context building when HYBRID_SEARCH_ENABLED=true.
  */
 
 import { prisma } from "../database/index.js"
 import { createLogger } from "../logger.js"
 import { clamp, sanitizeUserId as sanitizeVectorUserId } from "../utils/index.js"
 
-/** Mirrors store.SearchResult — defined locally to avoid a circular import with store.ts. */
+/** Mirrors store.SearchResult â€” defined locally to avoid a circular import with store.ts. */
 type SearchResult = { id: string; content: string; metadata: Record<string, unknown>; score: number }
 
 const log = createLogger("memory.hybrid-retriever")
@@ -85,7 +77,7 @@ const SHORT_TECHNICAL_TOKENS = new Set([
 /**
  * Compute weighted RRF score contribution for one source.
  *
- * Weighted RRF(d) = Σ(w_i * (1 / (k + r_i(d))))
+ * Weighted RRF(d) = Î£(w_i * (1 / (k + r_i(d))))
  * where:
  * - w_i = source weight
  * - k = constant (typically 60)
@@ -372,7 +364,7 @@ export class HybridRetriever {
    * Algorithm:
    * 1. Collect all unique document IDs from both lists
    * 2. For each document, compute RRF score:
-   *    score = Σ(1 / (k + rank_i)) for each list i
+   *    score = Î£(1 / (k + rank_i)) for each list i
    * 3. Sort by RRF score descending
    * 
    * @param ftsResults - Results from full-text search

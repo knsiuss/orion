@@ -1,3 +1,11 @@
+﻿/**
+ * @file rate-limiter.ts
+ * @description Per-user/per-IP rate limiter for the Fastify HTTP gateway.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Sliding-window in-process rate limiter; state is persisted to disk on shutdown.
+ *   Plugged into gateway/server.ts as a Fastify plugin.
+ */
 import fs from "node:fs"
 import path from "node:path"
 

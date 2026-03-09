@@ -1,3 +1,7 @@
+﻿/**
+ * @file skill-scanner.test.ts
+ * @description Unit/integration tests for security\.__tests__\.skill-scanner.test.ts.
+ */
 import { describe, it, expect } from 'vitest'
 import { skillScanner } from '../skill-scanner.js'
 

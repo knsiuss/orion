@@ -1,3 +1,7 @@
+﻿/**
+ * @file hooks.test.ts
+ * @description Unit/integration tests for hooks\.__tests__\.hooks.test.ts.
+ */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { manifestHookRegistry } from '../manifest-registry.js'
 import { parseFrontmatter } from '../frontmatter.js'

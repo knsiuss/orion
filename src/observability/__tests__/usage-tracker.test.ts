@@ -1,3 +1,7 @@
+﻿/**
+ * @file usage-tracker.test.ts
+ * @description Unit/integration tests for observability\.__tests__\.usage-tracker.test.ts.
+ */
 import { describe, expect, it } from "vitest"
 
 import { UsageTracker } from "../usage-tracker.js"

@@ -1,3 +1,11 @@
+﻿/**
+ * @file discord.ts
+ * @description Discord channel implementation using discord.js.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Implements BaseChannel. Listens for Discord messages and routes them through
+ *   handleIncomingUserMessage() in core/incoming-message-service.ts.
+ */
 import config from "../config.js"
 import { handleIncomingUserMessage } from "../core/incoming-message-service.js"
 import { createLogger } from "../logger.js"

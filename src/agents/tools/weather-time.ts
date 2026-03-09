@@ -1,5 +1,6 @@
 /**
- * weatherTimeTool — Current time, timezone info, and weather data.
+ * @file weather-time.ts
+ * @description weatherTimeTool — Current time, timezone info, and weather data.
  *
  * Actions:
  *   time     — Current time in any timezone

@@ -1,17 +1,10 @@
-/**
- * UsageTracker - OC-11 Implementation
- * 
- * Based on research:
- * - Portkey/Maxim/Braintrust Observability patterns
- * - OpenTelemetry (OTel) for AI/LLM observability
- * 
- * Implements:
- * 1. Usage tracking with SQLite + ring buffer
- * 2. Pricing table for cost estimation
- * 3. Gateway instrumentation
- * 4. /api/usage/summary endpoint support
- * 
- * @module observability/usage-tracker
+﻿/**
+ * @file usage-tracker.ts
+ * @description UsageTracker  records per-user LLM token consumption and cost estimates.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Persists usage records via Prisma; queried by gateway usage routes.
+ *   Used by orchestrator.ts to log token counts after each LLM call.
  */
 
 import { prisma } from "../database/index.js"

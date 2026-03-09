@@ -1,5 +1,6 @@
 /**
- * mcpTools.ts — MCP tools for agent to discover and invoke MCP servers.
+ * @file mcp.ts
+ * @description mcpTools — MCP tools for agent to discover and invoke MCP servers.
  *
  * Allows the agent to dynamically discover and call any tool from
  * any connected MCP server without needing separate tool definitions

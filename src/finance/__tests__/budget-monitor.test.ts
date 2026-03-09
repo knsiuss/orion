@@ -1,3 +1,7 @@
+﻿/**
+ * @file budget-monitor.test.ts
+ * @description Unit/integration tests for finance\.__tests__\.budget-monitor.test.ts.
+ */
 import { describe, it, expect, vi } from "vitest"
 
 vi.mock("../../logger.js", () => ({

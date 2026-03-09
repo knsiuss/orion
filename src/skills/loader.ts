@@ -1,3 +1,11 @@
+﻿/**
+ * @file loader.ts
+ * @description SkillLoader  hot-reloading dynamic skill loader with file-system watcher.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Watches the skills/ directory for changes, validates skill manifests,
+ *   and registers/unregisters skills with SkillManager at runtime.
+ */
 import { constants, type Dirent, type FSWatcher, watch } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"

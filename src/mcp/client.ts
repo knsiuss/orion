@@ -1,19 +1,10 @@
-/**
- * client.ts — MCP (Model Context Protocol) client implementation.
+﻿/**
+ * @file client.ts
+ * @description MCP (Model Context Protocol) client  connects EDITH to external MCP tool servers.
  *
- * Connects EDITH to any MCP server and dynamically registers their
- * tools into the EDITH tool registry at runtime.
- *
- * Architecture (MCP-Zero, arXiv 2506.01056):
- *   - Static tool registry: tools configured in edith.json
- *   - Dynamic discovery: agent discovers tools at runtime
- *   - Server lifecycle: start, health check, restart on crash
- *
- * Transport support:
- *   - stdio: spawn local process (e.g. python mcp_server.py)
- *   - http: connect to remote HTTP MCP server
- *
- * @module mcp/client
+ * ARCHITECTURE / INTEGRATION:
+ *   Dynamically discovers and registers tools from any running MCP server.
+ *   Integrated into agents/tools/mcp.ts for agent use.
  */
 import { spawn, type ChildProcess } from "node:child_process"
 import { createLogger } from "../logger.js"

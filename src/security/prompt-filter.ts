@@ -1,3 +1,11 @@
+﻿/**
+ * @file prompt-filter.ts
+ * @description PromptFilter  injection detection and input safety scanner.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Screens inbound user messages for prompt injection, jailbreak patterns,
+ *   and policy violations before they reach the LLM pipeline.
+ */
 import { createLogger } from "../logger.js"
 import { affordanceChecker, type AffordanceResult } from "./affordance-checker.js"
 
@@ -27,32 +35,32 @@ type DetectionResult =
  */
 const HOMOGLYPH_MAP: Readonly<Record<string, string>> = {
   // Cyrillic and Greek lookalikes for latin letters
-  "\u0430": "a", // Cyrillic а
-  "\u0435": "e", // Cyrillic е
-  "\u043e": "o", // Cyrillic о
-  "\u0440": "r", // Cyrillic р
-  "\u0441": "c", // Cyrillic с
-  "\u0443": "y", // Cyrillic у
-  "\u0445": "x", // Cyrillic х
-  "\u0456": "i", // Cyrillic і
-  "\u0391": "A", // Greek Α
-  "\u0392": "B", // Greek Β
-  "\u0395": "E", // Greek Ε
-  "\u0396": "Z", // Greek Ζ
-  "\u0397": "H", // Greek Η
-  "\u0399": "I", // Greek Ι
-  "\u039a": "K", // Greek Κ
-  "\u039c": "M", // Greek Μ
-  "\u039d": "N", // Greek Ν
-  "\u039f": "O", // Greek Ο
-  "\u03a1": "P", // Greek Ρ
-  "\u03a4": "T", // Greek Τ
-  "\u03a7": "X", // Greek Χ
-  "\u03b1": "a", // Greek α
-  "\u03b5": "e", // Greek ε
-  "\u03bf": "o", // Greek ο
+  "\u0430": "a", // Cyrillic Ð°
+  "\u0435": "e", // Cyrillic Ðµ
+  "\u043e": "o", // Cyrillic Ð¾
+  "\u0440": "r", // Cyrillic Ñ€
+  "\u0441": "c", // Cyrillic Ñ
+  "\u0443": "y", // Cyrillic Ñƒ
+  "\u0445": "x", // Cyrillic Ñ…
+  "\u0456": "i", // Cyrillic Ñ–
+  "\u0391": "A", // Greek Î‘
+  "\u0392": "B", // Greek Î’
+  "\u0395": "E", // Greek Î•
+  "\u0396": "Z", // Greek Î–
+  "\u0397": "H", // Greek Î—
+  "\u0399": "I", // Greek Î™
+  "\u039a": "K", // Greek Îš
+  "\u039c": "M", // Greek Îœ
+  "\u039d": "N", // Greek Î
+  "\u039f": "O", // Greek ÎŸ
+  "\u03a1": "P", // Greek Î¡
+  "\u03a4": "T", // Greek Î¤
+  "\u03a7": "X", // Greek Î§
+  "\u03b1": "a", // Greek Î±
+  "\u03b5": "e", // Greek Îµ
+  "\u03bf": "o", // Greek Î¿
   // Mathematical bold/italic variants of common injection keywords
-  "\u2170": "i", // small roman numeral i → i
+  "\u2170": "i", // small roman numeral i â†’ i
   "\uff49": "i", // fullwidth i
   "\uff4f": "o", // fullwidth o
   "\uff41": "a", // fullwidth a
@@ -71,7 +79,7 @@ const HOMOGLYPH_MAP: Readonly<Record<string, string>> = {
  * @returns Normalized text safe for pattern matching
  */
 function normalizeForDetection(text: string): string {
-  // NFKC decomposes compatibility characters (e.g., ﬁ → fi, ² → 2)
+  // NFKC decomposes compatibility characters (e.g., ï¬ â†’ fi, Â² â†’ 2)
   const nfkc = text.normalize("NFKC")
 
   // Replace known homoglyphs char by char

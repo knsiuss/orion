@@ -1,3 +1,11 @@
+﻿/**
+ * @file persistence.ts
+ * @description Session-state persistence helpers  save and restore in-memory session state to disk.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Used by startup.ts and shutdown hooks to survive process restarts without
+ *   losing active in-memory sessions.
+ */
 import fs from "node:fs"
 import path from "node:path"
 

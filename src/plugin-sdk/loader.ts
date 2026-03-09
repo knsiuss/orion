@@ -1,3 +1,11 @@
+﻿/**
+ * @file loader.ts
+ * @description PluginLoader  dynamically loads and validates EDITH plugin packages at runtime.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Scans the plugins/ directory, validates plugin manifests, and registers
+ *   exported tools and hooks with the system.
+ */
 import fs from "node:fs/promises"
 import path from "node:path"
 import { pathToFileURL } from "node:url"

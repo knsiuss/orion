@@ -1,3 +1,7 @@
+﻿/**
+ * @file working-memory.test.ts
+ * @description Unit/integration tests for memory\.__tests__\.working-memory.test.ts.
+ */
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"

@@ -1,3 +1,7 @@
+﻿/**
+ * @file audit.test.ts
+ * @description Unit/integration tests for security\.__tests__\.audit.test.ts.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { auditEngine } from '../audit.js'
 

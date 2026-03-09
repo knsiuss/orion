@@ -1,3 +1,11 @@
+﻿/**
+ * @file manager.ts
+ * @description SkillManager  registry and executor for EDITH dynamic skills.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Resolves inbound tool calls to the correct skill handler.
+ *   Loaded skills are available to the agent tool system at runtime.
+ */
 import fs from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"

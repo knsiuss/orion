@@ -1,5 +1,6 @@
 /**
- * channelSendTool — Agent-initiated message sending to user channels.
+ * @file channel.ts
+ * @description channelSendTool — Agent-initiated message sending to user channels.
  *
  * Allows the agent (not just the daemon) to proactively send messages
  * to any connected channel: WhatsApp, Telegram, Signal, LINE, etc.

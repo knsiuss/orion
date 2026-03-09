@@ -1,3 +1,7 @@
+﻿/**
+ * @file csrf.test.ts
+ * @description Unit/integration tests for gateway\.__tests__\.csrf.test.ts.
+ */
 import { describe, expect, it } from "vitest"
 
 import { __gatewayTestUtils } from "../server.js"

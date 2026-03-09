@@ -1,3 +1,7 @@
+﻿/**
+ * @file whatsapp.test.ts
+ * @description Unit/integration tests for channels\.__tests__\.whatsapp.test.ts.
+ */
 import { describe, expect, it } from "vitest"
 
 import { __whatsAppTestUtils } from "../whatsapp.js"

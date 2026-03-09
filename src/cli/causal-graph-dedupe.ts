@@ -1,3 +1,11 @@
+﻿/**
+ * @file causal-graph-dedupe.ts
+ * @description CLI script to deduplicate causal graph nodes in the SQLite database.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Identifies semantically near-duplicate causes/effects and merges their edges.
+ *   Run via `pnpm run dedupe:causal-graph`.
+ */
 import { Prisma, type PrismaClient } from "@prisma/client"
 
 import { prisma } from "../database/index.js"

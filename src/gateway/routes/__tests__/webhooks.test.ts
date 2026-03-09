@@ -1,3 +1,7 @@
+﻿/**
+ * @file webhooks.test.ts
+ * @description Unit/integration tests for gateway\.routes\.__tests__\.webhooks.test.ts.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import Fastify from "fastify"
 import { registerWebhooks } from "../webhooks.js"

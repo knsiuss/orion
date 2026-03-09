@@ -1,3 +1,11 @@
+﻿/**
+ * @file index.ts
+ * @description Barrel export for all agent tools available to the EDITH LLM agent.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Aggregates and re-exports every tool (browser, code-runner, file-agent, etc.)
+ *   so the orchestrator imports from one stable path.
+ */
 import { browserTool, getCurrentBrowserObservation, type BrowserObservation } from "./browser.js"
 import { codeRunnerTool } from "./code-runner.js"
 import { fileAgentTool } from "./file-agent.js"
@@ -33,7 +41,7 @@ const executableTools: Record<ToolName, ExecutableTool> = {
 }
 
 /**
- * Tool metadata registry — deskripsi untuk LLM prompt injection.
+ * Tool metadata registry â€” deskripsi untuk LLM prompt injection.
  * LATS menggunakan ini untuk propose aksi yang valid.
  */
 export const TOOL_REGISTRY: Record<ToolName, ToolMetadata> = {

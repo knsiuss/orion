@@ -1,3 +1,11 @@
+﻿/**
+ * @file client.ts
+ * @description GatewayClient  WebSocket client for connecting local apps to the EDITH gateway.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Used by apps/desktop and apps/mobile to communicate with the running EDITH
+ *   gateway over WebSocket with automatic reconnection.
+ */
 import crypto from "node:crypto"
 
 export class GatewayClient {

@@ -1,13 +1,9 @@
-/**
- * main.ts — EDITH entry point.
+﻿/**
+ * @file main.ts
+ * @description EDITH entry point  CLI argument parsing and service startup.
  *
- * Responsibilities:
- *   - Parse the `--mode` flag (text | gateway | all)
- *   - Initialize all subsystems via startup.ts
- *   - Start the appropriate transport layer(s)
- *
- * This file remains thin (<150 lines). All initialization logic lives in
- * src/core/startup.ts. Transport-specific concerns live in their respective modules.
+ * ARCHITECTURE / INTEGRATION:
+ *   Bootstraps the system via core/startup.ts and hands off to the active channels.
  */
 
 import path from "node:path"
@@ -193,7 +189,7 @@ async function start(): Promise<void> {
   const gracefulShutdown = async (signal: string) => {
     if (shuttingDown) return
     shuttingDown = true
-    log.info(`received ${signal}, shutting down gracefully…`)
+    log.info(`received ${signal}, shutting down gracefullyâ€¦`)
 
     const forceTimeout = setTimeout(() => {
       log.error("graceful shutdown timed out after 30s, forcing exit")

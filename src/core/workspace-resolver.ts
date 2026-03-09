@@ -1,13 +1,10 @@
-/**
- * Workspace Resolver - OC-12 Implementation
+﻿/**
+ * @file workspace-resolver.ts
+ * @description WorkspaceResolver  multi-tenant workspace path resolution (OC-12).
  *
- * Implements multi-tenant workspace resolution with:
- * - Tenant isolation (data, config, memory)
- * - Per-tenant configuration injection
- * - Automatic workspace provisioning
- * - Resource quotas and limits
- *
- * @module core/workspace-resolver
+ * ARCHITECTURE / INTEGRATION:
+ *   Maps userId  workspace directory, supporting per-user workspace overrides
+ *   and tenant isolation for multi-user deployments.
  */
 
 import fs from "node:fs/promises"

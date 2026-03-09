@@ -1,3 +1,11 @@
+﻿/**
+ * @file webchat.ts
+ * @description WebChat channel  embedded browser-based chat interface served over WebSocket.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Implements BaseChannel using Fastify + @fastify/websocket. Serves the
+ *   static React frontend from apps/desktop/renderer/ over HTTP.
+ */
 import fastify from "fastify"
 import websocket from "@fastify/websocket"
 import staticPlugin from "@fastify/static"

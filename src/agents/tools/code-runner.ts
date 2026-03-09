@@ -1,5 +1,6 @@
 /**
- * codeRunnerTool — Execute code snippets in isolated subprocess.
+ * @file code-runner.ts
+ * @description codeRunnerTool — Execute code snippets in isolated subprocess.
  *
  * Supports Python and JavaScript (Node.js).
  * Runs in sandboxed subprocess with:

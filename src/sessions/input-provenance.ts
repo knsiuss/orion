@@ -1,3 +1,11 @@
+﻿/**
+ * @file input-provenance.ts
+ * @description InputProvenance  tracks message origin metadata for security audit logging.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Attaches channel, user, and timestamp provenance to each inbound message.
+ *   Referenced by camel-guard.ts for taint source tracking.
+ */
 import { createLogger } from "../logger.js"
 
 const log = createLogger("sessions.provenance")

@@ -1,3 +1,7 @@
+﻿/**
+ * @file recipe-engine.test.ts
+ * @description Unit/integration tests for browser\.__tests__\.recipe-engine.test.ts.
+ */
 /**
  * RecipeEngine — intent matching, recipe execution, user recipe persistence.
  */

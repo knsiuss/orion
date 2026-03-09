@@ -1,3 +1,11 @@
+﻿/**
+ * @file send-policy.ts
+ * @description SendPolicyManager  per-user per-channel message sending rate-limit and dedup policy.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Prevents the assistant from flood-spamming a channel by enforcing minimum
+ *   intervals between outbound messages.
+ */
 import { createLogger } from "../logger.js"
 
 const log = createLogger("sessions.send-policy")

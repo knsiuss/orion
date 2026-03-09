@@ -1,3 +1,11 @@
+﻿/**
+ * @file manager.ts
+ * @description ChannelManager  registers, starts, and stops all active I/O channels.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Instantiated in core/startup.ts. Holds discord, telegram, whatsapp, webchat
+ *   channels and forwards inbound messages to the pipeline.
+ */
 import type { BaseChannel } from "./base.js"
 import { WebChatChannel } from "./webchat.js"
 import { whatsAppChannel } from "./whatsapp.js"
@@ -88,7 +96,7 @@ export class ChannelManager {
     }
     const safeMessage = scan.sanitized
 
-    /** System-default delivery priority — user preferences override the front. */
+    /** System-default delivery priority â€” user preferences override the front. */
     const globalOrder = [
       "telegram",
       "discord",
@@ -98,7 +106,7 @@ export class ChannelManager {
       "signal",
       "line",
       "matrix",
-      // "teams" — not registered (stub, inbound unimplemented) // TODO: implement before enabling
+      // "teams" â€” not registered (stub, inbound unimplemented) // TODO: implement before enabling
       "imessage",
       "email",
     ]
@@ -115,7 +123,7 @@ export class ChannelManager {
 
       // Rate limit: skip this channel if its token budget is exhausted this tick
       if (!channelRateLimiter.tryAcquire(name)) {
-        log.debug("channel rate limited — trying next", { channel: name, userId })
+        log.debug("channel rate limited â€” trying next", { channel: name, userId })
         continue
       }
 

@@ -1,4 +1,12 @@
-﻿import fs from "node:fs/promises"
+﻿/**
+ * @file rag.ts
+ * @description RAG (Retrieval-Augmented Generation) document store  ingest and query static documents.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Chunks and embeds documents from the docs/ directory for semantic retrieval.
+ *   Provides knowledge-base lookup separate from conversational memory.
+ */
+import fs from "node:fs/promises"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
 

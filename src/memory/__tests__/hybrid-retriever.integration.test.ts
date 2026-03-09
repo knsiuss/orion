@@ -1,3 +1,7 @@
+﻿/**
+ * @file hybrid-retriever.integration.test.ts
+ * @description Unit/integration tests for memory\.__tests__\.hybrid-retriever.integration.test.ts.
+ */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("../../database/index.js", () => ({

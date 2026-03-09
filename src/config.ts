@@ -1,3 +1,11 @@
+﻿/**
+ * @file config.ts
+ * @description Central Zod-validated configuration  single source of truth for all env vars.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Parsed once at startup; validated using Zod schemas.
+ *   Import the default-exported config object throughout the codebase.
+ */
 import dotenv from "dotenv"
 import { z } from "zod"
 
@@ -175,12 +183,12 @@ const ConfigSchema = z.object({
   // Fish Audio TTS (S1 / S1-mini / Fish-Speech 1.5)
   FISH_AUDIO_ENABLED: boolFromEnv.default(false),
   FISH_AUDIO_API_KEY: z.string().default(""),
-  // Default reference_id — S1-mini public model or your custom clone
+  // Default reference_id â€” S1-mini public model or your custom clone
   FISH_AUDIO_MODEL_ID: z.string().default("s1"),
   // Latency mode: "normal" | "balanced" (balanced is faster, slightly lower quality)
   FISH_AUDIO_LATENCY: z.enum(["normal", "balanced"]).default("balanced"),
   // Optional per-emotion reference_id overrides (comma-separated key:id pairs)
-  // e.g. "warm:abc123,urgent:def456" — if empty, FISH_AUDIO_MODEL_ID is used for all
+  // e.g. "warm:abc123,urgent:def456" â€” if empty, FISH_AUDIO_MODEL_ID is used for all
   FISH_AUDIO_EMOTION_MODELS: z.string().default(""),
   // nodejs-whisper offline STT
   WHISPER_CPP_ENABLED: boolFromEnv.default(false),
@@ -384,7 +392,7 @@ export async function mergeEdithJsonCredentials(): Promise<void> {
     if (features.computerUse !== undefined) config.VISION_ENABLED = features.computerUse
 
   } catch {
-    // Silent fallback — let .env values stand
+    // Silent fallback â€” let .env values stand
   }
 }
 

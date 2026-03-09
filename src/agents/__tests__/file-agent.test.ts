@@ -1,3 +1,7 @@
+﻿/**
+ * @file file-agent.test.ts
+ * @description Unit/integration tests for agents\.__tests__\.file-agent.test.ts.
+ */
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"

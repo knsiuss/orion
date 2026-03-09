@@ -1,5 +1,6 @@
 /**
- * notesTool — Persistent notes and journal management.
+ * @file notes.ts
+ * @description notesTool — Persistent notes and journal management.
  *
  * Actions:
  *   append  — Add a new note or journal entry

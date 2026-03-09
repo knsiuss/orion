@@ -1,3 +1,7 @@
+﻿/**
+ * @file affordance-checker.test.ts
+ * @description Unit/integration tests for security\.__tests__\.affordance-checker.test.ts.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { orchestrator } from "../../engines/orchestrator.js"

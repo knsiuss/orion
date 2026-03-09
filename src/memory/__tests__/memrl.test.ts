@@ -1,3 +1,7 @@
+﻿/**
+ * @file memrl.test.ts
+ * @description Unit/integration tests for memory\.__tests__\.memrl.test.ts.
+ */
 import { describe, expect, it } from "vitest"
 
 import { __memrlTestUtils } from "../memrl.js"

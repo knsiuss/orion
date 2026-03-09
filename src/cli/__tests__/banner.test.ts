@@ -1,3 +1,7 @@
+﻿/**
+ * @file banner.test.ts
+ * @description Unit/integration tests for cli\.__tests__\.banner.test.ts.
+ */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 
 import { statusIcon, printBanner, printStatusBox, printDivider, spinner, type StatusSection } from "../banner.js"

@@ -1,5 +1,6 @@
 /**
- * emailTool — Email read and send via IMAP/SMTP.
+ * @file email.ts
+ * @description emailTool — Email read and send via IMAP/SMTP.
  *
  * Actions:
  *   read    — Fetch recent emails from inbox (IMAP)

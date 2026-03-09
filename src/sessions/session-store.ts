@@ -1,3 +1,11 @@
+﻿/**
+ * @file session-store.ts
+ * @description SessionStore  in-memory session manager with Redis fallback and SQLite persistence.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Manages active sessions, message history, and coordinates with SessionSummarizer.
+ *   Exports the sessionStore singleton used throughout the codebase.
+ */
 import { createLogger } from "../logger.js"
 import { getHistory } from "../database/index.js"
 import { prisma } from "../database/index.js"
@@ -25,7 +33,7 @@ interface RedisBackend {
 /**
  * Maximum number of concurrent in-memory sessions.
  * When this cap is reached, the least-recently-active session is evicted.
- * Evicted sessions are not lost — history persists in SQLite and is reloaded on demand.
+ * Evicted sessions are not lost â€” history persists in SQLite and is reloaded on demand.
  */
 const MAX_SESSIONS = 500
 
@@ -41,7 +49,7 @@ class SessionStore {
   /** Initialize Redis backend if REDIS_URL is configured. */
   async initRedis(): Promise<void> {
     if (!config.REDIS_URL) {
-      log.debug("REDIS_URL not set — using in-memory sessions")
+      log.debug("REDIS_URL not set â€” using in-memory sessions")
       return
     }
     try {
@@ -50,7 +58,7 @@ class SessionStore {
       await this.redisBackend.connect()
       log.info("Redis session backend active")
     } catch (err) {
-      log.warn("Redis unavailable — falling back to in-memory sessions", { err })
+      log.warn("Redis unavailable â€” falling back to in-memory sessions", { err })
       this.redisBackend = null
     }
   }

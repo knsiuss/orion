@@ -1,5 +1,6 @@
 /**
- * FileAgent — CaMeL-guarded file operations for EDITH computer use.
+ * @file file-agent.ts
+ * @description FileAgent — CaMeL-guarded file operations for EDITH computer use.
  * Tony Stark mode: keep the interface sharp. Elon mode: remove every hidden assumption about paths.
  */
 

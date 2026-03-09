@@ -1,3 +1,7 @@
+﻿/**
+ * @file browser-som.test.ts
+ * @description Unit/integration tests for agents\.__tests__\.browser-som.test.ts.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const playwrightState = vi.hoisted(() => ({

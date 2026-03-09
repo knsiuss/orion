@@ -1,4 +1,12 @@
-﻿import { prisma } from "../database/index.js"
+﻿/**
+ * @file temporal-index.ts
+ * @description Temporal memory index  time-aware retrieval weighting recency against relevance.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Scores and retrieves memories using a decay function over creation timestamps.
+ *   Used as the legacy fallback in himes.ts when hybrid search is unavailable.
+ */
+import { prisma } from "../database/index.js"
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
 

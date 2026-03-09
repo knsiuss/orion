@@ -1,3 +1,11 @@
+﻿/**
+ * @file image.ts
+ * @description Image media handler  describes images using a multimodal LLM engine.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Routes image bytes through orchestrator with TaskType multimodal.
+ *   Called from message-pipeline.ts when a message contains an image attachment.
+ */
 import { orchestrator } from "../engines/orchestrator.js"
 import { createLogger } from "../logger.js"
 

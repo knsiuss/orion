@@ -1,3 +1,7 @@
+﻿/**
+ * @file smart-form-filler.test.ts
+ * @description Unit/integration tests for browser\.__tests__\.smart-form-filler.test.ts.
+ */
 /**
  * SmartFormFiller — intent→field mapping, field extraction from BrowserObservation.
  */

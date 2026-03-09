@@ -1,3 +1,7 @@
+﻿/**
+ * @file loader.test.ts
+ * @description Unit/integration tests for skills\.__tests__\.loader.test.ts.
+ */
 import { describe, expect, it } from "vitest"
 
 import { __skillLoaderTestUtils } from "../loader.js"

@@ -1,3 +1,7 @@
+﻿/**
+ * @file routing.test.ts
+ * @description Unit/integration tests for routing\.__tests__\.routing.test.ts.
+ */
 import { describe, it, expect } from 'vitest'
 import { multiAccountKeyManager } from '../multi-account.js'
 import { quotaTracker } from '../quota-tracker.js'

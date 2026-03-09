@@ -1,17 +1,9 @@
-/**
- * loop-detector.ts — Detects repetitive patterns in agent workflows.
+﻿/**
+ * @file loop-detector.ts
+ * @description Loop detector  identifies repetitive agent action patterns to prevent infinite tool loops.
  *
- * Patterns detected:
- *   - identical-calls: Same tool + same params called N times
- *   - no-progress: Multiple calls, none producing new information
- *   - ping-pong: A→B→A→B alternation (agent stuck oscillating)
- *
- * Design: One instance per supervisor call. Pass to executeNode() to record
- * tool calls at the point they actually happen.
- *
- * Refs: arXiv 2510.23883 (Agentic AI Security)
- *
- * @module core/loop-detector
+ * ARCHITECTURE / INTEGRATION:
+ *   Used by the LATS planner (agents/lats-planner.ts) to abort runaway tool sequences.
  */
 import { createLogger } from "../logger.js"
 
@@ -106,7 +98,7 @@ export class LoopDetector {
     ).length
 
     if (identicalCount >= BREAK_THRESHOLD) {
-      log.warn("loop: circuit break — identical calls", { tool: last.tool, count: identicalCount })
+      log.warn("loop: circuit break â€” identical calls", { tool: last.tool, count: identicalCount })
       return {
         severity: "circuit-break",
         pattern: "identical-calls",
@@ -156,11 +148,11 @@ export class LoopDetector {
     }
 
     if (alterations >= 3) {
-      log.warn("loop: ping-pong detected", { pattern: recent.join("→") })
+      log.warn("loop: ping-pong detected", { pattern: recent.join("â†’") })
       return {
         severity: "circuit-break",
         pattern: "ping-pong",
-        message: `Ping-pong loop: ${recent.join("→")}. Agent is stuck. Stopping.`,
+        message: `Ping-pong loop: ${recent.join("â†’")}. Agent is stuck. Stopping.`,
         shouldStop: true,
       }
     }

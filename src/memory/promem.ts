@@ -1,3 +1,11 @@
+﻿/**
+ * @file promem.ts
+ * @description ProMem (Proactive Memory)  surfaces relevant past memories before the user asks.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Runs asynchronously during each turn to pre-fetch contextually relevant memories
+ *   and inject them into the system prompt as background context.
+ */
 import type { Message } from "@prisma/client"
 
 import { orchestrator } from "../engines/orchestrator.js"

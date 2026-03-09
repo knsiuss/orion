@@ -1,3 +1,7 @@
+﻿/**
+ * @file bootstrap.test.ts
+ * @description Unit/integration tests for core\.__tests__\.bootstrap.test.ts.
+ */
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"

@@ -1,3 +1,7 @@
+﻿/**
+ * @file relationship-graph.test.ts
+ * @description Unit/integration tests for comm-intel\.__tests__\.relationship-graph.test.ts.
+ */
 import { describe, it, expect, vi } from "vitest"
 
 vi.mock("../../logger.js", () => ({

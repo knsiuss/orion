@@ -1,15 +1,10 @@
-/**
- * PersonaEngine — Dynamic conversation context engine.
+﻿/**
+ * @file persona.ts
+ * @description PersonaEngine  dynamic conversation-context detector (time-of-day, urgency, mood).
  *
- * Design intent (OpenClaw paradigm):
- *   - Static identity (who EDITH is, values, tone) lives in workspace/SOUL.md
- *   - Dynamic context (current user mood, expertise, topic) is computed here
- *
- * The output of buildDynamicContext() is passed as `extraContext` to
- * buildSystemPrompt(), which injects it AFTER the SOUL.md bootstrap file.
- * This ensures the static persona always takes precedence over runtime annotations.
- *
- * @module core/persona
+ * ARCHITECTURE / INTEGRATION:
+ *   Provides runtime context fragments injected into the system prompt by
+ *   system-prompt-builder.ts on every turn.
  */
 
 import { createLogger } from "../logger.js"
@@ -23,7 +18,7 @@ export type TopicCategory = "work" | "personal" | "technical" | "creative" | "ca
 
 /**
  * Runtime context detected for the current conversation turn.
- * These are dynamic, not static — they change based on the user's message.
+ * These are dynamic, not static â€” they change based on the user's message.
  */
 export interface ConversationContext {
   /** Detected emotional state of the user */
@@ -39,7 +34,7 @@ export interface ConversationContext {
 /**
  * Adapts EDITH's responses based on real-time detection of user context.
  * 
- * This engine does NOT define EDITH's personality — that lives in SOUL.md.
+ * This engine does NOT define EDITH's personality â€” that lives in SOUL.md.
  * It only computes context annotations that help the LLM adapt tone and depth.
  */
 export class PersonaEngine {

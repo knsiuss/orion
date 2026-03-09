@@ -1,3 +1,11 @@
+﻿/**
+ * @file store.ts
+ * @description PairingStore  persisted state for in-progress pairing sessions.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Tracks which pairing tokens are pending confirmation.
+ *   Used exclusively by pairing/manager.ts.
+ */
 import { prisma } from "../database/index.js"
 import { createLogger } from "../logger.js"
 

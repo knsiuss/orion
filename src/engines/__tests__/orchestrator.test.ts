@@ -1,3 +1,7 @@
+﻿/**
+ * @file orchestrator.test.ts
+ * @description Unit/integration tests for engines\.__tests__\.orchestrator.test.ts.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import config from "../../config.js"

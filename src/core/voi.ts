@@ -1,3 +1,11 @@
+﻿/**
+ * @file voi.ts
+ * @description VOI (Voice of Intent)  intent classifier and context predictor for proactive behaviour.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Consumes session context and predicts user intent dimensions used by
+ *   the daemon and the persona engine to shape proactive messages.
+ */
 import { createLogger } from "../logger.js"
 import type { MultiDimContext } from "./context-predictor.js"
 import { sessionStore } from "../sessions/session-store.js"
@@ -213,7 +221,7 @@ export class VoICalculator {
     // Check recent session history for rapid-fire pattern
     let isRapidFire = false
     try {
-      // getSessionHistory is async — use await
+      // getSessionHistory is async â€” use await
       const history = await sessionStore.getSessionHistory(userId, channel, 10)
       if (history && history.length >= 3) {
         const recentUserMessages = history
@@ -228,7 +236,7 @@ export class VoICalculator {
         isRapidFire = allShort && isCurrentShort
       }
     } catch {
-      // sessionStore unavailable — fall back to single-message heuristic
+      // sessionStore unavailable â€” fall back to single-message heuristic
       isRapidFire = isCurrentShort
     }
 

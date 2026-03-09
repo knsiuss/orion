@@ -1,5 +1,6 @@
 /**
- * browserTool — Autonomous web navigation and content extraction.
+ * @file browser.ts
+ * @description browserTool — Autonomous web navigation and content extraction.
  *
  * Architecture based on Agent-E (arXiv 2407.13032):
  * - Planner separates from navigator — tool handles navigation only

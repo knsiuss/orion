@@ -1,3 +1,7 @@
+﻿/**
+ * @file auth.test.ts
+ * @description Unit/integration tests for gateway\.__tests__\.auth.test.ts.
+ */
 import { describe, expect, it } from "vitest"
 
 import { __gatewayTestUtils } from "../server.js"

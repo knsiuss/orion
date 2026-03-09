@@ -1,3 +1,10 @@
+﻿/**
+ * @file causal-graph-dedupe-utils.ts
+ * @description Utility functions for detecting and merging duplicate nodes in the causal graph.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Used by cli/causal-graph-dedupe.ts (CLI) and automatically during graph ingestion.
+ */
 import { createHash } from "node:crypto"
 
 export interface CausalNodeDedupeCandidate {

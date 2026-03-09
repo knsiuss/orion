@@ -1,3 +1,11 @@
+﻿/**
+ * @file sandbox.ts
+ * @description PermissionSandbox  YAML-driven capability gating for agent tool execution.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Reads permissions/triggers.yaml and enforces per-tool allow/deny rules
+ *   before any agent action is executed.
+ */
 import * as fs from "fs"
 import * as path from "path"
 import * as yaml from "js-yaml"

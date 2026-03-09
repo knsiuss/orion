@@ -1,3 +1,7 @@
+﻿/**
+ * @file data-extractor.test.ts
+ * @description Unit/integration tests for browser\.__tests__\.data-extractor.test.ts.
+ */
 /**
  * DataExtractor — structured data extraction from page content via LLM.
  */

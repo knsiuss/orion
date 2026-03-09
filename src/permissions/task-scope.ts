@@ -1,3 +1,11 @@
+﻿/**
+ * @file task-scope.ts
+ * @description TaskScope  tracks the active permission scope for the current agent turn.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Limits which tools an agent may call based on the declared task type.
+ *   Integrated into camel-guard.ts for taint-aware capability checking.
+ */
 import { createLogger } from "../logger.js"
 
 const logger = createLogger("permissions.task-scope")

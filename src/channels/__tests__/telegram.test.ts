@@ -1,3 +1,7 @@
+﻿/**
+ * @file telegram.test.ts
+ * @description Unit/integration tests for channels\.__tests__\.telegram.test.ts.
+ */
 import { describe, expect, it } from "vitest"
 
 import { __telegramTestUtils } from "../telegram.js"

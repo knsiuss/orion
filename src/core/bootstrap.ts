@@ -1,35 +1,10 @@
-/**
- * Bootstrap loader — workspace file reader with integrity verification.
+﻿/**
+ * @file bootstrap.ts
+ * @description Workspace bootstrap  loads and verifies SOUL.md, AGENTS.md, MEMORY.md, USER.md, TOOLS.md.
  *
- * Loads all identity-defining markdown files from the workspace/ directory:
- * SOUL.md, AGENTS.md, IDENTITY.md, USER.md, TOOLS.md, HEARTBEAT.md, MEMORY.md
- *
- * Security guarantees:
- *   - SHA-256 integrity hash computed on every load
- *   - Content is security-scanned for steganographic injections (zero-width chars,
- *     base64 blobs, hidden Markdown instructions)
- *   - Results are cached with TTL; cache is invalidated on file change
- *   - Missing files inject a short marker string instead of crashing
- *
- * Why file-based and not code-based: workspace files are the source of truth
- * for identity. Users can edit SOUL.md without touching TypeScript.
- * This enables personality customization without code deployment.
- *
- * Key features:
- *   - mtime-based file caching (avoids redundant disk reads)
- *   - SHA256 checksum verification (detects tampering via CHECKSUMS.sha256)
- *   - Security scanning (zero-width unicode, suspicious base64 blocks)
- *   - Per-file and total character caps with graceful truncation
- *   - Session mode routing (dm | group | subagent loads different file sets)
- *
- * Bootstrap file load order (DM mode):
- *   AGENTS.md → SOUL.md → TOOLS.md → IDENTITY.md → USER.md →
- *   HEARTBEAT.md → BOOTSTRAP.md → MEMORY.md
- *
- * Design inspired by: arXiv 2511.14972 (harmful AI companion traits),
- * arXiv 2508.16609 (social identity as design choice, not accident)
- *
- * @module core/bootstrap
+ * ARCHITECTURE / INTEGRATION:
+ *   Called once by core/startup.ts before any pipeline processing begins.
+ *   Verifies file checksums from workspace/CHECKSUMS.sha256.
  */
 
 import { EventEmitter } from "node:events"

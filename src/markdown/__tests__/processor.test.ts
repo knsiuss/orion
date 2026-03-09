@@ -1,3 +1,7 @@
+﻿/**
+ * @file processor.test.ts
+ * @description Unit/integration tests for markdown\.__tests__\.processor.test.ts.
+ */
 import { describe, expect, it } from "vitest"
 
 import { markdownProcessor } from "../processor.js"

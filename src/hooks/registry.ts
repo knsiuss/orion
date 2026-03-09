@@ -1,4 +1,11 @@
-﻿export type HookType = "pre_message" | "post_message" | "pre_tool" | "post_tool" | "pre_send" | "post_send"
+﻿/**
+ * @file registry.ts
+ * @description HookRegistry  central registry for pre/post pipeline hooks.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Plugins and tools register hooks here; HookPipeline reads them in priority order.
+ */
+export type HookType = "pre_message" | "post_message" | "pre_tool" | "post_tool" | "pre_send" | "post_send"
 
 export interface HookContext {
   userId: string

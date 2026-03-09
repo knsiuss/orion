@@ -1,3 +1,7 @@
+﻿/**
+ * @file engine-stats.test.ts
+ * @description Unit/integration tests for engines\.__tests__\.engine-stats.test.ts.
+ */
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { engineStats } from "../engine-stats.js"

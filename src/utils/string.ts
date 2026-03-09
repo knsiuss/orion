@@ -1,6 +1,10 @@
-/**
- * String utility functions shared across the EDITH codebase.
- * Centralizing these prevents logic drift from copy-pasted implementations.
+﻿/**
+ * @file string.ts
+ * @description String utility functions  sanitisation, truncation, and parsing helpers.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Pure functions with no side effects or external dependencies.
+ *   Used throughout the codebase to avoid copy-pasted string logic.
  */
 
 /**

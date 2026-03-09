@@ -1,5 +1,6 @@
 /**
- * screenshotAnalyzeTool — Capture and analyze screen content via Vision LLM.
+ * @file screenshot.ts
+ * @description screenshotAnalyzeTool — Capture and analyze screen content via Vision LLM.
  *
  * Connects the existing VisionBridge (Python layer) to the agent tool system.
  * Allows EDITH to "see" the screen and answer questions about it.

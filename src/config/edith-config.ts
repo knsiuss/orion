@@ -1,3 +1,11 @@
+﻿/**
+ * @file edith-config.ts
+ * @description edith.json runtime config loader  personality, channel policies, and per-user overrides.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Reads and validates edith.json from the workspace root.
+ *   Dynamically imported by config.ts to avoid circular deps at module load time.
+ */
 import fs from "node:fs/promises"
 import path from "node:path"
 
@@ -14,13 +22,13 @@ const ChannelConfigSchema = z
     dmPolicy: ChannelPolicySchema.default("pairing"),
     allowFrom: z.array(z.string()).default([]),
     groupPolicy: ChannelPolicySchema.default("allowlist"),
-    ackReaction: z.string().default("👀"),
+    ackReaction: z.string().default("ðŸ‘€"),
   })
   .partial()
 
 const AgentIdentitySchema = z.object({
   name: z.string().default("EDITH"),
-  emoji: z.string().default("✦"),
+  emoji: z.string().default("âœ¦"),
   theme: z.string().default("dark minimal"),
 })
 
@@ -91,7 +99,7 @@ const AppConfigSchema = z.object({
   startMinimized: z.boolean().default(false),
 }).default({ minimizeToTray: true, autoLaunch: false, showTrayNotifications: true, startMinimized: false })
 
-// Telemetry (OFF by default — privacy first)
+// Telemetry (OFF by default â€” privacy first)
 const TelemetrySchema = z.object({
   enabled: z.boolean().default(false),
   crashReporting: z.boolean().default(false),
@@ -138,7 +146,7 @@ const FeaturesSchema = z.object({
 const EDITHConfigSchema = z.object({
   identity: AgentIdentitySchema.default({
     name: "EDITH",
-    emoji: "✦",
+    emoji: "âœ¦",
     theme: "dark minimal",
   }),
 
@@ -265,7 +273,7 @@ export function getEDITHConfig(): EDITHConfig {
 }
 
 /**
- * Reset the cached config — used in tests to ensure a fresh parse on each test.
+ * Reset the cached config â€” used in tests to ensure a fresh parse on each test.
  */
 export function resetEDITHConfigCache(): void {
   cachedConfig = null

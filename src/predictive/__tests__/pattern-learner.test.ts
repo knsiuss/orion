@@ -1,3 +1,7 @@
+﻿/**
+ * @file pattern-learner.test.ts
+ * @description Unit/integration tests for predictive\.__tests__\.pattern-learner.test.ts.
+ */
 import { describe, it, expect } from "vitest"
 import { patternLearner } from "../pattern-learner.js"
 

@@ -1,8 +1,10 @@
-/**
- * engine-stats.ts - Rolling performance tracker for LLM engines.
+﻿/**
+ * @file engine-stats.ts
+ * @description Rolling performance tracker for LLM engines  P50/P95 latency and error rate.
  *
- * Tracks per-engine latency (P50, P95) and error rate using a sliding window.
- * Used by orchestrator.ts for adaptive routing decisions.
+ * ARCHITECTURE / INTEGRATION:
+ *   Used by orchestrator.ts to make data-driven routing decisions.
+ *   Sliding-window implementation requires no persistence.
  */
 import { createLogger } from "../logger.js"
 

@@ -1,3 +1,7 @@
+﻿/**
+ * @file lats-planner.test.ts
+ * @description Unit/integration tests for agents\.__tests__\.lats-planner.test.ts.
+ */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { camelGuard } from "../../security/camel-guard.js"

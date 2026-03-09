@@ -1,23 +1,10 @@
-/**
- * MessagePipeline - The canonical EDITH message processing pipeline.
+﻿/**
+ * @file message-pipeline.ts
+ * @description MessagePipeline  the canonical EDITH message processing pipeline.
  *
- * This module is the single source of truth for how a user message is
- * processed from raw input to final response. Both the CLI transport
- * (main.ts) and the WebSocket/HTTP gateway (gateway/server.ts) delegate
- * to this pipeline, ensuring consistent behavior across all entry points.
- *
- * Pipeline stages (in order):
- *   1. Input safety check (prompt filter + affordance)
- *   2. Memory context retrieval
- *   3. Persona / dynamic context detection
- *   4. System prompt assembly
- *   5. LLM generation (orchestrator)
- *   6. Response critique and refinement (optional)
- *   7. Output safety scan
- *   8. Persistence (database + vector memory + session store)
- *   9. Async side effects (profiler, causal graph) - fire-and-forget
- *
- * @module core/message-pipeline
+ * ARCHITECTURE / INTEGRATION:
+ *   Single entry point for every inbound user message across all channels.
+ *   Orchestrates security, memory, persona, LLM generation, and side effects.
  */
 
 import { randomUUID } from "node:crypto"
@@ -81,7 +68,7 @@ export interface PipelineResult {
    */
   blocked?: boolean
   /**
-   * UUID generated at the start of processMessage — propagated through all
+   * UUID generated at the start of processMessage â€” propagated through all
    * stage log calls so that a single request can be traced end-to-end across
    * log lines and correlated with gateway request IDs.
    */
@@ -348,7 +335,7 @@ function launchAsyncSideEffects(
       .catch((err) => log.warn("KB sync scheduler tick failed", { userId, err }))
   }
 
-  // Phase 28: Audit trail — record message action (fire-and-forget)
+  // Phase 28: Audit trail â€” record message action (fire-and-forget)
   void auditEngine.record({
     userId,
     action: 'message',
@@ -356,7 +343,7 @@ function launchAsyncSideEffects(
     output: response.slice(0, 500),
   }).catch(err => log.warn('audit record failed', { userId, err }))
 
-  // Stage 9 extension: Intent prediction → pre-fetch (fire-and-forget)
+  // Stage 9 extension: Intent prediction â†’ pre-fetch (fire-and-forget)
   void intentPredictor.predict(userId, safeText)
     .then(prediction => {
       if (prediction?.preloadHint) {
@@ -385,13 +372,13 @@ export async function processMessage(
 ): Promise<PipelineResult> {
   const { channel, sessionMode = "dm" } = options
 
-  /** UUID scoped to this single invocation — threaded through all stage logs. */
+  /** UUID scoped to this single invocation â€” threaded through all stage logs. */
   const requestId = randomUUID()
   const pipelineStartMs = Date.now()
 
   log.info("pipeline start", { requestId, userId, channel })
 
-  // Learn which channel this user prefers (fire-and-forget — never blocks the pipeline)
+  // Learn which channel this user prefers (fire-and-forget â€” never blocks the pipeline)
   void userChannelPrefs.promoteChannel(userId, channel)
     .catch((err) => log.warn("channel preference promote failed", { userId, channel, err: String(err) }))
 
@@ -417,7 +404,7 @@ export async function processMessage(
   const safeText = inputSafety.sanitized
   log.debug("stage 1 complete: input safety passed", { requestId, userId })
 
-  // Stage 1.5: pre_message hook — allows hooks to modify/abort before processing
+  // Stage 1.5: pre_message hook â€” allows hooks to modify/abort before processing
   const preHookCtx = await hookPipeline.run("pre_message", {
     userId,
     channel,
@@ -429,7 +416,7 @@ export async function processMessage(
     return blockedResult(requestId)
   }
 
-  // Phase 21: Emotion detection (fire-and-forget — must not delay response)
+  // Phase 21: Emotion detection (fire-and-forget â€” must not delay response)
   void textSentiment.detect(safeText)
     .then((sample) => moodTracker.record(userId, sample))
     .catch((err) => log.warn("emotion detection failed", { requestId, userId, err }))
@@ -514,7 +501,7 @@ export async function processMessage(
   // Stage 9: Async side effects (fire-and-forget)
   launchAsyncSideEffects(userId, safeText, response, retrievedMemoryIds)
 
-  // Stage 9.5: post_message hook (fire-and-forget — must not delay response)
+  // Stage 9.5: post_message hook (fire-and-forget â€” must not delay response)
   void hookPipeline.run("post_message", {
     userId,
     channel,

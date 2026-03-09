@@ -1,5 +1,6 @@
 /**
- * httpTool — Generic HTTP client for API calls and web requests.
+ * @file http.ts
+ * @description httpTool — Generic HTTP client for API calls and web requests.
  *
  * Supports GET, POST, PUT, PATCH, DELETE.
  * JSON and form-data bodies supported.

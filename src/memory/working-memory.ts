@@ -1,26 +1,10 @@
-/**
- * working-memory.ts — Agent Working Memory / Scratchpad
+﻿/**
+ * @file working-memory.ts
+ * @description Working memory  short-lived scratchpad for in-flight agent task state.
  *
- * Implementation based on:
- *   Sumers et al., "Cognitive Architectures for Language Agents" (CoALA)
- *   (arXiv:2309.02427, 2023)
- *
- * Also draws from:
- *   Park et al., "Generative Agents: Interactive Simulacra of Human Behavior"
- *   (UIST 2023, arXiv:2304.03442) — for the reflection and importance scoring
- *
- * In CoALA, an agent's memory is split into:
- *   - Working Memory: short-lived scratchpad for current task reasoning
- *   - Episodic Memory: structured episodes with outcomes (see episodic.ts)
- *   - Semantic Memory: long-term factual knowledge (already exists: profiler, store)
- *   - Procedural Memory: learned action patterns (already exists: MemRL, skills)
- *
- * This module implements the Working Memory component — a structured scratchpad
- * that persists across tool calls within a single agent execution. The agent can
- * write intermediate thoughts, observations, hypotheses, and partial results
- * that help it reason across multiple steps.
- *
- * @module memory/working-memory
+ * ARCHITECTURE / INTEGRATION:
+ *   Stores intermediate tool results and reasoning traces within a single pipeline turn.
+ *   Cleared at turn end; aids multi-step agent coherence.
  */
 
 import path from "node:path"
@@ -36,7 +20,7 @@ import {
 
 const log = createLogger("memory.working-memory")
 
-// ── Configuration ────────────────────────────────────────────────────────────
+// â”€â”€ Configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** Maximum entries in working memory before oldest get evicted */
 const MAX_ENTRIES = 50
@@ -49,7 +33,7 @@ const MAX_CONTEXT_CHARS = 8000
 const WORKING_MEMORY_PERSISTENCE_VERSION = 1
 const WORKING_MEMORY_STORAGE_RELATIVE_DIR = ["memory", "working"] as const
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type WorkingMemoryEntryType =
   | "thought"         // Internal reasoning step
@@ -65,7 +49,7 @@ export interface WorkingMemoryEntry {
   type: WorkingMemoryEntryType
   content: string
   timestamp: number
-  /** Optional relevance score (0–1) for prioritized retrieval */
+  /** Optional relevance score (0â€“1) for prioritized retrieval */
   relevance: number
   /** Optional metadata */
   metadata?: Record<string, unknown>
@@ -86,7 +70,7 @@ interface WorkingMemorySnapshot {
   entries: WorkingMemoryEntry[]
 }
 
-// ── WorkingMemory Class ─────────────────────────────────────────────────────
+// â”€â”€ WorkingMemory Class â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export class WorkingMemory {
   private entries: WorkingMemoryEntry[] = []
@@ -100,7 +84,7 @@ export class WorkingMemory {
   /** Current plan (mutable) */
   currentPlan = ""
 
-  /** Confidence level (0–1) in current approach */
+  /** Confidence level (0â€“1) in current approach */
   confidence = 0.5
 
   constructor(taskId: string, goal?: string, options: WorkingMemoryOptions = {}) {
@@ -236,7 +220,7 @@ export class WorkingMemory {
 
   /**
    * Export working memory as structured text for LLM context injection.
-   * This is the primary integration point — inject this into the system prompt.
+   * This is the primary integration point â€” inject this into the system prompt.
    */
   toContext(): string {
     if (this.entries.length === 0) return ""
@@ -244,7 +228,7 @@ export class WorkingMemory {
     const sections: string[] = []
 
     // Header
-    sections.push("[Working Memory — Scratchpad]")
+    sections.push("[Working Memory â€” Scratchpad]")
 
     if (this.currentGoal) {
       sections.push(`Goal: ${this.currentGoal}`)
@@ -372,7 +356,7 @@ export class WorkingMemory {
   }
 }
 
-// ── Type Labels ─────────────────────────────────────────────────────────────
+// â”€â”€ Type Labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TYPE_LABELS: Record<WorkingMemoryEntryType, string> = {
   thought: "Thoughts",
@@ -384,7 +368,7 @@ const TYPE_LABELS: Record<WorkingMemoryEntryType, string> = {
   partial_result: "Partial Results",
 }
 
-// ── Utilities ───────────────────────────────────────────────────────────────
+// â”€â”€ Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function clamp(value: number, min = 0, max = 1): number {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min))
@@ -450,7 +434,7 @@ function coerceWorkingEntry(value: unknown): WorkingMemoryEntry | null {
   }
 }
 
-// ── Exports ─────────────────────────────────────────────────────────────────
+// â”€â”€ Exports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const __workingMemoryTestUtils = {
   MAX_ENTRIES,

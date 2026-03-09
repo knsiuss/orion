@@ -1,3 +1,7 @@
+﻿/**
+ * @file hybrid-retriever.test.ts
+ * @description Unit/integration tests for memory\.__tests__\.hybrid-retriever.test.ts.
+ */
 import { describe, expect, it } from "vitest"
 
 import { HybridRetriever, __hybridRetrieverTestUtils } from "../hybrid-retriever.js"

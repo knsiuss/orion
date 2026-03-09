@@ -1,11 +1,9 @@
-/**
- * utils/index.ts — Barrel export for shared utility functions.
+﻿/**
+ * @file index.ts
+ * @description Barrel export for shared utility functions used across the EDITH codebase.
  *
- * Import from "utils" rather than individual files to keep import paths stable
- * if utilities are ever reorganized internally.
- *
- * @example
- *   import { sanitizeUserId, clamp, parseJsonSafe } from "../utils/index.js"
+ * ARCHITECTURE / INTEGRATION:
+ *   Re-exports from utils/string.ts, security helpers, and miscellaneous pure functions.
  */
 
 export { sanitizeUserId, clamp, parseJsonSafe } from "./string.js"

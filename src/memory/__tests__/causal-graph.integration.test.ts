@@ -1,3 +1,7 @@
+﻿/**
+ * @file causal-graph.integration.test.ts
+ * @description Unit/integration tests for memory\.__tests__\.causal-graph.integration.test.ts.
+ */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("../../database/index.js", () => ({

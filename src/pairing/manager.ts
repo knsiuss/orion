@@ -1,3 +1,11 @@
+﻿/**
+ * @file manager.ts
+ * @description PairingManager  orchestrates QR-code device pairing and token issuance.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Generates pairing QR codes, validates pairing attempts, and delegates device
+ *   storage to device-store.ts.
+ */
 import config from "../config.js"
 import { prisma } from "../database/index.js"
 import { createLogger } from "../logger.js"

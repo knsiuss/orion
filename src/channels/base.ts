@@ -1,3 +1,11 @@
+﻿/**
+ * @file base.ts
+ * @description BaseChannel interface  contract that every EDITH channel implementation must satisfy.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Implemented by TelegramChannel, DiscordChannel, WhatsAppChannel, WebChatChannel, etc.
+ *   Registered via ChannelManager in channels/manager.ts.
+ */
 export interface BaseChannel {
   readonly name: string
   start(): Promise<void>

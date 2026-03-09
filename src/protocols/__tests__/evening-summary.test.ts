@@ -1,3 +1,7 @@
+﻿/**
+ * @file evening-summary.test.ts
+ * @description Unit/integration tests for protocols\.__tests__\.evening-summary.test.ts.
+ */
 import { describe, it, expect, vi } from "vitest"
 
 vi.mock("../../logger.js", () => ({

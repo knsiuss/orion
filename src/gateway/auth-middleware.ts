@@ -1,8 +1,10 @@
-/**
- * Auth Middleware with Tenant Context (OC-12)
+﻿/**
+ * @file auth-middleware.ts
+ * @description Fastify authentication middleware with tenant-context injection (OC-12).
  *
- * Enhanced authentication that includes tenant/workspace context
- * for multi-tenant SaaS deployments.
+ * ARCHITECTURE / INTEGRATION:
+ *   Validates Bearer tokens, extracts userId/tenantId, and injects them into
+ *   the Fastify request object for downstream route handlers.
  */
 
 import { createLogger } from "../logger.js"

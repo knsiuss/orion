@@ -1,3 +1,7 @@
+﻿/**
+ * @file onboard.test.ts
+ * @description Unit/integration tests for cli\.__tests__\.onboard.test.ts.
+ */
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"

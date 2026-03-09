@@ -1,3 +1,7 @@
+﻿/**
+ * @file store.test.ts
+ * @description Unit/integration tests for memory\.__tests__\.store.test.ts.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import config from "../../config.js"

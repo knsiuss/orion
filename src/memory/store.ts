@@ -1,19 +1,10 @@
-/**
- * store.ts — Primary memory store and context builder.
+﻿/**
+ * @file store.ts
+ * @description Primary memory store  LanceDB vector store, context builder, and MemRL integration.
  *
- * Manages the LanceDB vector store for semantic memory retrieval and
- * coordinates with the following subsystems:
- *   - MemRL (memrl.ts)         — utility-aware two-phase retrieval
- *   - HiMeS (himes.ts)         — hierarchical memory session builder
- *   - ProMem (promem.ts)       — memory compression via LLM extraction
- *   - TemporalIndex            — time-based memory decay
- *
- * Embedding priority (auto-selected):
- *   Ollama (nomic-embed-text) → OpenAI (text-embedding-3-small) → hash-based fallback
- *
- * Vector dimension: 768 (nomic-embed-text / text-embedding-3-small compatible)
- *
- * @module memory/store
+ * ARCHITECTURE / INTEGRATION:
+ *   Central hub for all memory persistence: embed, save, search, and buildContext.
+ *   Used throughout the codebase via the exported `memory` singleton.
  */
 
 import { randomUUID } from "node:crypto"
@@ -37,7 +28,7 @@ const log = createLogger("memory.store")
 
 const VECTOR_DIMENSION = 768
 
-/** Maximum allowed content length for a single memory entry (50 000 chars ≈ ~12 500 tokens). */
+/** Maximum allowed content length for a single memory entry (50 000 chars â‰ˆ ~12 500 tokens). */
 const MAX_MEMORY_CONTENT_LENGTH = 50_000
 const LEGACY_VECTOR_DIMENSION = 1536
 const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
