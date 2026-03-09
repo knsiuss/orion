@@ -6,11 +6,12 @@
  * ARCHITECTURE / INTEGRATION:
  *   Used by main.ts, onboard.ts, and doctor.ts for consistent CLI UX.
  *   chalk v5 (pure ESM) provides ANSI color support.
+ *   tagline.ts provides randomised/configurable startup messages.
  */
 
 import chalk from "chalk"
 
-// ─── Color palette ───────────────────────────────────────────────────────────
+import { pickTagline, type TaglineMode } from "./tagline.js"
 
 /** Reusable color helpers for consistent CLI branding. */
 export const colors = {
@@ -23,12 +24,11 @@ export const colors = {
   label: chalk.bold,
 } as const
 
-// ─── Status icons ────────────────────────────────────────────────────────────
-
 /**
- * Returns a colored status icon for the given level.
+ * Returns a colored status marker for the given level.
+ * Uses Unicode symbols that render cleanly in modern terminals.
  * @param level - "ok" | "warn" | "error"
- * @returns Colored status character string
+ * @returns Colored status marker string
  */
 export function statusIcon(level: "ok" | "warn" | "error"): string {
   switch (level) {
@@ -41,39 +41,44 @@ export function statusIcon(level: "ok" | "warn" | "error"): string {
   }
 }
 
-// ─── ASCII banner ────────────────────────────────────────────────────────────
-
-/** EDITH ASCII art (fits 80-col terminal). */
+/** EDITH block-font ASCII art (figlet "Block", 80-col safe). */
 const ASCII_ART = `
-  ███████╗██████╗ ██╗████████╗██╗  ██╗
-  ██╔════╝██╔══██╗██║╚══██╔══╝██║  ██║
-  █████╗  ██║  ██║██║   ██║   ███████║
-  ██╔══╝  ██║  ██║██║   ██║   ██╔══██║
-  ███████╗██████╔╝██║   ██║   ██║  ██║
-  ╚══════╝╚═════╝ ╚═╝   ╚═╝   ╚═╝  ╚═╝`
+███████╗██████╗ ██╗████████╗██╗  ██╗
+██╔════╝██╔══██╗██║╚══██╔══╝██║  ██║
+█████╗  ██║  ██║██║   ██║   ███████║
+██╔══╝  ██║  ██║██║   ██║   ██╔══██║
+███████╗██████╔╝██║   ██║   ██║  ██║
+╚══════╝╚═════╝ ╚═╝   ╚═╝   ╚═╝  ╚═╝`
 
-/**
- * Prints the EDITH ASCII art banner with version tagline.
- * @param options - Optional subtitle to display below the art
- */
-export function printBanner(options?: { subtitle?: string }): void {
-  const version = "v0.1.0"
-  const tagline = options?.subtitle
-    ? `${version}  ·  ${options.subtitle}`
-    : `${version}  ·  Persistent AI Companion`
-
-  process.stdout.write(colors.brand(ASCII_ART) + "\n")
-  process.stdout.write(`  ${colors.dim(tagline)}\n\n`)
+/** Options accepted by {@link printBanner}. */
+export interface BannerOptions {
+  /** Override subtitle shown below the art. */
+  subtitle?: string
+  /** Tagline display mode: "default" | "random" | "off". Default: "default". */
+  taglineMode?: TaglineMode
 }
 
-// ─── Divider ─────────────────────────────────────────────────────────────────
+/**
+ * Prints the EDITH block-font banner with version and optional tagline.
+ * @param options - Optional subtitle and tagline mode
+ */
+export function printBanner(options?: BannerOptions): void {
+  const version = "v0.1.0"
+  const subtitle = options?.subtitle ?? "Persistent AI Companion"
+  const tagline = pickTagline({ mode: options?.taglineMode ?? "default" })
 
-/** Prints a horizontal divider line (60 chars). */
+  process.stdout.write(colors.brand(ASCII_ART) + "\n")
+  process.stdout.write(`  ${colors.dim(version)} ${colors.dim("|")} ${colors.accent(subtitle)}\n`)
+  if (tagline) {
+    process.stdout.write(`  ${colors.dim(tagline)}\n`)
+  }
+  process.stdout.write("\n")
+}
+
+/** Prints a horizontal divider line (60 box-drawing chars). */
 export function printDivider(): void {
   process.stdout.write(colors.dim("─".repeat(60)) + "\n")
 }
-
-// ─── Status box ──────────────────────────────────────────────────────────────
 
 /** A single status item within a section. */
 export interface StatusItem {
@@ -104,13 +109,11 @@ export function printStatusBox(sections: StatusSection[]): void {
   }
 }
 
-// ─── Spinner ─────────────────────────────────────────────────────────────────
-
 /** Whether stdout is a TTY (interactive terminal). */
 const isTTY = Boolean(process.stdout.isTTY)
 
 /** Spinner animation frames. */
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+const SPINNER_FRAMES = ["-", "\\", "|", "/"]
 
 /**
  * Minimal spinner for CLI progress indication. Only animates when stdout is a TTY;
