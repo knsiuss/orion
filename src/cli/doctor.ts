@@ -116,6 +116,44 @@ async function runChecks(): Promise<CheckResult[]> {
     results.push({ level: "ok", label: "WhatsApp", detail: "Enabled" })
   }
 
+  // Check if at least one LLM API key is configured
+  const hasAnyKey = apiChecks.some((item) => item.value.trim().length > 0)
+  if (!hasAnyKey) {
+    results.push({ level: "error", label: "LLM Provider", detail: "No API key configured — EDITH needs at least one" })
+  }
+
+  // Check workspace/SOUL.md exists
+  try {
+    await fs.access("workspace/SOUL.md")
+    results.push({ level: "ok", label: "SOUL.md", detail: "Found workspace/SOUL.md" })
+  } catch {
+    results.push({ level: "error", label: "SOUL.md", detail: "Missing workspace/SOUL.md — persona file required" })
+  }
+
+  // Check .env file exists
+  try {
+    await fs.access(".env")
+    results.push({ level: "ok", label: ".env", detail: "Found .env file" })
+  } catch {
+    results.push({ level: "warn", label: ".env", detail: "No .env file — using environment defaults" })
+  }
+
+  // Check if gateway is reachable (if port is in use, it might be running)
+  if (!gatewayFree) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${config.GATEWAY_PORT}/health`, {
+        signal: AbortSignal.timeout(2000),
+      })
+      if (r.ok) {
+        results.push({ level: "ok", label: "Gateway Health", detail: "Gateway responding at /health" })
+      } else {
+        results.push({ level: "warn", label: "Gateway Health", detail: `Gateway returned ${r.status}` })
+      }
+    } catch {
+      results.push({ level: "warn", label: "Gateway Health", detail: "Port in use but /health unreachable" })
+    }
+  }
+
   return results
 }
 
@@ -123,7 +161,7 @@ async function runChecks(): Promise<CheckResult[]> {
 function groupResults(results: CheckResult[]): StatusSection[] {
   const storageLabels = new Set(["Database", "LanceDB"])
   const apiLabels = new Set(["Anthropic", "OpenAI", "Gemini", "Groq", "OpenRouter"])
-  const networkLabels = new Set(["Gateway Port", "WebChat Port"])
+  const networkLabels = new Set(["Gateway Port", "WebChat Port", "Gateway Health"])
 
   const toItem = (r: CheckResult): StatusItem => ({
     label: r.label,

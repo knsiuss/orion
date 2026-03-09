@@ -11,7 +11,7 @@
     "all": "tsx src/main.ts --mode all",
     "gateway": "tsx src/main.ts --mode gateway",
     "gateway:watch": "tsx watch src/main.ts --mode gateway",
-    "build": "tsup src/main.ts --format esm --dts --external playwright",
+    "build": "tsup",
     "start": "node dist/main.js",
     "test": "vitest run",
     "test:unit": "vitest run -c vitest.unit.config.ts",
