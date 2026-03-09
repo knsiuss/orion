@@ -7,17 +7,80 @@ import os from "node:os"
 import net from "node:net"
 import { spawn } from "node:child_process"
 import { fileURLToPath } from "node:url"
+import chalk from "chalk"
 
 const CLI_CONFIG_DIR_NAME = ".edith"
 const CLI_CONFIG_FILE_NAME = "cli.json"
 const CLI_PROFILES_DIR_NAME = "profiles"
 const DEFAULT_PROFILE_NAME = "default"
 const DEV_PROFILE_NAME = "dev"
-const LOCAL_PACKAGE_NAME = "edith"
+const LOCAL_PACKAGE_NAMES = new Set(["edith", "edith-ai"])
 const SUPPORTED_CHANNELS = ["telegram", "discord", "whatsapp", "webchat"]
 
 // Resolved at startup: the npm package root is one directory above this bin/ file.
 const _EDITH_PKG_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+
+// ── Branding ────────────────────────────────────────────────────────────────
+
+const brand   = chalk.cyan
+const success = chalk.green
+const warn    = chalk.yellow
+const error   = chalk.red
+const dim     = chalk.gray
+const accent  = chalk.magenta
+const label   = chalk.bold
+const heading = chalk.bold.cyan
+
+const ASCII_BANNER = `
+███████╗██████╗ ██╗████████╗██╗  ██╗
+██╔════╝██╔══██╗██║╚══██╔══╝██║  ██║
+█████╗  ██║  ██║██║   ██║   ███████║
+██╔══╝  ██║  ██║██║   ██║   ██╔══██║
+███████╗██████╔╝██║   ██║   ██║  ██║
+╚══════╝╚═════╝ ╚═╝   ╚═╝   ╚═╝  ╚═╝`
+
+const CLI_TAGLINES = [
+  "Always watching, never sleeping. Morning, boss.",
+  "Your digital world just got a little smarter.",
+  "Running on your hardware. Judging nothing (mostly).",
+  "Half butler, half debugger, full persistence.",
+  "Memory loaded. Context restored. Ready when you are.",
+  "Runs on curiosity and good error messages.",
+  "Built for persistence. Designed for trust.",
+  "Making 'I'll automate that later' happen right now.",
+  "Context window: full. Motivation: healthy. Let's go.",
+  "I'm the middleware between your ambition and your attention span.",
+]
+
+function pickCliTagline() {
+  return CLI_TAGLINES[Math.floor(Math.random() * CLI_TAGLINES.length)]
+}
+
+function getCliVersion() {
+  try {
+    const pkg = JSON.parse(fsSync.readFileSync(path.join(_EDITH_PKG_DIR, "package.json"), "utf-8"))
+    return pkg.version ?? "0.0.0"
+  } catch {
+    return "0.0.0"
+  }
+}
+
+function printCliBanner(options = {}) {
+  const version = `v${getCliVersion()}`
+  const subtitle = options.subtitle ?? "Persistent AI Companion"
+  const tagline = options.tagline ?? pickCliTagline()
+
+  process.stdout.write(brand(ASCII_BANNER) + "\n")
+  process.stdout.write(`  ${dim(version)} ${dim("|")} ${accent(subtitle)}\n`)
+  if (tagline) {
+    process.stdout.write(`  ${dim(tagline)}\n`)
+  }
+  process.stdout.write("\n")
+}
+
+function printCliDivider() {
+  process.stdout.write(dim("─".repeat(60)) + "\n")
+}
 
 function testIcon(level) {
   if (level === "ok") return "OK"
@@ -236,47 +299,64 @@ async function runPrismaArgs(repoDir, prismaArgs, env) {
 }
 
 function printHelp() {
-  console.log("EDITH CLI (OpenClaw-style wrapper)")
-  console.log("==================================")
-  console.log("")
-  console.log("Usage:")
-  console.log("  edith                           Smart entrypoint (first-run: launches setup wizard)")
-  console.log("  edith link <path-to-EDITH>        Link your EDITH repo once")
-  console.log("  edith repo                        Show linked repo path")
-  console.log("  edith profile                     Show active profile path")
-  console.log("  edith profile init                Create ~/.edith profile files (env/workspace/state)")
-  console.log("  edith setup                       OpenClaw-style setup alias (quickstart wizard)")
-  console.log("  edith init                        Bootstrap profile + run quickstart wizard")
-  console.log("  edith quickstart                  Run onboarding wizard")
-  console.log("  edith configure                   Re-run onboarding wizard (configure alias)")
-  console.log("  edith dashboard                   Start gateway and print dashboard URL")
-  console.log("  edith status                      Readiness/status check (self-test alias)")
-  console.log("  edith logs [all|gateway]          Stream live logs by starting a target mode")
-  console.log("  edith channels login ...          OpenClaw-style channel login namespace (WhatsApp QR / Cloud)")
-  console.log("  edith channels status [--channel] Channel readiness/status alias")
-  console.log("  edith channels logs [--channel]   Channel log entrypoint (live logs fallback)")
-  console.log("  edith self-test                   Check repo/profile/env readiness (beginner-friendly)")
-  console.log("  edith wa scan                     WhatsApp QR setup (OpenClaw-style)")
-  console.log("  edith wa cloud                    WhatsApp Cloud API setup")
-  console.log("  edith all                         Start EDITH (gateway + channels + CLI)")
-  console.log("  edith gateway                     Start gateway mode")
-  console.log("  edith doctor                      Run doctor checks")
-  console.log("  edith onboard -- <args>           Pass raw args to onboard CLI")
-  console.log("")
-  console.log("Options:")
-  console.log("  --repo <path>                     Override linked repo for this command")
-  console.log("  --profile <name|path>             Use a named profile (~/.edith/profiles/<name>) or an explicit path")
-  console.log("  --dev                             Use isolated dev profile (~/.edith/profiles/dev)")
-  console.log("  --help, -h                        Show help")
-  console.log("")
-  console.log("Examples:")
-  console.log("  edith link C:\\Users\\you\\EDITH")
-  console.log("  edith profile init")
-  console.log("  edith --profile work wa scan --yes --provider groq")
-  console.log("  edith channels login --channel whatsapp --non-interactive --provider groq")
-  console.log("  edith --dev dashboard")
-  console.log("  edith wa scan")
-  console.log("  edith all")
+  printCliBanner({ subtitle: "Persistent AI Companion" })
+  printCliDivider()
+
+  // ── Getting Started ─────────────────────────────────────────────────
+  process.stdout.write(`  ${heading("Getting Started")}\n`)
+  process.stdout.write(`    ${brand("edith onboard")}                     ${dim("Interactive setup wizard (start here)")}\n`)
+  process.stdout.write(`    ${brand("edith")}                             ${dim("Smart entrypoint (auto-launches wizard on first run)")}\n`)
+  process.stdout.write(`    ${brand("edith all")}                         ${dim("Start EDITH (gateway + all channels)")}\n`)
+  process.stdout.write("\n")
+
+  // ── Run ─────────────────────────────────────────────────────────────
+  process.stdout.write(`  ${heading("Run")}\n`)
+  process.stdout.write(`    ${brand("edith gateway")}                     ${dim("Start gateway only")}\n`)
+  process.stdout.write(`    ${brand("edith dashboard --open")}            ${dim("Start gateway + open dashboard in browser")}\n`)
+  process.stdout.write("\n")
+
+  // ── Diagnostics ─────────────────────────────────────────────────────
+  process.stdout.write(`  ${heading("Diagnostics")}\n`)
+  process.stdout.write(`    ${brand("edith status")}                      ${dim("Readiness / health check")}\n`)
+  process.stdout.write(`    ${brand("edith doctor")}                      ${dim("Detailed health diagnostics")}\n`)
+  process.stdout.write("\n")
+
+  // ── Setup ───────────────────────────────────────────────────────────
+  process.stdout.write(`  ${heading("Setup")}\n`)
+  process.stdout.write(`    ${brand("edith link")} ${dim("<path>")}                  ${dim("Link your EDITH repo (required once)")}\n`)
+  process.stdout.write(`    ${brand("edith profile init")}                ${dim("Bootstrap profile files (env/workspace/state)")}\n`)
+  process.stdout.write("\n")
+
+  // ── Channels ────────────────────────────────────────────────────────
+  process.stdout.write(`  ${heading("Channels")}\n`)
+  process.stdout.write(`    ${brand("edith channels login")} ${dim("--channel whatsapp [--mode scan|cloud]")}\n`)
+  process.stdout.write(`    ${brand("edith channels status")} ${dim("[--channel <name>]")}\n`)
+  process.stdout.write(`    ${brand("edith wa scan")}                     ${dim("WhatsApp QR scan shortcut")}\n`)
+  process.stdout.write(`    ${brand("edith wa cloud")}                    ${dim("WhatsApp Cloud API shortcut")}\n`)
+  process.stdout.write("\n")
+
+  // ── Aliases ─────────────────────────────────────────────────────────
+  process.stdout.write(`  ${heading("Aliases")}\n`)
+  process.stdout.write(`    ${dim("edith onboarding / wizard / setup / configure / quickstart → edith onboard")}\n`)
+  process.stdout.write(`    ${dim("edith status → edith self-test")}\n`)
+  process.stdout.write("\n")
+
+  // ── Options ─────────────────────────────────────────────────────────
+  process.stdout.write(`  ${heading("Options")}\n`)
+  process.stdout.write(`    ${brand("--repo")} ${dim("<path>")}                     ${dim("Override linked repo for this command")}\n`)
+  process.stdout.write(`    ${brand("--profile")} ${dim("<name|path>")}             ${dim("Use a named or explicit profile path")}\n`)
+  process.stdout.write(`    ${brand("--dev")}                             ${dim("Use isolated dev profile (~/.edith/profiles/dev)")}\n`)
+  process.stdout.write(`    ${brand("--help, -h")}                        ${dim("Show this help")}\n`)
+  process.stdout.write("\n")
+
+  // ── Workflow Example ────────────────────────────────────────────────
+  printCliDivider()
+  process.stdout.write(`  ${label("Recommended workflow:")}\n`)
+  process.stdout.write(`    ${dim("1.")} ${accent("edith link C:\\Users\\you\\EDITH")}   ${dim("# once")}\n`)
+  process.stdout.write(`    ${dim("2.")} ${accent("edith onboard")}                    ${dim("# interactive setup")}\n`)
+  process.stdout.write(`    ${dim("3.")} ${accent("edith status")}                     ${dim("# verify everything is green")}\n`)
+  process.stdout.write(`    ${dim("4.")} ${accent("edith all")}                        ${dim("# start EDITH")}\n`)
+  process.stdout.write("\n")
 }
 
 function normalizePathInput(value) {
@@ -586,7 +666,7 @@ export async function isEDITHRepoDir(repoDir, fsModule = fs) {
   try {
     const raw = await fsModule.readFile(packageJsonPath, "utf-8")
     const parsed = JSON.parse(raw)
-    return parsed?.name === LOCAL_PACKAGE_NAME
+    return typeof parsed?.name === "string" && LOCAL_PACKAGE_NAMES.has(parsed.name)
   } catch {
     return false
   }
@@ -677,22 +757,7 @@ export async function ensureProfileBootstrap(repoDir, profileDir) {
       throw error
     }
 
-    const repoEnvExample = path.join(repoDir, ".env.example")
-    let baseContent = ""
-    try {
-      baseContent = await fs.readFile(repoEnvExample, "utf-8")
-    } catch {
-      baseContent = ""
-    }
-
-    const generated = [
-      baseContent.replace(/\r\n/g, "\n").replace(/\n+$/g, ""),
-      baseContent.trim().length > 0 ? "" : "",
-      buildProfileBootstrapEnv(paths).trim(),
-      "",
-    ].join("\n").replace(/\n{3,}/g, "\n\n")
-
-    await fs.writeFile(paths.envPath, generated, "utf-8")
+    await fs.writeFile(paths.envPath, `${buildProfileBootstrapEnv(paths).trim()}\n`, "utf-8")
   }
 
   return paths
@@ -1604,6 +1669,116 @@ function summarizeMigrateOutput(stdout, stderr, exitCode = 0) {
   return "Profile DB migration check completed."
 }
 
+function summarizeDbPushOutput(stdout, stderr, exitCode = 0) {
+  const combined = `${stdout ?? ""}\n${stderr ?? ""}`
+  if (exitCode !== 0) {
+    return "Profile DB schema sync failed."
+  }
+  if (/already in sync/i.test(combined)) {
+    return "Profile DB schema is already in sync."
+  }
+  if (/database is now in sync/i.test(combined)) {
+    return "Profile DB schema synced with Prisma db push."
+  }
+  return "Profile DB schema sync completed."
+}
+
+function isProfileScopedSqliteDb(profileDir, databaseUrl) {
+  const dbPath = parseFileDatabaseUrlPath(databaseUrl)
+  if (!dbPath) {
+    return false
+  }
+  const normalizedProfileDir = path.resolve(profileDir)
+  const normalizedDbPath = path.resolve(dbPath)
+  return normalizedDbPath.startsWith(normalizedProfileDir)
+}
+
+async function ensureSqliteDbFileExists(databaseUrl) {
+  const dbPath = parseFileDatabaseUrlPath(databaseUrl)
+  if (!dbPath) {
+    return
+  }
+
+  await fs.mkdir(path.dirname(dbPath), { recursive: true })
+  try {
+    await fs.access(dbPath)
+  } catch (error) {
+    if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
+      throw error
+    }
+    await fs.writeFile(dbPath, "")
+  }
+}
+
+function shouldFallbackToDbPush(profileDir, databaseUrl, stderr = "", stdout = "") {
+  if (!isProfileScopedSqliteDb(profileDir, databaseUrl)) {
+    return false
+  }
+
+  const combined = `${stderr ?? ""}\n${stdout ?? ""}`
+  return (
+    /Schema engine error/i.test(combined)
+    || /no such table:\s*MemoryNode/i.test(combined)
+    || /\bP3009\b|\bP3018\b/i.test(combined)
+  )
+}
+
+async function runProfileDbSchemaSync(repoDir, profileDir, databaseUrl) {
+  await ensureSqliteDbFileExists(databaseUrl)
+
+  const migrateResult = await runPrismaArgs(repoDir, ["migrate", "deploy"], {
+    ...buildEDITHChildEnv(process.env, profileDir),
+    DATABASE_URL: databaseUrl,
+    PRISMA_HIDE_UPDATE_MESSAGE: "1",
+  })
+
+  if (migrateResult.code === 0) {
+    return {
+      ok: true,
+      strategy: "migrate",
+      message: summarizeMigrateOutput(migrateResult.stdout, migrateResult.stderr, migrateResult.code),
+      stdout: migrateResult.stdout,
+      stderr: migrateResult.stderr,
+      exitCode: migrateResult.code,
+      recoveryHint: null,
+    }
+  }
+
+  if (!shouldFallbackToDbPush(profileDir, databaseUrl, migrateResult.stderr, migrateResult.stdout)) {
+    return {
+      ok: false,
+      strategy: "migrate",
+      message: summarizeMigrateOutput(migrateResult.stdout, migrateResult.stderr, migrateResult.code),
+      stdout: migrateResult.stdout,
+      stderr: migrateResult.stderr,
+      exitCode: migrateResult.code,
+      recoveryHint: buildMigrationFailureRecoveryHint(profileDir, databaseUrl, migrateResult.stderr, migrateResult.stdout),
+    }
+  }
+
+  const pushResult = await runPrismaArgs(repoDir, ["db", "push", "--skip-generate"], {
+    ...buildEDITHChildEnv(process.env, profileDir),
+    DATABASE_URL: databaseUrl,
+    PRISMA_HIDE_UPDATE_MESSAGE: "1",
+  })
+
+  const combinedStdout = [migrateResult.stdout, pushResult.stdout].filter(Boolean).join("\n")
+  const combinedStderr = [migrateResult.stderr, pushResult.stderr].filter(Boolean).join("\n")
+  const ok = pushResult.code === 0
+
+  return {
+    ok,
+    strategy: ok ? "dbpush" : "dbpush-failed",
+    message: ok
+      ? "Profile DB migrations could not be replayed cleanly; synced schema with Prisma db push for this local profile."
+      : summarizeDbPushOutput(pushResult.stdout, pushResult.stderr, pushResult.code),
+    stdout: combinedStdout,
+    stderr: combinedStderr,
+    exitCode: pushResult.code,
+    recoveryHint: ok ? null : buildMigrationFailureRecoveryHint(profileDir, databaseUrl, combinedStderr, combinedStdout),
+  }
+}
+
 async function maybeAutoMigrateProfileDb(repoDir, profileDir, triggerCommand) {
   const { envMap } = await loadProfileEnvMap(profileDir)
   const databaseUrl = (envMap.DATABASE_URL ?? "").trim()
@@ -1612,20 +1787,16 @@ async function maybeAutoMigrateProfileDb(repoDir, profileDir, triggerCommand) {
   }
 
   console.log(`Ensuring profile database schema is up to date before \`edith ${triggerCommand}\`...`)
-  const result = await runPrismaArgs(repoDir, ["migrate", "deploy"], {
-    ...buildEDITHChildEnv(process.env, profileDir),
-    DATABASE_URL: databaseUrl,
-    PRISMA_HIDE_UPDATE_MESSAGE: "1",
-  })
+  const result = await runProfileDbSchemaSync(repoDir, profileDir, databaseUrl)
 
-  if (result.code !== 0) {
+  if (!result.ok) {
     const preview = (result.stderr || result.stdout || "").trim()
-    const hint = buildMigrationFailureRecoveryHint(profileDir, databaseUrl, result.stderr, result.stdout)
+    const hint = result.recoveryHint
     const suffix = hint ? `\n\nRecovery hint:\n${hint}` : ""
     throw new Error(`Profile DB migration failed before \`${triggerCommand}\`.\n${preview}${suffix}`)
   }
 
-  console.log(summarizeMigrateOutput(result.stdout, result.stderr, result.code))
+  console.log(result.message)
 }
 
 async function runProfileDbMigrationPreflight(repoDir, profileDir, triggerCommand) {
@@ -1639,24 +1810,15 @@ async function runProfileDbMigrationPreflight(repoDir, profileDir, triggerComman
     }
   }
 
-  const result = await runPrismaArgs(repoDir, ["migrate", "deploy"], {
-    ...buildEDITHChildEnv(process.env, profileDir),
-    DATABASE_URL: databaseUrl,
-    PRISMA_HIDE_UPDATE_MESSAGE: "1",
-  })
-
-  const summary = summarizeMigrateOutput(result.stdout, result.stderr, result.code)
-  const recoveryHint = result.code === 0
-    ? null
-    : buildMigrationFailureRecoveryHint(profileDir, databaseUrl, result.stderr, result.stdout)
+  const result = await runProfileDbSchemaSync(repoDir, profileDir, databaseUrl)
   return {
     attempted: true,
-    ok: result.code === 0,
-    exitCode: result.code,
-    message: summary,
+    ok: result.ok,
+    exitCode: result.exitCode,
+    message: result.message,
     stdout: result.stdout,
     stderr: result.stderr,
-    recoveryHint,
+    recoveryHint: result.recoveryHint,
   }
 }
 
@@ -1796,8 +1958,9 @@ async function handleSelfTest(repoOverride, profileOverride, devMode = false, re
   if (errors === 0 && !migrationFailed) {
     console.log("")
     console.log("Next:")
-    console.log("- `edith wa scan` (WhatsApp QR setup)")
-    console.log("- `edith all` (start EDITH)")
+    console.log("- `edith dashboard --open` (start the dashboard / gateway first)")
+    console.log("- `edith channels login --channel whatsapp` (optional QR login)")
+    console.log("- `edith all` (start everything after status is clean)")
   }
 
   process.exit(errors > 0 || migrationFailed ? 1 : 0)
@@ -1829,23 +1992,22 @@ async function handleDefaultEntry(repoOverride, profileOverride, devMode = false
   let resolved
   try {
     resolved = await resolveRepoDirWithAutoDetect(repoOverride)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
     if (/No EDITH repo linked/i.test(message)) {
-      console.log("EDITH CLI")
-      console.log("=========")
-      console.log("")
-      console.log("No linked EDITH repo found yet.")
-      console.log("OpenClaw-style first run needs a repo path one time (until standalone package runtime lands).")
-      console.log("")
-      console.log("Next:")
-      console.log("- `edith link C:\\path\\to\\EDITH`")
-      console.log("- then run `edith` again (it will launch setup wizard if profile is not configured)")
-      console.log("")
-      console.log("Tip: if you run this inside the repo, use `edith link .`")
+      printCliBanner({ subtitle: "First-Time Setup" })
+      printCliDivider()
+      process.stdout.write(`  ${warn("⚠")} ${label("No linked EDITH repo found.")}\n`)
+      process.stdout.write("\n")
+      process.stdout.write(`  ${heading("Get started:")}\n`)
+      process.stdout.write(`    ${dim("1.")} ${accent("edith link C:\\path\\to\\EDITH")}   ${dim("# point to your EDITH repo once")}\n`)
+      process.stdout.write(`    ${dim("2.")} ${accent("edith onboard")}                   ${dim("# then run the setup wizard")}\n`)
+      process.stdout.write("\n")
+      process.stdout.write(`  ${dim("Tip: if you are already inside the repo directory, use")} ${brand("edith link .")}\n`)
+      process.stdout.write("\n")
       return
     }
-    throw error
+    throw err
   }
 
   const { repoDir, autoLinked } = resolved
@@ -1854,28 +2016,40 @@ async function handleDefaultEntry(repoOverride, profileOverride, devMode = false
 
   if (autoLinked && !repoOverride && !profileOverride) {
     await saveCliConfig({ ...(await loadCliConfig()), repoDir, profileDir })
-    console.log(`Auto-linked EDITH repo: ${repoDir}`)
-    console.log(`Active profile: ${profileDir}`)
-    console.log("")
+    printCliBanner()
+    process.stdout.write(`  ${success("✓")} ${label("Auto-linked EDITH repo:")} ${dim(repoDir)}\n`)
+    process.stdout.write(`  ${success("✓")} ${label("Active profile:")} ${dim(profileDir)}\n`)
+    process.stdout.write("\n")
   }
 
   const { envMap } = await loadProfileEnvMap(profileDir)
   if (!isProfileEnvLikelyConfigured(envMap)) {
-    console.log("No provider/channel setup detected for the active profile.")
-    console.log("Launching setup wizard (OpenClaw-style first run)...")
+    printCliBanner({ subtitle: "First Run" })
+    process.stdout.write(`  ${warn("⚠")} No provider/channel setup detected for the active profile.\n`)
+    process.stdout.write(`  ${brand("→")} Launching setup wizard...\n`)
+    process.stdout.write("\n")
     await runPnpmScript(repoDir, profileDir, "quickstart")
     return
   }
 
-  console.log("EDITH CLI is ready.")
-  console.log(`Repo:    ${repoDir}`)
-  console.log(`Profile: ${profileDir}`)
-  console.log("")
-  console.log("Next:")
-  console.log("- `edith dashboard` (web dashboard / gateway)")
-  console.log("- `edith channels login --channel whatsapp` (QR login)")
-  console.log("- `edith all` (run EDITH + channels)")
-  console.log("- `edith status` (readiness check)")
+  if (!autoLinked) {
+    printCliBanner()
+  }
+  printCliDivider()
+  process.stdout.write(`  ${success("✓")} ${label("EDITH is ready.")}\n`)
+  process.stdout.write("\n")
+
+  process.stdout.write(`  ${heading("Start here:")}\n`)
+  process.stdout.write(`    ${dim("1.")} ${brand("edith status")}              ${dim("— verify everything is green")}\n`)
+  process.stdout.write(`    ${dim("2.")} ${brand("edith dashboard --open")}    ${dim("— open the dashboard")}\n`)
+  process.stdout.write(`    ${dim("3.")} ${brand("edith all")}                 ${dim("— start EDITH")}\n`)
+  process.stdout.write("\n")
+
+  process.stdout.write(`  ${heading("Optional:")}\n`)
+  process.stdout.write(`    ${brand("edith channels login")} ${dim("--channel whatsapp")}   ${dim("— connect WhatsApp")}\n`)
+  process.stdout.write(`    ${brand("edith onboard")}                             ${dim("— re-run setup wizard")}\n`)
+  process.stdout.write(`    ${brand("edith doctor")}                              ${dim("— detailed health check")}\n`)
+  process.stdout.write("\n")
 }
 
 async function resolveRepoDir(repoOverride) {
@@ -2442,10 +2616,8 @@ async function handleCommand(repoOverride, profileOverride, devMode, positionals
     return
   }
 
-  if (command === "onboard") {
-    const delimiterIndex = rest.indexOf("--")
-    const forwardArgs = delimiterIndex >= 0 ? rest.slice(delimiterIndex + 1) : rest
-    await runPnpmRaw(repoDir, profileDir, ["onboard", "--", ...forwardArgs])
+  if (command === "onboard" || command === "onboarding" || command === "wizard") {
+    await runPnpmScript(repoDir, profileDir, "quickstart", rest)
     return
   }
 
