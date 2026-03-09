@@ -11,7 +11,7 @@
  */
 import crypto from "node:crypto"
 
-import { generateText } from "ai"
+import { generateText, type LanguageModel } from "ai"
 
 import { orchestrator } from "../engines/orchestrator.js"
 import { edithTools } from "./tools.js"
@@ -113,9 +113,9 @@ export class AgentRunner {
       let output = ""
       try {
         const result = await generateText({
-          model: engine as any,
+          model: engine as unknown as LanguageModel,
           system: systemPrompt,
-          ...(Object.keys(reviewedTools).length > 0 ? { tools: reviewedTools as any } : {}),
+          ...(Object.keys(reviewedTools).length > 0 ? { tools: reviewedTools as unknown as Parameters<typeof generateText>[0]["tools"] } : {}),
           prompt,
         })
         output = result.text

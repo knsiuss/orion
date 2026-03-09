@@ -67,7 +67,7 @@ export class MultiUserManager {
     channel: string
   ): Promise<UserProfile> {
     if (this.cache.has(userId)) {
-      const user = this.cache.get(userId)!
+      const user = this.cache.get(userId) as UserProfile
       user.lastSeen = new Date()
       return user
     }

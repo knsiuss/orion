@@ -152,6 +152,15 @@ vi.mock("../../config.js", () => ({
   default: { DEFAULT_USER_ID: "test-user" },
 }))
 
+vi.mock("../user-channel-prefs.js", () => ({
+  userChannelPrefs: {
+    resolveChannelOrder: vi.fn().mockResolvedValue(["telegram", "discord", "whatsapp"]),
+  },
+  mergeChannelOrder: vi.fn((userOrder: string[], globalOrder: string[]) =>
+    userOrder.length > 0 ? userOrder : globalOrder,
+  ),
+}))
+
 vi.mock("../../permissions/sandbox.js", () => ({
   sandbox: { setChannelManager: vi.fn() },
 }))

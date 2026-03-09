@@ -98,7 +98,7 @@ function resolveReferenceId(emotion?: EmotionLabel): string {
     emotionModelCache = parseEmotionModels(config.FISH_AUDIO_EMOTION_MODELS)
   }
   if (emotion && emotionModelCache.has(emotion)) {
-    return emotionModelCache.get(emotion)!
+    return emotionModelCache.get(emotion) ?? config.FISH_AUDIO_MODEL_ID
   }
   return config.FISH_AUDIO_MODEL_ID
 }
@@ -204,10 +204,10 @@ export async function fishAudioSpeakStreaming(
 
   // Fish Audio WebSocket streaming uses msgpack protocol.
   // Attempt dynamic import of msgpack-lite; fall back to HTTP batch if absent.
-  let msgpack: { encode: (obj: unknown) => Uint8Array; decode: (buf: Uint8Array) => unknown } | null = null
+  type MsgpackModule = { encode: (obj: unknown) => Uint8Array; decode: (buf: Uint8Array) => unknown }
+  let msgpack: MsgpackModule | null = null
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mod = await (new Function("m", "return import(m)"))("msgpack-lite") as any
+    const mod = await (new Function("m", "return import(m)"))("msgpack-lite") as MsgpackModule & { default?: MsgpackModule }
     msgpack = mod.default ?? mod
   } catch {
     log.debug("msgpack-lite not installed — falling back to Fish Audio HTTP batch")
@@ -223,15 +223,21 @@ export async function fishAudioSpeakStreaming(
     return false
   }
 
+  // After the null guard above, TypeScript narrows `msgpack` to MsgpackModule.
+  // Capture into a const so the narrowed type is preserved inside WS callbacks.
+  const msgpackImpl = msgpack
+
   const referenceId = resolveReferenceId(emotion)
   const payload = buildTextPayload(text, emotion)
 
   return new Promise<boolean>((resolve) => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ws = new (globalThis as any).WebSocket(`wss://api.fish.audio/v1/tts/live`, [
-        "binary",
-      ]) as WebSocket
+      // Node 18+ exposes WebSocket on globalThis; narrowed via unknown to avoid `as any`
+      type GlobalWebSocket = new (url: string, protocols: string[]) => WebSocket
+      const ws = new (globalThis as unknown as { WebSocket: GlobalWebSocket }).WebSocket(
+        `wss://api.fish.audio/v1/tts/live`,
+        ["binary"],
+      )
 
       let started = false
 
@@ -246,7 +252,7 @@ export async function fishAudioSpeakStreaming(
             ...(referenceId && referenceId !== "s1" ? { reference_id: referenceId } : {}),
           },
         }
-        ws.send(msgpack!.encode(initMsg))
+        ws.send(msgpackImpl.encode(initMsg))
         started = true
       })
 
@@ -262,7 +268,7 @@ export async function fishAudioSpeakStreaming(
 
       ws.addEventListener("message", (event: MessageEvent) => {
         if (!(event.data instanceof ArrayBuffer)) return
-        const msg = msgpack!.decode(new Uint8Array(event.data)) as Record<string, unknown>
+        const msg = msgpackImpl.decode(new Uint8Array(event.data)) as Record<string, unknown>
 
         if (msg["event"] === "audio" && msg["audio"]) {
           onChunk(Buffer.from(msg["audio"] as Uint8Array))

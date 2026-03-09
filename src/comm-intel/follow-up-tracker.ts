@@ -73,8 +73,7 @@ class FollowUpTracker {
     priority: FollowUpPriority = 'medium',
   ): Promise<FollowUpItem> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const record = await (prisma as any).followUpItem.create({
+      const record = await prisma.followUpItem.create({
         data: { userId, message, dueAt, priority },
       })
       log.debug('follow-up added (db)', { userId, id: record.id, priority })
@@ -102,8 +101,7 @@ class FollowUpTracker {
    */
   async complete(id: string): Promise<void> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (prisma as any).followUpItem.update({
+      await prisma.followUpItem.update({
         where: { id },
         data: { completed: true, completedAt: new Date() },
       })
@@ -124,8 +122,7 @@ class FollowUpTracker {
    */
   async getPending(userId: string): Promise<FollowUpItem[]> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const records = await (prisma as any).followUpItem.findMany({
+      const records = await prisma.followUpItem.findMany({
         where: { userId, completed: false },
         orderBy: { createdAt: 'asc' },
       })
@@ -146,8 +143,7 @@ class FollowUpTracker {
    */
   async getOverdue(userId: string): Promise<FollowUpItem[]> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const records = await (prisma as any).followUpItem.findMany({
+      const records = await prisma.followUpItem.findMany({
         where: { userId, completed: false, dueAt: { lt: new Date() } },
       })
       return (records as Parameters<typeof mapRecord>[0][]).map(mapRecord)

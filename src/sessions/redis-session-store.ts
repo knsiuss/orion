@@ -52,8 +52,8 @@ export class RedisSessionStore {
   /** Connect to Redis. Throws if connection fails or redis package is missing. */
   async connect(): Promise<void> {
     // Dynamic import — redis is an optional dependency
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const redisMod = await import("redis" as any) as { createClient: (opts: { url: string }) => RedisClientLike }
+    // @ts-expect-error — optional dep may not be installed
+    const redisMod = await import("redis") as { createClient: (opts: { url: string }) => RedisClientLike }
     this.client = redisMod.createClient({ url: this.redisUrl })
     this.client.on("error", (err) => log.warn("Redis client error", { err }))
     await this.client.connect()

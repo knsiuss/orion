@@ -151,10 +151,12 @@ export class SkillMarketplace {
     const byTier = new Map<SkillTrustLevel, DiscoveredSkill[]>()
     for (const skill of this.discovered.values()) {
       const tier = skill.source
-      if (!byTier.has(tier)) {
-        byTier.set(tier, [])
+      let tierSkills = byTier.get(tier)
+      if (!tierSkills) {
+        tierSkills = []
+        byTier.set(tier, tierSkills)
       }
-      byTier.get(tier)!.push(skill)
+      tierSkills.push(skill)
     }
 
     const lines: string[] = ["# Available Skills"]
@@ -316,15 +318,15 @@ export class SkillMarketplace {
     const frontmatter = match[1] ?? ""
     const getName = (): string => {
       const m = frontmatter.match(/^name:\s*(.+)$/m)
-      return m ? m[1]!.trim().replace(/['"]/g, "") : path.basename(skillDir)
+      return m ? (m[1] ?? "").trim().replace(/['"]/g, "") : path.basename(skillDir)
     }
     const getVersion = (): string => {
       const m = frontmatter.match(/^version:\s*(.+)$/m)
-      return m ? m[1]!.trim().replace(/['"]/g, "") : "1.0.0"
+      return m ? (m[1] ?? "").trim().replace(/['"]/g, "") : "1.0.0"
     }
     const getDescription = (): string => {
       const m = frontmatter.match(/^description:\s*(.+)$/m)
-      return m ? m[1]!.trim().replace(/['"]/g, "") : ""
+      return m ? (m[1] ?? "").trim().replace(/['"]/g, "") : ""
     }
 
     return {

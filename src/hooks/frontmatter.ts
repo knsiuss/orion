@@ -32,11 +32,11 @@ export function parseFrontmatter(content: string, filePath: string): import('./t
   try {
     // Simple YAML key-value parser (avoid js-yaml dep for this simple case)
     const raw: HookFrontmatterRaw = {}
-    for (const line of match[1]!.split('\n')) {
+    for (const line of (match[1] ?? '').split('\n')) {
       const kv = line.match(/^(\w+):\s*(.+)$/)
       if (kv) {
         const [, key, val] = kv
-        raw[key as keyof HookFrontmatterRaw] = val!.trim()
+        raw[key as keyof HookFrontmatterRaw] = (val ?? '').trim()
       }
       // Handle YAML list items
       const listItem = line.match(/^\s+-\s+(.+)$/)
@@ -45,15 +45,15 @@ export function parseFrontmatter(content: string, filePath: string): import('./t
       }
     }
     // Parse events list properly
-    const eventsMatch = match[1]!.match(/events:\n((?:\s+-\s+.+\n?)+)/)
+    const eventsMatch = (match[1] ?? '').match(/events:\n((?:\s+-\s+.+\n?)+)/)
     if (eventsMatch) {
-      raw.events = eventsMatch[1]!.split('\n')
+      raw.events = (eventsMatch[1] ?? '').split('\n')
         .map(l => l.replace(/^\s+-\s+/, '').trim())
         .filter(Boolean)
     } else {
-      const inlineEvents = match[1]!.match(/events:\s*\[([^\]]+)\]/)
+      const inlineEvents = (match[1] ?? '').match(/events:\s*\[([^\]]+)\]/)
       if (inlineEvents) {
-        raw.events = inlineEvents[1]!.split(',').map(e => e.trim())
+        raw.events = (inlineEvents[1] ?? '').split(',').map(e => e.trim())
       }
     }
 

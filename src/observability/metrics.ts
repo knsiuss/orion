@@ -193,8 +193,8 @@ export class Histogram {
     entry.count++
 
     for (let i = 0; i < this.buckets.length; i++) {
-      if (value <= this.buckets[i]!) {
-        entry.bucketCounts[i]!++
+      if (value <= (this.buckets[i] ?? Infinity)) {
+        entry.bucketCounts[i] = (entry.bucketCounts[i] ?? 0) + 1
       }
     }
   }

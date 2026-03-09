@@ -77,9 +77,10 @@ const HUMOR_DESCRIPTORS: Record<number, string> = {
  */
 function lookupDescriptor(map: Record<number, string>, value: number): string {
   const keys = Object.keys(map).map(Number).sort((a, b) => a - b)
+  if (keys.length === 0) return ""
   const rounded = Math.round(value)
-  const clamped = Math.max(keys[0]!, Math.min(keys[keys.length - 1]!, rounded))
-  return map[clamped] ?? map[keys[0]!] ?? ""
+  const clamped = Math.max(keys[0] ?? 0, Math.min(keys[keys.length - 1] ?? 0, rounded))
+  return map[clamped] ?? map[keys[0] ?? 0] ?? ""
 }
 
 /**

@@ -31,8 +31,8 @@ async function init(): Promise<void> {
 
   try {
     // Dynamic import — @sentry/node is an optional dependency
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const Sentry = await import("@sentry/node" as any) as {
+    // @ts-expect-error — optional dep may not be installed
+    const Sentry = await import("@sentry/node") as {
       init: (opts: { dsn: string; tracesSampleRate: number }) => void
       captureException: (err: Error) => void
     }

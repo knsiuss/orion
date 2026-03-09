@@ -76,7 +76,7 @@ export class MissionMonitor {
     // Update progress timestamp if steps have recently completed
     const latestCompletion = plan.steps
       .filter((s) => s.status === "completed" && s.completedAt)
-      .map((s) => s.completedAt!.getTime())
+      .map((s) => s.completedAt?.getTime() ?? 0)
       .reduce((max, t) => Math.max(max, t), 0)
 
     if (latestCompletion > (this.lastProgressAt.get(plan.id) ?? 0)) {

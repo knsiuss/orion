@@ -208,12 +208,12 @@ export class HabitModel {
 
     // Morning brief: first active hour in morning (6–11)
     const morningHour = this.findPeakHour(normalizedHourly, 6, 11)
-    if (morningHour !== null && normalizedHourly[morningHour]! >= MIN_ESTABLISHED_WEIGHT) {
+    if (morningHour !== null && (normalizedHourly[morningHour] ?? 0) >= MIN_ESTABLISHED_WEIGHT) {
       hints.push({
         userId,
         suggestedHour: morningHour,
         category: "morning-brief",
-        confidence: normalizedHourly[morningHour]!,
+        confidence: normalizedHourly[morningHour] ?? 0,
         description: `User is typically active around ${morningHour}:00. Good time for a morning brief.`,
       })
     }
@@ -225,19 +225,19 @@ export class HabitModel {
         userId,
         suggestedHour: workStartHour,
         category: "work-start",
-        confidence: normalizedHourly[workStartHour]!,
+        confidence: normalizedHourly[workStartHour] ?? 0,
         description: `User typically starts work around ${workStartHour}:00.`,
       })
     }
 
     // Work end: peak in afternoon (16–20)
     const workEndHour = this.findPeakHour(normalizedHourly, 16, 20)
-    if (workEndHour !== null && normalizedHourly[workEndHour]! >= MIN_ESTABLISHED_WEIGHT) {
+    if (workEndHour !== null && (normalizedHourly[workEndHour] ?? 0) >= MIN_ESTABLISHED_WEIGHT) {
       hints.push({
         userId,
         suggestedHour: workEndHour,
         category: "work-end",
-        confidence: normalizedHourly[workEndHour]!,
+        confidence: normalizedHourly[workEndHour] ?? 0,
         description: `User is typically winding down around ${workEndHour}:00.`,
       })
     }
@@ -249,7 +249,7 @@ export class HabitModel {
         userId,
         suggestedHour: eveningHour,
         category: "evening-check",
-        confidence: normalizedHourly[eveningHour]!,
+        confidence: normalizedHourly[eveningHour] ?? 0,
         description: `User is typically available in the evening around ${eveningHour}:00.`,
       })
     }

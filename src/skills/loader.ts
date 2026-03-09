@@ -520,7 +520,7 @@ export class SkillLoader {
   private buildSkillMeta(parsed: ParsedFrontmatter, folderName: string, skillMdPath: string): SkillMeta {
     const invokeKey = parsed.invokeKey?.trim().length ? parsed.invokeKey.trim() : folderName
     return {
-      name: parsed.name!,
+      name: parsed.name?.trim() || folderName,
       description: String(parsed.description ?? "").slice(0, 120),
       location: path.resolve(skillMdPath),
       alwaysActive: Boolean(parsed.alwaysActive),

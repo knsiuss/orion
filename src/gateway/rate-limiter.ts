@@ -115,9 +115,9 @@ function consumeEntry(
   windowMs: number,
   now: number,
 ): { next: RateLimitEntry; decision: RateLimitDecision } {
-  const next = shouldResetWindow(entry, windowMs, now)
+  const next = shouldResetWindow(entry, windowMs, now) || !entry
     ? { count: 1, windowStart: now }
-    : { count: entry!.count + 1, windowStart: entry!.windowStart }
+    : { count: entry.count + 1, windowStart: entry.windowStart }
 
   const limited = next.count > maxRequests
   const remaining = Math.max(0, maxRequests - next.count)
@@ -143,11 +143,11 @@ function getRemainingForEntry(
   windowMs: number,
   now: number,
 ): number {
-  if (shouldResetWindow(entry, windowMs, now)) {
+  if (shouldResetWindow(entry, windowMs, now) || !entry) {
     return maxRequests
   }
 
-  return Math.max(0, maxRequests - entry!.count)
+  return Math.max(0, maxRequests - entry.count)
 }
 
 function pruneStaleEntries(

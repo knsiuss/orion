@@ -24,6 +24,7 @@ class ManifestHookRegistry {
     this.hooks.set(manifest.id, manifest)
     for (const event of manifest.events) {
       if (!this.byEvent.has(event)) this.byEvent.set(event, new Set())
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       this.byEvent.get(event)!.add(manifest.id)
     }
     log.debug('hook registered', { id: manifest.id, events: manifest.events })
@@ -51,7 +52,8 @@ class ManifestHookRegistry {
   getForEvent(event: HookEvent): HookManifest[] {
     const ids = this.byEvent.get(event) ?? new Set()
     return [...ids]
-      .map(id => this.hooks.get(id)!)
+      .map(id => this.hooks.get(id))
+      .filter((h): h is HookManifest => h !== undefined)
       .filter(h => h.enabled)
       .sort((a, b) => a.priority - b.priority)
   }

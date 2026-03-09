@@ -80,13 +80,11 @@ export class MissionManager {
    * @returns True if the mission was found and pause was requested
    */
   pauseMission(missionId: string): boolean {
-    if (!this.activeMissions.has(missionId)) {
+    const plan = this.activeMissions.get(missionId)
+    if (!plan) {
       log.warn("pauseMission: mission not found", { missionId })
       return false
     }
-
-    missionExecutor.pause(missionId)
-    const plan = this.activeMissions.get(missionId)!
     plan.status = "paused"
     plan.updatedAt = new Date()
 
@@ -101,13 +99,11 @@ export class MissionManager {
    * @returns True if the mission was found and resume was requested
    */
   resumeMission(missionId: string): boolean {
-    if (!this.activeMissions.has(missionId)) {
+    const plan = this.activeMissions.get(missionId)
+    if (!plan) {
       log.warn("resumeMission: mission not found", { missionId })
       return false
     }
-
-    missionExecutor.resume(missionId)
-    const plan = this.activeMissions.get(missionId)!
     plan.status = "running"
     plan.updatedAt = new Date()
 

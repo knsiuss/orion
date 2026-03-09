@@ -242,7 +242,8 @@ export class MCPClientManager {
   }
 
   private async listTools(serverName: string): Promise<MCPTool[]> {
-    const conn = this.connections.get(serverName)!
+    const conn = this.connections.get(serverName)
+    if (!conn) throw new Error(`MCP connection '${serverName}' not found`)
     const result = await this.sendRequest(conn, {
       jsonrpc: "2.0",
       id: ++this.requestIdCounter,

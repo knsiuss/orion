@@ -228,7 +228,7 @@ class CircuitBreakerRegistry {
         openedAt: 0,
       })
     }
-    return this.breakers.get(provider)!
+    return this.breakers.get(provider) as BreakerState
   }
 
   /**
