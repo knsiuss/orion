@@ -23,6 +23,7 @@ import { daemon } from "./background/daemon.js"
 import { initialize } from "./core/startup.js"
 import { eventBus } from "./core/event-bus.js"
 import { memory } from "./memory/store.js"
+import type { processMessage as ProcessMessageFn } from "./core/message-pipeline.js"
 
 const log = createLogger("main")
 
@@ -37,7 +38,7 @@ interface PendingMemRLFeedback {
   provisionalReward: number
 }
 
-async function startCLI(processMessage: Function): Promise<void> {
+async function startCLI(processMessage: typeof ProcessMessageFn): Promise<void> {
   const rl = readline.createInterface({ input, output })
   let pendingFeedback: PendingMemRLFeedback | null = null
 

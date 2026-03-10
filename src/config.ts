@@ -125,6 +125,7 @@ const ConfigSchema = z.object({
   OUTLOOK_CLIENT_SECRET: z.string().default(""),
   OUTLOOK_REFRESH_TOKEN: z.string().default(""),
   // Phase 8: Calendar (Google + Outlook OAuth2)
+  GCAL_ENABLED: boolFromEnv.default(false),
   GCAL_CLIENT_ID: z.string().default(""),
   GCAL_CLIENT_SECRET: z.string().default(""),
   GCAL_REFRESH_TOKEN: z.string().default(""),
@@ -181,6 +182,16 @@ const ConfigSchema = z.object({
   NOTION_DATABASE_IDS: z.string().default(""),
   OBSIDIAN_VAULT_PATH: z.string().default(""),
   OCR_ENABLED: boolFromEnv.default(false),
+  // Multi-key rotation (comma-separated)
+  ANTHROPIC_API_KEYS: z.string().default(""),
+  OPENAI_API_KEYS: z.string().default(""),
+  GEMINI_API_KEYS: z.string().default(""),
+  // Additional LLM providers
+  DEEPSEEK_API_KEY: z.string().default(""),
+  MISTRAL_API_KEY: z.string().default(""),
+  TOGETHER_API_KEY: z.string().default(""),
+  FIREWORKS_API_KEY: z.string().default(""),
+  COHERE_API_KEY: z.string().default(""),
 })
 
 const parsed = ConfigSchema.safeParse(process.env)

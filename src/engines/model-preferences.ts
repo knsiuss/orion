@@ -1,6 +1,12 @@
+/** Per-model context window and capability metadata. */
+export interface ModelInfo {
+  contextWindow: number
+}
+
 export interface EngineModelCatalogEntry {
   displayName: string
   models: string[]
+  modelInfo?: Record<string, ModelInfo>
 }
 
 export const ENGINE_MODEL_CATALOG: Record<string, EngineModelCatalogEntry> = {
