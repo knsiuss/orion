@@ -73,3 +73,9 @@ edith.json
 workbenches/
 apps/desktop/dist/
 .pnpm-store/
+
+# TypeScript build artifacts
+tsc_errors.txt
+tsc_out.txt
+*.tsbuildinfo
+*.tgz
