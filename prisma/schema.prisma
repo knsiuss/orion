@@ -148,13 +148,13 @@ model ApprovedUser {
 }
 
 model DeviceToken {
-  id         String   @id @default(cuid())
-  tokenHash  String   @unique  // SHA-256 hashed
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique // SHA-256 hashed
   userId     String
   channel    String
-  deviceName String   @default("unknown")
-  createdAt  DateTime @default(now())
-  lastUsed   DateTime @updatedAt
+  deviceName String    @default("unknown")
+  createdAt  DateTime  @default(now())
+  lastUsed   DateTime  @updatedAt
   revokedAt  DateTime?
 
   @@index([userId])
@@ -170,56 +170,53 @@ model PairingSession {
 }
 
 model UserProfile {
-  id         String   @id @default(cuid())
-  userId     String   @unique
-  facts      Json
-  opinions   Json
-  topics     Json
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  facts     Json
+  opinions  Json
+  topics    Json
+  updatedAt DateTime @updatedAt
 }
 
 /**
  * Memory Node with IEU (Intent-Experience-Utility) triplet support
- * 
  * Stores memories with:
  * - Q-value for Bellman Q-learning updates
  * - Utility score for ranking
  * - Metadata for intent tracking and experience context
  */
 model MemoryNode {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String
   content    String
   level      Int
-  validFrom  DateTime @default(now())
+  validFrom  DateTime  @default(now())
   validUntil DateTime?
   category   String
   embedding  Bytes?
-  
+
   // IEU Triplet components
-  utilityScore   Float  @default(0.5)  // U: Utility score for ranking
-  qValue         Float  @default(0.5)  // Q-value for Bellman updates
-  
+  utilityScore Float @default(0.5) // U: Utility score for ranking
+  qValue       Float @default(0.5) // Q-value for Bellman updates
+
   // Metadata stores intent, experience context, feedback history
-  metadata       Json?
-  
+  metadata Json?
+
   // Statistics
-  retrievalCount Int    @default(0)
-  successCount   Int    @default(0)
+  retrievalCount Int @default(0)
+  successCount   Int @default(0)
 
   @@index([userId, level])
   @@index([userId, validUntil])
-  @@index([userId, qValue])      // Index for Q-value based retrieval
+  @@index([userId, qValue]) // Index for Q-value based retrieval
   @@index([userId, utilityScore]) // Index for utility-based ranking
 }
 
 /**
  * FTS5 Virtual Table for full-text search (OC-10)
- * 
  * Enables fast keyword search using SQLite FTS5 extension.
  * This is used by HybridRetriever for lexical search alongside
  * vector search for semantic similarity.
- * 
  * Note: FTS tables are virtual and don't use standard Prisma migrations.
  * The table must be created manually via raw SQL:
  * CREATE VIRTUAL TABLE MemoryNodeFTS USING fts5(content, content_rowid=rowid);
@@ -233,18 +230,16 @@ model MemoryNodeFTS {
 
 /**
  * Usage Event for LLM observability (OC-11)
- *
  * Tracks all LLM API calls with:
  * - Token counts (prompt, completion, total)
  * - Cost estimation
  * - Latency metrics
  * - Success/failure rates
  * - Request metadata
- *
  * Uses ring buffer in UsageTracker for high-throughput scenarios.
  */
 model UsageEvent {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   userId    String
   sessionId String?
 
@@ -280,36 +275,35 @@ model UsageEvent {
 
 /**
  * Tenant configuration for multi-tenancy (OC-12)
- *
  * Stores tenant-level configuration and resource quotas.
  * Used by WorkspaceResolver for tenant isolation.
  */
 model Tenant {
-  id        String   @id @default(cuid())
-  tenantId  String   @unique
-  userId    String   @unique
-  
+  id       String @id @default(cuid())
+  tenantId String @unique
+  userId   String @unique
+
   // Tenant metadata
   displayName String?
-  tier        String   @default("free") // free, pro, enterprise
-  
+  tier        String  @default("free") // free, pro, enterprise
+
   // Resource limits (JSON for flexibility)
   limits Json @default("{\"maxMessagesPerDay\": 100, \"maxStorageMb\": 50, \"maxSkills\": 3, \"apiRateLimit\": 60}")
-  
+
   // Feature flags
   features Json @default("{\"enableVoice\": false, \"enableVision\": false, \"enableCustomSkills\": false, \"enableApi\": false}")
-  
+
   // Custom configuration
   customConfig Json?
-  
+
   // Workspace path (relative to saasDataDir)
   workspacePath String?
-  
+
   // Timestamps
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
   lastAccessedAt DateTime @default(now())
-  
+
   // Indexes
   @@index([tier])
   @@index([createdAt])
@@ -319,16 +313,16 @@ model CausalNode {
   id        String   @id @default(cuid())
   userId    String
   event     String
-  eventKey  String   // Stage-3 enforced dedupe key (lower/trim normalized event)
+  eventKey  String // Stage-3 enforced dedupe key (lower/trim normalized event)
   category  String
   createdAt DateTime @default(now())
 
-  causesEdges CausalEdge[] @relation("from")
-  effectEdges CausalEdge[] @relation("to")
+  causesEdges CausalEdge[]          @relation("from")
+  effectEdges CausalEdge[]          @relation("to")
   hyperEdges  HyperEdgeMembership[]
 
-  @@index([userId, category])
   @@unique([userId, eventKey])
+  @@index([userId, category])
 }
 
 model CausalEdge {
@@ -348,16 +342,16 @@ model CausalEdge {
 }
 
 model HyperEdge {
-  id       String   @id @default(cuid())
-  userId   String
-  relation String
-  context  String
+  id            String                @id @default(cuid())
+  userId        String
+  relation      String
+  context       String
   memberSetHash String // Stage-3 enforced dedupe key (hash of normalized relation + member set)
-  weight   Float    @default(0.5)
-  members  HyperEdgeMembership[]
+  weight        Float                 @default(0.5)
+  members       HyperEdgeMembership[]
 
-  @@index([userId])
   @@unique([userId, relation, memberSetHash])
+  @@index([userId])
 }
 
 model HyperEdgeMembership {
@@ -372,28 +366,26 @@ model HyperEdgeMembership {
 
 /**
  * Phase 10 — Per-user preference sliders and CIPHER-inferred behavioral prefs.
- *
  * Stores both explicit (user-configured) and implicit (CIPHER-inferred) preferences.
  * personalityEngine reads this to build the per-user system prompt fragment.
- *
  * Slider ranges:
- *   formality    1 (casual) ↔ 5 (formal)
- *   verbosity    1 (brief)  ↔ 5 (detailed)
- *   humor        0 (none)   ↔ 3 (frequent)
- *   proactivity  1 (quiet)  ↔ 5 (very proactive)
+ * formality    1 (casual) ↔ 5 (formal)
+ * verbosity    1 (brief)  ↔ 5 (detailed)
+ * humor        0 (none)   ↔ 3 (frequent)
+ * proactivity  1 (quiet)  ↔ 5 (very proactive)
  */
 model UserPreference {
-  userId              String   @id
+  userId              String    @id
   // Behavioral sliders
-  formality           Float    @default(3)
-  verbosity           Float    @default(2)
-  humor               Float    @default(1)
-  proactivity         Float    @default(3)
+  formality           Float     @default(3)
+  verbosity           Float     @default(2)
+  humor               Float     @default(1)
+  proactivity         Float     @default(3)
   // Language and address
-  language            String   @default("auto")
-  titleWord           String   @default("Sir")
+  language            String    @default("auto")
+  titleWord           String    @default("Sir")
   // Tone preset
-  tonePreset          String   @default("jarvis")
+  tonePreset          String    @default("jarvis")
   // CIPHER-inferred behavioral preferences (JSON array of BehavioralPref) — null means []
   behavioralPrefs     Json?
   // Custom personality traits (string[]) — null means []
@@ -401,18 +393,17 @@ model UserPreference {
   // History of slider values for temporal evolution tracking — null means {}
   preferenceHistory   Json?
   // Inference metadata
-  inferenceConfidence Float    @default(0)
+  inferenceConfidence Float     @default(0)
   lastInferredAt      DateTime?
   // Timestamps
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([lastInferredAt])
 }
 
 /**
  * Phase 10C — Preference signals captured for feedback learning.
- *
  * Each row is one signal event (explicit, barge-in, edit, or implicit).
  * UserPreferenceEngine processes pending signals in the background
  * to update preference sliders.
@@ -440,7 +431,6 @@ model PreferenceSignal {
 
 /**
  * Phase 10B — User activity records for HabitModel.
- *
  * Stores message timestamps for each user so HabitModel can infer
  * active/quiet hours patterns without keeping full message content.
  * Records are automatically decayed and pruned.
@@ -448,11 +438,62 @@ model PreferenceSignal {
 model ActivityRecord {
   id        String   @id @default(cuid())
   userId    String
-  hour      Int      // 0-23 hour of day when activity was recorded
-  dayOfWeek Int      // 0=Sunday … 6=Saturday
-  weight    Float    @default(1.0)  // Decays over time
+  hour      Int // 0-23 hour of day when activity was recorded
+  dayOfWeek Int // 0=Sunday … 6=Saturday
+  weight    Float    @default(1.0) // Decays over time
   timestamp DateTime @default(now())
 
   @@index([userId, timestamp])
   @@index([userId, hour])
+}
+
+/**
+ * Finance — recurring subscription tracking for expense-tracker.
+ */
+model SubscriptionRecord {
+  id              String    @id @default(cuid())
+  userId          String
+  name            String
+  amount          Float
+  currency        String    @default("IDR")
+  billingCycle    String // "monthly" | "yearly" | "weekly"
+  nextBillingDate DateTime?
+  status          String    @default("active") // "active" | "cancelled" | "paused"
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+/**
+ * Comm-intel — per-message priority scoring for triage.
+ */
+model MessageScore {
+  id             String   @id @default(cuid())
+  userId         String
+  messageId      String
+  channel        String
+  priority       Int      @default(0) // 0-100
+  category       String   @default("general")
+  requiresAction Boolean  @default(false)
+  scoredAt       DateTime @default(now())
+
+  @@index([userId])
+  @@index([priority])
+}
+
+/** Legion — durable delegation chain depth tracking across process boundaries. */
+model DelegationDepth {
+  taskId     String   @id
+  instanceId String
+  depth      Int
+  spawnedBy  String?
+  visited    String   @default("[]")
+  rootTaskId String
+  status     String   @default("active") // "active" | "completed" | "expired"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  @@index([rootTaskId])
+  @@index([status])
 }

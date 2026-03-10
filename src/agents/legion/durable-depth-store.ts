@@ -66,13 +66,13 @@ export class DurableDepthStore {
           instanceId: record.instanceId,
           depth: record.depth,
           spawnedBy: record.spawnedBy ?? null,
-          visited: record.visited,
+          visited: JSON.stringify(record.visited),
           rootTaskId: record.rootTaskId,
           status: record.status,
         },
         update: {
           depth: record.depth,
-          visited: record.visited,
+          visited: JSON.stringify(record.visited),
           status: record.status,
         },
       })
@@ -93,7 +93,7 @@ export class DurableDepthStore {
     try {
       await prisma.delegationDepth.update({
         where: { taskId },
-        data: { depth, visited },
+        data: { depth, visited: JSON.stringify(visited) },
       })
       log.debug("chain depth updated", { taskId, depth })
     } catch (err) {
