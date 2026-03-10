@@ -20,55 +20,69 @@
  * @module core/message-pipeline
  */
 
-import config from "../config.js"
-import { saveMessage } from "../database/index.js"
-import { orchestrator } from "../engines/orchestrator.js"
-import { memory, type BuildContextResult } from "../memory/store.js"
-import { profiler } from "../memory/profiler.js"
-import { causalGraph } from "../memory/causal-graph.js"
-import { sessionSummarizer } from "../memory/session-summarizer.js"
-import { filterPromptWithAffordance, type PromptSafetyResult } from "../security/prompt-filter.js"
-import { outputScanner, type OutputScanResult } from "../security/output-scanner.js"
-import { sessionStore } from "../sessions/session-store.js"
-import { createLogger } from "../logger.js"
-import { responseCritic } from "./critic.js"
-import { personaEngine } from "./persona.js"
-import { buildSystemPrompt } from "./system-prompt-builder.js"
-import { feedbackStore } from "../memory/feedback-store.js"
-import { habitModel } from "../background/habit-model.js"
-import { userPreferenceEngine } from "../memory/user-preference.js"
-import { personalityEngine } from "./personality-engine.js"
-import { queryClassifier } from "../memory/knowledge/query-classifier.js"
-import { retrievalEngine } from "../memory/knowledge/retrieval-engine.js"
-import { syncScheduler } from "../memory/knowledge/sync-scheduler.js"
+import config from "../config.js";
+import { saveMessage } from "../database/index.js";
+import { orchestrator } from "../engines/orchestrator.js";
+import { memory, type BuildContextResult } from "../memory/store.js";
+import { profiler } from "../memory/profiler.js";
+import { causalGraph } from "../memory/causal-graph.js";
+import { sessionSummarizer } from "../memory/session-summarizer.js";
+import {
+  filterPromptWithAffordance,
+  type PromptSafetyResult,
+} from "../security/prompt-filter.js";
+import {
+  outputScanner,
+  type OutputScanResult,
+} from "../security/output-scanner.js";
+import { sessionStore } from "../sessions/session-store.js";
+import { createLogger } from "../logger.js";
+import { responseCritic } from "./critic.js";
+import { personaEngine } from "./persona.js";
+import { buildSystemPrompt } from "./system-prompt-builder.js";
+import { feedbackStore } from "../memory/feedback-store.js";
+import { habitModel } from "../background/habit-model.js";
+import { userPreferenceEngine } from "../memory/user-preference.js";
+import { personalityEngine } from "./personality-engine.js";
+import { queryClassifier } from "../memory/knowledge/query-classifier.js";
+import { retrievalEngine } from "../memory/knowledge/retrieval-engine.js";
+import { syncScheduler } from "../memory/knowledge/sync-scheduler.js";
+import { classifyTask } from "./task-classifier.js";
 
-const log = createLogger("core.pipeline")
+const log = createLogger("core.pipeline");
 
-const BLOCKED_RESPONSE = "Gue tidak bisa bantu dengan itu."
-const PROVISIONAL_MEMORY_REWARD = 0.5
-const CRITIC_MAX_ITERATIONS = 2
+const BLOCKED_RESPONSE = "Gue tidak bisa bantu dengan itu.";
+const PROVISIONAL_MEMORY_REWARD = 0.5;
+const CRITIC_MAX_ITERATIONS = 2;
 
-const SESSION_HISTORY_LOOKBACK = 100
-const DEFAULT_CONTEXT_WINDOW_TOKENS = 32_000
-const SESSION_COMPACTION_TRIGGER_RATIO = 0.75
-const SESSION_COMPACTION_KEEP_LAST_TURNS = 6
-const APPROX_CHARS_PER_TOKEN = 3
+const SESSION_HISTORY_LOOKBACK = 100;
+const DEFAULT_CONTEXT_WINDOW_TOKENS = 32_000;
+const SESSION_COMPACTION_TRIGGER_RATIO = 0.75;
+const SESSION_COMPACTION_KEEP_LAST_TURNS = 6;
+const APPROX_CHARS_PER_TOKEN = 3;
+
+/**
+ * Maximum time (ms) allowed for the full 9-stage pipeline to complete.
+ * If exceeded, the pipeline rejects with a timeout error rather than hanging
+ * indefinitely waiting on LLM generation + critique.
+ */
+const PIPELINE_TIMEOUT_MS = 60_000;
 
 /** Returned by the pipeline so callers can use the response and IDs for MemRL feedback. */
 export interface PipelineResult {
   /** The final, safety-scanned response to send to the user. */
-  response: string
+  response: string;
   /** Memory node IDs that were retrieved - used to provide MemRL feedback. */
-  retrievedMemoryIds: string[]
+  retrievedMemoryIds: string[];
   /** Estimated provisional reward before user follow-up is known. */
-  provisionalReward: number
+  provisionalReward: number;
 }
 
 export interface PipelineOptions {
   /** Identifies the transport layer (e.g. "cli", "webchat", "whatsapp"). */
-  channel: string
+  channel: string;
   /** Session mode for system prompt assembly. */
-  sessionMode?: "dm" | "group" | "subagent"
+  sessionMode?: "dm" | "group" | "subagent";
 }
 
 function blockedResult(): PipelineResult {
@@ -76,7 +90,7 @@ function blockedResult(): PipelineResult {
     response: BLOCKED_RESPONSE,
     retrievedMemoryIds: [],
     provisionalReward: 0,
-  }
+  };
 }
 
 function addSessionMessage(
@@ -89,7 +103,7 @@ function addSessionMessage(
     role,
     content,
     timestamp: Date.now(),
-  })
+  });
 }
 
 function buildUserMessageMetadata(
@@ -107,7 +121,7 @@ function buildUserMessageMetadata(
       affordance: inputSafety.affordance ?? null,
       sanitized: safeText !== rawText,
     },
-  }
+  };
 }
 
 function buildAssistantMessageMetadata(
@@ -125,7 +139,7 @@ function buildAssistantMessageMetadata(
       outputIssues: scanResult.issues,
       sanitized: finalResponse !== rawAssistantResponse,
     },
-  }
+  };
 }
 
 async function persistUserMessageAndBuildContext(
@@ -135,52 +149,66 @@ async function persistUserMessageAndBuildContext(
   safeText: string,
   inputSafety: PromptSafetyResult,
 ): Promise<BuildContextResult> {
-  const userMeta = buildUserMessageMetadata(channel, inputSafety, rawText, safeText)
+  const userMeta = buildUserMessageMetadata(
+    channel,
+    inputSafety,
+    rawText,
+    safeText,
+  );
 
   // Persistence and retrieval are independent; run them together to avoid
   // paying sequential latency for every user turn.
   const [, context] = await Promise.all([
     saveMessage(userId, "user", safeText, channel, userMeta),
     memory.buildContext(userId, safeText),
-  ])
+  ]);
 
-  addSessionMessage(userId, channel, "user", safeText)
-  return context
+  addSessionMessage(userId, channel, "user", safeText);
+  return context;
 }
 
 function estimateSessionTokens(history: Array<{ content: string }>): number {
   // A conservative char-based estimate is intentionally provider-agnostic and
   // stable even when routing switches across model vendors/tokenizers.
   return history.reduce((sum, message) => {
-    const chars = typeof message.content === "string" ? message.content.length : 0
-    return sum + Math.ceil(chars / APPROX_CHARS_PER_TOKEN)
-  }, 0)
+    const chars =
+      typeof message.content === "string" ? message.content.length : 0;
+    return sum + Math.ceil(chars / APPROX_CHARS_PER_TOKEN);
+  }, 0);
 }
 
 function resolveContextWindowLimit(): number {
-  const configuredLimit = config.SESSION_CONTEXT_WINDOW_TOKENS ?? DEFAULT_CONTEXT_WINDOW_TOKENS
-  return Math.max(1, configuredLimit)
+  const configuredLimit =
+    config.SESSION_CONTEXT_WINDOW_TOKENS ?? DEFAULT_CONTEXT_WINDOW_TOKENS;
+  return Math.max(1, configuredLimit);
 }
 
-async function maybeCompactSessionHistory(userId: string, channel: string): Promise<void> {
+async function maybeCompactSessionHistory(
+  userId: string,
+  channel: string,
+): Promise<void> {
   if (!config.SESSION_COMPACTION_ENABLED) {
-    return
+    return;
   }
 
   // Best effort only: compaction improves future turns but must not block the
   // current response path if summarization is unavailable or fails.
   try {
-    const sessionHistory = await sessionStore.getSessionHistory(userId, channel, SESSION_HISTORY_LOOKBACK)
+    const sessionHistory = await sessionStore.getSessionHistory(
+      userId,
+      channel,
+      SESSION_HISTORY_LOOKBACK,
+    );
     if (sessionHistory.length === 0) {
-      return
+      return;
     }
 
-    const estimatedTokens = estimateSessionTokens(sessionHistory)
-    const contextWindowLimit = resolveContextWindowLimit()
-    const fillRatio = estimatedTokens / contextWindowLimit
+    const estimatedTokens = estimateSessionTokens(sessionHistory);
+    const contextWindowLimit = resolveContextWindowLimit();
+    const fillRatio = estimatedTokens / contextWindowLimit;
 
     if (fillRatio < SESSION_COMPACTION_TRIGGER_RATIO) {
-      return
+      return;
     }
 
     log.info("session compaction triggered", {
@@ -188,11 +216,18 @@ async function maybeCompactSessionHistory(userId: string, channel: string): Prom
       channel,
       estimatedTokens,
       fillRatio: fillRatio.toFixed(2),
-    })
+    });
 
-    await sessionSummarizer.compress(userId, channel, SESSION_COMPACTION_KEEP_LAST_TURNS)
+    await sessionSummarizer.compress(
+      userId,
+      channel,
+      SESSION_COMPACTION_KEEP_LAST_TURNS,
+    );
   } catch (err) {
-    log.warn("session compaction failed, continuing with full session", { userId, err })
+    log.warn("session compaction failed, continuing with full session", {
+      userId,
+      err,
+    });
   }
 }
 
@@ -201,17 +236,17 @@ async function buildPersonaDynamicContext(
   safeText: string,
 ): Promise<string | undefined> {
   if (!config.PERSONA_ENABLED) {
-    return undefined
+    return undefined;
   }
 
   const [profile, profileSummary] = await Promise.all([
     profiler.getProfile(userId),
     profiler.formatForContext(userId),
-  ])
+  ]);
 
-  const mood = personaEngine.detectMood(safeText, profile?.currentTopics ?? [])
-  const expertise = personaEngine.detectExpertise(profile, safeText)
-  const topicCategory = personaEngine.detectTopicCategory(safeText)
+  const mood = personaEngine.detectMood(safeText, profile?.currentTopics ?? []);
+  const expertise = personaEngine.detectExpertise(profile, safeText);
+  const topicCategory = personaEngine.detectTopicCategory(safeText);
 
   return personaEngine.buildDynamicContext(
     {
@@ -221,26 +256,35 @@ async function buildPersonaDynamicContext(
       urgency: mood === "stressed",
     },
     profileSummary,
-  )
+  );
 }
 
-function buildGenerationPrompt(systemContext: string, safeText: string): string {
-  return systemContext ? `${systemContext}\n\nUser: ${safeText}` : safeText
+function buildGenerationPrompt(
+  systemContext: string,
+  safeText: string,
+): string {
+  return systemContext ? `${systemContext}\n\nUser: ${safeText}` : safeText;
 }
 
-function scanAssistantResponse(userId: string, rawResponse: string): {
-  response: string
-  scanResult: OutputScanResult
+function scanAssistantResponse(
+  userId: string,
+  rawResponse: string,
+): {
+  response: string;
+  scanResult: OutputScanResult;
 } {
-  const scanResult = outputScanner.scan(rawResponse)
+  const scanResult = outputScanner.scan(rawResponse);
   if (!scanResult.safe) {
-    log.warn("assistant output sanitized", { userId, issues: scanResult.issues })
+    log.warn("assistant output sanitized", {
+      userId,
+      issues: scanResult.issues,
+    });
   }
 
   return {
     response: scanResult.sanitized,
     scanResult,
-  }
+  };
 }
 
 async function persistAssistantResponse(
@@ -255,14 +299,14 @@ async function persistAssistantResponse(
     scanResult,
     rawAssistantResponse,
     response,
-  )
+  );
 
   await Promise.all([
     saveMessage(userId, "assistant", response, channel, assistantMeta),
     memory.save(userId, response, assistantMeta),
-  ])
+  ]);
 
-  addSessionMessage(userId, channel, "assistant", response)
+  addSessionMessage(userId, channel, "assistant", response);
 }
 
 function launchAsyncSideEffects(
@@ -273,51 +317,200 @@ function launchAsyncSideEffects(
 ): void {
   // These are deferred because they improve future context quality and should
   // never delay delivery of the current reply.
-  void profiler.extractFromMessage(userId, safeText, "user")
-    .then(({ facts, opinions }) => profiler.updateProfile(userId, facts, opinions))
-    .catch((err) => log.warn("profiler async extraction failed", { userId, err }))
+  void profiler
+    .extractFromMessage(userId, safeText, "user")
+    .then(({ facts, opinions }) =>
+      profiler.updateProfile(userId, facts, opinions),
+    )
+    .catch((err) =>
+      log.warn("profiler async extraction failed", { userId, err }),
+    );
 
-  void causalGraph.extractAndUpdate(userId, safeText)
-    .catch((err) => log.warn("causal graph async update failed", { userId, err }))
+  void causalGraph
+    .extractAndUpdate(userId, safeText)
+    .catch((err) =>
+      log.warn("causal graph async update failed", { userId, err }),
+    );
 
   // Phase 10: Capture explicit preference signals from user message
-  void feedbackStore.captureExplicit({ userId, message: safeText })
-    .catch((err) => log.warn("feedback explicit capture failed", { userId, err }))
+  void feedbackStore
+    .captureExplicit({ userId, message: safeText })
+    .catch((err) =>
+      log.warn("feedback explicit capture failed", { userId, err }),
+    );
 
   // Phase 10: Record activity for HabitModel
-  void habitModel.record(userId)
-    .catch((err) => log.warn("habit model record failed", { userId, err }))
+  void habitModel
+    .record(userId)
+    .catch((err) => log.warn("habit model record failed", { userId, err }));
 
   // Phase 10: Detect language preference from message
-  const detectedLang = personalityEngine.detectLanguageFromMessage(safeText)
+  const detectedLang = personalityEngine.detectLanguageFromMessage(safeText);
   if (detectedLang) {
-    void userPreferenceEngine.setLanguage(userId, detectedLang)
-      .catch((err) => log.warn("language preference update failed", { userId, err }))
+    void userPreferenceEngine
+      .setLanguage(userId, detectedLang)
+      .catch((err) =>
+        log.warn("language preference update failed", { userId, err }),
+      );
   }
 
   // Phase 10: Implicit MemRL feedback from response length vs user engagement
   if (retrievedMemoryIds.length > 0) {
-    void feedbackStore.captureImplicit({
-      userId,
-      userReply: safeText,
-      previousResponseLengthChars: response.length,
-      memoryIds: retrievedMemoryIds,
-    }).catch((err) => log.warn("feedback implicit capture failed", { userId, err }))
+    void feedbackStore
+      .captureImplicit({
+        userId,
+        userReply: safeText,
+        previousResponseLengthChars: response.length,
+        memoryIds: retrievedMemoryIds,
+      })
+      .catch((err) =>
+        log.warn("feedback implicit capture failed", { userId, err }),
+      );
   }
 
   // Phase 13: Knowledge base sync scheduler tick (fire-and-forget)
   if (config.KNOWLEDGE_BASE_ENABLED) {
-    void syncScheduler.tick()
-      .catch((err) => log.warn("KB sync scheduler tick failed", { userId, err }))
+    void syncScheduler
+      .tick()
+      .catch((err) =>
+        log.warn("KB sync scheduler tick failed", { userId, err }),
+      );
   }
 }
 
 function computeProvisionalReward(retrievedMemoryIds: string[]): number {
-  return retrievedMemoryIds.length > 0 ? PROVISIONAL_MEMORY_REWARD : 0
+  return retrievedMemoryIds.length > 0 ? PROVISIONAL_MEMORY_REWARD : 0;
 }
 
 /**
  * Process a single user message through the full EDITH pipeline.
+ *
+ * @param userId  - The authenticated user's ID
+ * @param rawText - The raw, unfiltered message text from the user
+ * @param options - Transport and session configuration
+ * @returns       PipelineResult with the final response and MemRL metadata
+ */
+/**
+ * Internal implementation of the full 9-stage pipeline (no timeout).
+ * Wrapped by processMessage() which enforces the 60-second timeout.
+ */
+async function processMessageInternal(
+  userId: string,
+  rawText: string,
+  options: PipelineOptions,
+): Promise<PipelineResult> {
+  const { channel, sessionMode = "dm" } = options;
+
+  // Stage 1: Input safety
+  const inputSafety = await filterPromptWithAffordance(rawText, userId);
+  if (!inputSafety.safe && inputSafety.affordance?.shouldBlock) {
+    log.warn("message blocked by affordance checker", { userId, channel });
+    return blockedResult();
+  }
+  const safeText = inputSafety.sanitized;
+
+  // Stage 2: Persist user input and build retrieval context
+  const { messages, systemContext, retrievedMemoryIds } =
+    await persistUserMessageAndBuildContext(
+      userId,
+      channel,
+      rawText,
+      safeText,
+      inputSafety,
+    );
+
+  // Stage 2.5: Opportunistic session compaction (best effort)
+  await maybeCompactSessionHistory(userId, channel);
+
+  // Stage 3 + 4: Persona detection and system prompt assembly
+  let dynamicContext = await buildPersonaDynamicContext(userId, safeText);
+
+  // Phase 13: Knowledge base query classification + context injection
+  if (config.KNOWLEDGE_BASE_ENABLED) {
+    const classification = queryClassifier.classify(safeText);
+    if (classification.type === "knowledge") {
+      const kbContext = await retrievalEngine
+        .retrieveContext(userId, safeText)
+        .catch((err) => {
+          log.warn("KB retrieval failed", { userId, err });
+          return "";
+        });
+      if (kbContext) {
+        dynamicContext = dynamicContext
+          ? `${dynamicContext}\n\n${kbContext}`
+          : kbContext;
+        log.debug("KB context injected", {
+          userId,
+          confidence: classification.confidence,
+        });
+      }
+    }
+  }
+
+  const systemPrompt = await buildSystemPrompt({
+    sessionMode,
+    includeSkills: true,
+    includeSafety: true,
+    extraContext: dynamicContext,
+    userId, // Phase 10: inject per-user personality fragment
+  });
+
+  // Stage 4.5: Classify task type for smart LLM routing.
+  // Avoids sending trivial queries (greetings, yes/no) to expensive reasoning models.
+  const taskType = classifyTask(safeText);
+
+  // Stage 5: LLM generation
+  const prompt = buildGenerationPrompt(systemContext, safeText);
+  const raw = await orchestrator.generate(taskType, {
+    prompt,
+    context: messages,
+    systemPrompt,
+  });
+
+  // Stage 6: Critique and refinement
+  const critiqued = await responseCritic.critiqueAndRefine(
+    safeText,
+    raw,
+    CRITIC_MAX_ITERATIONS,
+  );
+  if (critiqued.refined) {
+    log.debug("response refined by critic", {
+      score: critiqued.critique.score,
+      iterations: critiqued.iterations,
+    });
+  }
+
+  // Stage 7: Output safety scan
+  const { response, scanResult } = scanAssistantResponse(
+    userId,
+    critiqued.finalResponse,
+  );
+
+  // Stage 8: Persist assistant response
+  await persistAssistantResponse(
+    userId,
+    channel,
+    response,
+    critiqued.finalResponse,
+    scanResult,
+  );
+
+  // Stage 9: Async side effects (fire-and-forget)
+  launchAsyncSideEffects(userId, safeText, response, retrievedMemoryIds);
+
+  return {
+    response,
+    retrievedMemoryIds,
+    provisionalReward: computeProvisionalReward(retrievedMemoryIds),
+  };
+}
+
+/**
+ * Process a single user message through the full EDITH pipeline.
+ *
+ * Wraps processMessageInternal() with a 60-second timeout (PIPELINE_TIMEOUT_MS).
+ * If the pipeline takes longer than the timeout, the Promise rejects with a
+ * PipelineTimeoutError and the caller receives a safe blocked response.
  *
  * @param userId  - The authenticated user's ID
  * @param rawText - The raw, unfiltered message text from the user
@@ -329,88 +522,37 @@ export async function processMessage(
   rawText: string,
   options: PipelineOptions,
 ): Promise<PipelineResult> {
-  const { channel, sessionMode = "dm" } = options
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    const timer = setTimeout(() => {
+      reject(
+        new Error(
+          `Pipeline timed out after ${PIPELINE_TIMEOUT_MS}ms for user ${userId}`,
+        ),
+      );
+    }, PIPELINE_TIMEOUT_MS);
+    // Allow Node.js to exit even if the timer is still running.
+    timer.unref?.();
+  });
 
-  // Stage 1: Input safety
-  const inputSafety = await filterPromptWithAffordance(rawText, userId)
-  if (!inputSafety.safe && inputSafety.affordance?.shouldBlock) {
-    log.warn("message blocked by affordance checker", { userId, channel })
-    return blockedResult()
-  }
-  const safeText = inputSafety.sanitized
-
-  // Stage 2: Persist user input and build retrieval context
-  const { messages, systemContext, retrievedMemoryIds } = await persistUserMessageAndBuildContext(
-    userId,
-    channel,
-    rawText,
-    safeText,
-    inputSafety,
-  )
-
-  // Stage 2.5: Opportunistic session compaction (best effort)
-  await maybeCompactSessionHistory(userId, channel)
-
-  // Stage 3 + 4: Persona detection and system prompt assembly
-  let dynamicContext = await buildPersonaDynamicContext(userId, safeText)
-
-  // Phase 13: Knowledge base query classification + context injection
-  if (config.KNOWLEDGE_BASE_ENABLED) {
-    const classification = queryClassifier.classify(safeText)
-    if (classification.type === "knowledge") {
-      const kbContext = await retrievalEngine.retrieveContext(userId, safeText)
-        .catch((err) => {
-          log.warn("KB retrieval failed", { userId, err })
-          return ""
-        })
-      if (kbContext) {
-        dynamicContext = dynamicContext
-          ? `${dynamicContext}\n\n${kbContext}`
-          : kbContext
-        log.debug("KB context injected", { userId, confidence: classification.confidence })
-      }
+  try {
+    return await Promise.race([
+      processMessageInternal(userId, rawText, options),
+      timeoutPromise,
+    ]);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("Pipeline timed out")) {
+      log.error("pipeline timeout", {
+        userId,
+        channel: options.channel,
+        timeoutMs: PIPELINE_TIMEOUT_MS,
+      });
+      return {
+        response:
+          "Maaf, permintaanmu membutuhkan waktu terlalu lama. Coba lagi.",
+        retrievedMemoryIds: [],
+        provisionalReward: 0,
+      };
     }
-  }
-
-  const systemPrompt = await buildSystemPrompt({
-    sessionMode,
-    includeSkills: true,
-    includeSafety: true,
-    extraContext: dynamicContext,
-    userId, // Phase 10: inject per-user personality fragment
-  })
-
-  // Stage 5: LLM generation
-  const prompt = buildGenerationPrompt(systemContext, safeText)
-  const raw = await orchestrator.generate("reasoning", { prompt, context: messages, systemPrompt })
-
-  // Stage 6: Critique and refinement
-  const critiqued = await responseCritic.critiqueAndRefine(safeText, raw, CRITIC_MAX_ITERATIONS)
-  if (critiqued.refined) {
-    log.debug("response refined by critic", {
-      score: critiqued.critique.score,
-      iterations: critiqued.iterations,
-    })
-  }
-
-  // Stage 7: Output safety scan
-  const { response, scanResult } = scanAssistantResponse(userId, critiqued.finalResponse)
-
-  // Stage 8: Persist assistant response
-  await persistAssistantResponse(
-    userId,
-    channel,
-    response,
-    critiqued.finalResponse,
-    scanResult,
-  )
-
-  // Stage 9: Async side effects (fire-and-forget)
-  launchAsyncSideEffects(userId, safeText, response, retrievedMemoryIds)
-
-  return {
-    response,
-    retrievedMemoryIds,
-    provisionalReward: computeProvisionalReward(retrievedMemoryIds),
+    throw err;
   }
 }

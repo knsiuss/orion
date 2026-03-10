@@ -1,47 +1,49 @@
-import dotenv from "dotenv"
-import { z } from "zod"
+import dotenv from "dotenv";
+import { z } from "zod";
 
-const envFilePath = typeof process.env.EDITH_ENV_FILE === "string" && process.env.EDITH_ENV_FILE.trim().length > 0
-  ? process.env.EDITH_ENV_FILE.trim()
-  : ".env"
+const envFilePath =
+  typeof process.env.EDITH_ENV_FILE === "string" &&
+  process.env.EDITH_ENV_FILE.trim().length > 0
+    ? process.env.EDITH_ENV_FILE.trim()
+    : ".env";
 
-dotenv.config({ path: envFilePath })
+dotenv.config({ path: envFilePath });
 
 const boolFromEnv = z.preprocess((value) => {
   if (typeof value === "boolean") {
-    return value
+    return value;
   }
   if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase()
-    return normalized === "true" || normalized === "1" || normalized === "yes"
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "1" || normalized === "yes";
   }
-  return false
-}, z.boolean())
+  return false;
+}, z.boolean());
 
 const intFromEnv = z.preprocess((value) => {
   if (typeof value === "number") {
-    return value
+    return value;
   }
   if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number.parseInt(value, 10)
-    return Number.isNaN(parsed) ? undefined : parsed
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
   }
-  return undefined
-}, z.number().int())
+  return undefined;
+}, z.number().int());
 
 const floatFromEnv = z.preprocess((value) => {
   if (typeof value === "number") {
-    return value
+    return value;
   }
   if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number.parseFloat(value)
-    return Number.isFinite(parsed) ? parsed : undefined
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
   }
-  return undefined
-}, z.number())
+  return undefined;
+}, z.number());
 
-const logLevelSchema = z.enum(["debug", "info", "warn", "error"])
-const whatsAppModeSchema = z.enum(["baileys", "cloud"])
+const logLevelSchema = z.enum(["debug", "info", "warn", "error"]);
+const whatsAppModeSchema = z.enum(["baileys", "cloud"]);
 
 const ConfigSchema = z.object({
   ANTHROPIC_API_KEY: z.string().default(""),
@@ -94,11 +96,11 @@ const ConfigSchema = z.object({
   AUTO_START_GATEWAY: boolFromEnv.default(false),
   // Email configuration (T-1.3)
   EMAIL_HOST: z.string().default(""),
-  EMAIL_PORT: z.string().default("993"),
+  EMAIL_PORT: intFromEnv.default(993),
   EMAIL_USER: z.string().default(""),
   EMAIL_PASS: z.string().default(""),
   EMAIL_SMTP_HOST: z.string().default(""),
-  EMAIL_SMTP_PORT: z.string().default("587"),
+  EMAIL_SMTP_PORT: intFromEnv.default(587),
   // Vision configuration (T-1.7)
   VISION_ENGINE: z.string().default("gemini"),
   // Voice configuration (T-3)
@@ -163,9 +165,11 @@ const ConfigSchema = z.object({
   // UserPreferenceEngine inference
   PERSONALIZATION_ENABLED: boolFromEnv.default(true),
   PREFERENCE_INFERENCE_INTERVAL_MS: intFromEnv.default(5 * 60 * 1000), // every 5 min
-  PREFERENCE_ALPHA: floatFromEnv.default(0.15),  // learning rate for slider updates
+  PREFERENCE_ALPHA: floatFromEnv.default(0.15), // learning rate for slider updates
   // PersonalityEngine
-  DEFAULT_TONE_PRESET: z.enum(["jarvis", "friday", "cortana", "hal", "custom"]).default("jarvis"),
+  DEFAULT_TONE_PRESET: z
+    .enum(["jarvis", "friday", "cortana", "hal", "custom"])
+    .default("jarvis"),
   DEFAULT_TITLE_WORD: z.string().default("Sir"),
   // HabitModel
   HABIT_MODEL_ENABLED: boolFromEnv.default(true),
@@ -198,35 +202,37 @@ const ConfigSchema = z.object({
   NOTION_TOKEN: z.string().default(""),
   HA_URL: z.string().default(""),
   HA_TOKEN: z.string().default(""),
-})
+});
 
-const parsed = ConfigSchema.safeParse(process.env)
+const parsed = ConfigSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error("[EDITH Config Error] Invalid environment configuration.")
+  console.error("[EDITH Config Error] Invalid environment configuration.");
   for (const issue of parsed.error.issues) {
-    const key = issue.path.join(".")
-    console.error(`  - ${key}: ${issue.message}`)
+    const key = issue.path.join(".");
+    console.error(`  - ${key}: ${issue.message}`);
   }
-  process.exit(1)
+  process.exit(1);
 }
 
-export type Config = z.infer<typeof ConfigSchema>
+export type Config = z.infer<typeof ConfigSchema>;
 
-export const config: Config = parsed.data
+export const config: Config = parsed.data;
 
 export function validateRequired(keys: Array<keyof Config>): void {
   const missing = keys.filter((key) => {
-    const value = config[key]
-    return typeof value === "string" ? value.trim().length === 0 : value === undefined
-  })
+    const value = config[key];
+    return typeof value === "string"
+      ? value.trim().length === 0
+      : value === undefined;
+  });
 
   if (missing.length > 0) {
     console.error(
       `[EDITH Config Error] Missing required environment variables: ${missing.join(", ")}`,
-    )
-    process.exit(1)
+    );
+    process.exit(1);
   }
 }
 
-export default config
+export default config;
