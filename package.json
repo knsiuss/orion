@@ -24,6 +24,7 @@
     "wa:cloud": "tsx src/cli/onboard.ts --flow quickstart --channel whatsapp --whatsapp-mode cloud",
     "dedupe:causal-graph": "tsx src/cli/causal-graph-dedupe.ts --apply",
     "dedupe:causal-graph:dry-run": "tsx src/cli/causal-graph-dedupe.ts --dry-run",
+    "lint": "oxlint src/",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -65,6 +66,7 @@
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.0.18",
     "minimatch": "^10.2.4",
+    "oxlint": "^1.52.0",
     "prisma": "^6.19.2",
     "rollup": "^4.59.0",
     "tsup": "^8.5.1",
