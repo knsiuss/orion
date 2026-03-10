@@ -136,6 +136,15 @@ export class ChannelManager {
     return this.channels.get(name)
   }
 
+  /** Returns per-channel status for health monitoring. */
+  healthCheck(): Array<{ name: string; connected: boolean }> {
+    const results: Array<{ name: string; connected: boolean }> = []
+    for (const [name, channel] of this.channels) {
+      results.push({ name, connected: channel.isConnected() })
+    }
+    return results
+  }
+
   async stop(): Promise<void> {
     for (const [, channel] of this.channels) {
       try {
