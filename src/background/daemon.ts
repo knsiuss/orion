@@ -1,3 +1,12 @@
+/**
+ * @file daemon.ts
+ * @description Background daemon loop that evaluates proactive triggers, schedules tasks, and manages the heartbeat cycle.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Uses background/triggers.ts for trigger evaluation and background/heartbeat.ts for health checks.
+ *   Dispatches messages through channels/manager.ts; started by core/startup.ts.
+ */
+
 import crypto from "node:crypto"
 
 import { channelManager } from "../channels/manager.js"
@@ -16,6 +25,7 @@ import { eventBus } from "../core/event-bus.js"
 import { heartbeat } from "./heartbeat.js"
 import { isWithinHardQuietHours } from "./quiet-hours.js"
 import { calendarService } from "../services/calendar.js"
+import { userPreferenceEngine } from "../memory/user-preference.js"
 
 const logger = createLogger("daemon")
 const TRIGGERS_FILE = "permissions/triggers.yaml"
@@ -190,6 +200,16 @@ export class EDITHDaemon {
 
           const channel = "webchat"
           const context = await contextPredictor.predict(trigger.userId, channel)
+
+          // Fetch user's proactivity preference to modulate VoI threshold
+          let proactivityLevel = 3
+          try {
+            const prefs = await userPreferenceEngine.getSnapshot(trigger.userId)
+            proactivityLevel = prefs.proactivity
+          } catch {
+            // Preference unavailable — use default
+          }
+
           const voi = voiCalculator.calculate({
             userId: trigger.userId,
             messageContent: trigger.message,
@@ -197,6 +217,7 @@ export class EDITHDaemon {
             triggerPriority: trigger.priority ?? "normal",
             currentHour: new Date().getHours(),
             context,
+            proactivityLevel,
           })
 
           if (!voi.shouldSend) {

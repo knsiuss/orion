@@ -1,6 +1,15 @@
+/**
+ * @file voi.ts
+ * @description Value of Information calculator that scores whether a proactive message is worth sending to the user.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Called by background/daemon.ts and background/heartbeat.ts before dispatching proactive messages.
+ *   Uses core/context-predictor.ts for multi-dimensional context and sessions/session-store.ts for recency.
+ */
+
 import { createLogger } from "../logger.js"
-import type { MultiDimContext } from "./context-predictor.js"
 import { sessionStore } from "../sessions/session-store.js"
+import type { MultiDimContext } from "./context-predictor.js"
 
 const log = createLogger("core.voi")
 
@@ -11,6 +20,8 @@ export interface VoIInput {
   triggerPriority: "low" | "normal" | "urgent"
   currentHour: number
   context: MultiDimContext
+  /** User's proactivity preference (1-5). Controls VoI threshold. Default: 3. */
+  proactivityLevel?: number
 }
 
 export interface VoIResult {
@@ -45,10 +56,33 @@ function clamp(value: number, min = 0, max = 1): number {
 }
 
 export class VoICalculator {
-  private readonly threshold = 0.3
+  private readonly defaultThreshold = 0.3
+
+  /**
+   * Map a user's proactivity slider (1-5) to a VoI send threshold.
+   * Lower threshold = more messages get through = more proactive.
+   *
+   * @param level - Proactivity preference (1-5, clamped)
+   * @returns VoI threshold value
+   */
+  getThresholdForProactivity(level: number): number {
+    const thresholds: Record<number, number> = {
+      1: 0.60,   // Almost never proactive — only urgent items
+      2: 0.45,   // Rarely proactive
+      3: 0.30,   // Balanced (default)
+      4: 0.15,   // Frequently proactive
+      5: 0.05,   // Very proactive — almost everything gets sent
+    }
+    const clamped = Math.round(Math.max(1, Math.min(5, level)))
+    return thresholds[clamped] ?? this.defaultThreshold
+  }
 
   calculate(input: VoIInput): VoIResult {
     try {
+      const threshold = input.proactivityLevel
+        ? this.getThresholdForProactivity(input.proactivityLevel)
+        : this.defaultThreshold
+
       const baseProbability = PRIORITY_PROBABILITY[input.triggerPriority] ?? 0.3
       const pUserBenefits = this.adjustBenefitProbability(baseProbability, input.context)
 
@@ -57,7 +91,7 @@ export class VoICalculator {
 
       const disturbanceCost = this.calculateDisturbanceCost(input.currentHour, input.context)
       const voi = pUserBenefits * benefitValue - ACTION_COST - disturbanceCost
-      const shouldSend = voi > this.threshold
+      const shouldSend = voi > threshold
 
       const reasoning = this.buildReasoning(
         voi,
@@ -67,13 +101,14 @@ export class VoICalculator {
         disturbanceCost,
         triggerCategory,
         input.context,
+        threshold,
       )
 
       if (!shouldSend) {
         log.debug("VoI check: message blocked", {
           userId: input.userId,
           voi,
-          threshold: this.threshold,
+          threshold,
           reason: reasoning,
         })
       }
@@ -168,6 +203,7 @@ export class VoICalculator {
     disturbanceCost: number,
     category: string,
     context: MultiDimContext,
+    threshold: number,
   ): string {
     const parts: string[] = []
 
@@ -182,7 +218,7 @@ export class VoICalculator {
     if (shouldSend) {
       parts.push("Decision: SEND")
     } else {
-      parts.push(`Decision: BLOCK (below threshold ${this.threshold})`)
+      parts.push(`Decision: BLOCK (below threshold ${threshold.toFixed(2)})`)
     }
 
     return parts.join("; ")
