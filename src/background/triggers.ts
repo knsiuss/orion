@@ -1,11 +1,24 @@
+/**
+ * @file triggers.ts
+ * @description Trigger engine defining scheduled, inactivity, pattern, and webhook trigger types with YAML-based configuration.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Loaded by background/daemon.ts from permissions/triggers.yaml.
+ *   Uses database/index.ts for message history queries.
+ */
+
 import fs from "node:fs"
 
 import yaml from "js-yaml"
 
 import { getHistory } from "../database/index.js"
 import { createLogger } from "../logger.js"
+import { eventBus } from "../core/event-bus.js"
 
 const logger = createLogger("trigger-engine")
+
+/** Maximum recent messages to scan for pattern triggers. */
+const PATTERN_HISTORY_LOOKBACK = 20
 
 export enum TriggerType {
   SCHEDULED = "scheduled",
@@ -25,12 +38,25 @@ export interface Trigger {
   confidence?: number
   schedule?: string
   inactivityMinutes?: number
+  /** Regex pattern for PATTERN triggers — matched against recent message history. */
+  pattern?: string
+  /** Event bus event type for WEBHOOK triggers — fires when the event is dispatched. */
+  eventName?: string
   message: string
   userId: string
 }
 
 class TriggerEngine {
   private triggers: Trigger[] = []
+
+  /**
+   * Set of event bus event types that have fired since the last evaluation cycle.
+   * Consumed (cleared) when a matching WEBHOOK trigger evaluates them.
+   */
+  private readonly firedEvents = new Set<string>()
+
+  /** Whether event bus subscriptions are initialized. */
+  private eventSubscriptionsActive = false
 
   async load(filePath: string): Promise<void> {
     if (!fs.existsSync(filePath)) {
@@ -50,11 +76,29 @@ class TriggerEngine {
 
     this.triggers = parsed as Trigger[]
     logger.info(`Loaded ${this.triggers.length} triggers`)
+
+    // Subscribe to event bus events for WEBHOOK triggers
+    this.initializeEventSubscriptions()
   }
 
+  /**
+   * Evaluate all enabled triggers for a user.
+   *
+   * Handles four trigger types:
+   *   - SCHEDULED: cron expression matching
+   *   - INACTIVITY: minutes since last message
+   *   - PATTERN: regex match against recent conversation history
+   *   - WEBHOOK: event bus events fired since last cycle
+   *
+   * @param userId - User to evaluate triggers for.
+   * @returns Array of triggers that matched.
+   */
   async evaluate(userId: string): Promise<Trigger[]> {
     const now = new Date()
     const matches: Trigger[] = []
+
+    // Lazily fetch pattern history only if there are pattern triggers
+    let patternHistory: string | null = null
 
     for (const trigger of this.triggers) {
       if (!trigger.enabled || trigger.userId !== userId) {
@@ -79,6 +123,29 @@ class TriggerEngine {
           matches.push(trigger)
         }
       }
+
+      // PATTERN triggers: match regex against recent conversation content
+      if (trigger.type === TriggerType.PATTERN && trigger.pattern) {
+        if (patternHistory === null) {
+          patternHistory = await this.fetchPatternHistory(userId)
+        }
+        if (this.evaluatePattern(trigger.pattern, patternHistory, trigger.name)) {
+          matches.push(trigger)
+        }
+      }
+
+      // WEBHOOK (event) triggers: check if the named event fired since last cycle
+      if (trigger.type === TriggerType.WEBHOOK && trigger.eventName) {
+        if (this.firedEvents.has(trigger.eventName)) {
+          logger.info("Event trigger matched", {
+            trigger: trigger.name,
+            eventName: trigger.eventName,
+          })
+          matches.push(trigger)
+          // Consume the event so it doesn't fire again next cycle
+          this.firedEvents.delete(trigger.eventName)
+        }
+      }
     }
 
     return matches
@@ -94,6 +161,95 @@ class TriggerEngine {
 
   removeTrigger(id: string): void {
     this.triggers = this.triggers.filter((trigger) => trigger.id !== id)
+  }
+
+  /**
+   * Manually record an event as fired (for testing or programmatic triggers).
+   *
+   * @param eventName - The event name to record.
+   */
+  recordEvent(eventName: string): void {
+    this.firedEvents.add(eventName)
+  }
+
+  /**
+   * Get the set of events that have fired but not yet been consumed.
+   */
+  getPendingEvents(): ReadonlySet<string> {
+    return this.firedEvents
+  }
+
+  // ── Private ─────────────────────────────────────────────────────────────
+
+  /**
+   * Subscribe to typed event bus events that WEBHOOK triggers may reference.
+   * Only subscribes once; safe to call multiple times.
+   */
+  private initializeEventSubscriptions(): void {
+    if (this.eventSubscriptionsActive) {
+      return
+    }
+    this.eventSubscriptionsActive = true
+
+    eventBus.on("engine.degraded", (data) => {
+      this.firedEvents.add("engine.degraded")
+      logger.debug("Event captured for triggers", { event: "engine.degraded", engine: data.engineName })
+    })
+
+    eventBus.on("engine.recovered", (data) => {
+      this.firedEvents.add("engine.recovered")
+      logger.debug("Event captured for triggers", { event: "engine.recovered", engine: data.engineName })
+    })
+
+    eventBus.on("system.health.changed", (data) => {
+      this.firedEvents.add("system.health.changed")
+      logger.debug("Event captured for triggers", {
+        event: "system.health.changed",
+        component: data.component,
+        status: data.newStatus,
+      })
+    })
+
+    eventBus.on("channel.disconnected", (data) => {
+      this.firedEvents.add("channel.disconnected")
+      logger.debug("Event captured for triggers", {
+        event: "channel.disconnected",
+        channel: data.channelName,
+      })
+    })
+
+    logger.info("Event bus subscriptions initialized for WEBHOOK triggers")
+  }
+
+  /**
+   * Fetch recent conversation history as a single string for pattern matching.
+   */
+  private async fetchPatternHistory(userId: string): Promise<string> {
+    try {
+      const history = await getHistory(userId, PATTERN_HISTORY_LOOKBACK)
+      return history.map((h) => h.content).join(" ").toLowerCase()
+    } catch (err) {
+      logger.warn("Failed to fetch history for pattern trigger", { userId, err })
+      return ""
+    }
+  }
+
+  /**
+   * Test a regex pattern against the aggregated history text.
+   * Returns false on invalid regex rather than throwing.
+   */
+  private evaluatePattern(pattern: string, historyText: string, triggerName: string): boolean {
+    try {
+      const regex = new RegExp(pattern, "i")
+      const matched = regex.test(historyText)
+      if (matched) {
+        logger.info("Pattern trigger matched", { trigger: triggerName, pattern })
+      }
+      return matched
+    } catch (err) {
+      logger.warn("Invalid regex in pattern trigger", { trigger: triggerName, pattern, err })
+      return false
+    }
   }
 }
 

@@ -1,3 +1,12 @@
+/**
+ * @file event-bus.ts
+ * @description Centralized typed event bus for EDITH system events (messages, memory, triggers, etc.).
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Published to by core/message-pipeline.ts, background/daemon.ts, and memory subsystems.
+ *   Consumed by any module needing reactive event handling.
+ */
+
 import { EventEmitter } from "node:events"
 
 import { createLogger } from "../logger.js"
@@ -57,6 +66,31 @@ export type EDITHEvent =
   }
   | {
     type: "system.heartbeat"
+    timestamp: number
+  }
+  | {
+    type: "config.reloaded"
+    /** Top-level keys in edith.json that changed. */
+    changedKeys: string[]
+    timestamp: number
+  }
+  | {
+    type: "engine.degraded"
+    engineName: string
+    reason: string
+    timestamp: number
+  }
+  | {
+    type: "engine.recovered"
+    engineName: string
+    timestamp: number
+  }
+  | {
+    type: "system.health.changed"
+    component: string
+    previousStatus: string
+    newStatus: string
+    message?: string
     timestamp: number
   }
 
