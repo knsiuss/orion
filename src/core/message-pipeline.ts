@@ -1,4 +1,11 @@
 /**
+ * @file message-pipeline.ts
+ * @description The canonical EDITH message processing pipeline from raw input through LLM generation to persisted response.
+ *
+ * ARCHITECTURE / INTEGRATION:
+ *   Central pipeline called by core/incoming-message-service.ts and gateway/server.ts.
+ *   Coordinates security checks, memory retrieval, system prompt assembly, and LLM generation.
+ *
  * MessagePipeline - The canonical EDITH message processing pipeline.
  *
  * This module is the single source of truth for how a user message is
@@ -38,6 +45,7 @@ import {
 import { sessionStore } from "../sessions/session-store.js";
 import { createLogger } from "../logger.js";
 import { responseCritic } from "./critic.js";
+import { eventBus } from "./event-bus.js";
 import { personaEngine } from "./persona.js";
 import { buildSystemPrompt } from "./system-prompt-builder.js";
 import { feedbackStore } from "../memory/feedback-store.js";
@@ -47,7 +55,11 @@ import { personalityEngine } from "./personality-engine.js";
 import { queryClassifier } from "../memory/knowledge/query-classifier.js";
 import { retrievalEngine } from "../memory/knowledge/retrieval-engine.js";
 import { syncScheduler } from "../memory/knowledge/sync-scheduler.js";
-import { classifyTask } from "./task-classifier.js";
+import { classifyTask, needsRetrieval } from "./task-classifier.js";
+import { classifierFeedback } from "./classifier-feedback.js";
+import { streamingDelivery } from "../channels/streaming-delivery.js";
+import { tokenBudget } from "../observability/token-budget.js";
+import type { BaseChannel } from "../channels/base.js";
 
 const log = createLogger("core.pipeline");
 
@@ -83,6 +95,10 @@ export interface PipelineOptions {
   channel: string;
   /** Session mode for system prompt assembly. */
   sessionMode?: "dm" | "group" | "subagent";
+  /** Enable streaming delivery when the engine supports generateStream(). */
+  stream?: boolean;
+  /** Target channel instance for streaming delivery (required when stream=true). */
+  streamChannel?: BaseChannel;
 }
 
 function blockedResult(): PipelineResult {
@@ -148,6 +164,7 @@ async function persistUserMessageAndBuildContext(
   rawText: string,
   safeText: string,
   inputSafety: PromptSafetyResult,
+  skipRetrieval: boolean,
 ): Promise<BuildContextResult> {
   const userMeta = buildUserMessageMetadata(
     channel,
@@ -155,6 +172,19 @@ async function persistUserMessageAndBuildContext(
     rawText,
     safeText,
   );
+
+  if (skipRetrieval) {
+    // Phase H.2: Skip memory retrieval for trivial messages (greetings, affirmations, etc.)
+    // to save 200-500ms per turn. Only persist the user message.
+    await saveMessage(userId, "user", safeText, channel, userMeta);
+    addSessionMessage(userId, channel, "user", safeText);
+
+    return {
+      messages: [],
+      systemContext: "",
+      retrievedMemoryIds: [],
+    };
+  }
 
   // Persistence and retrieval are independent; run them together to avoid
   // paying sequential latency for every user turn.
@@ -234,6 +264,7 @@ async function maybeCompactSessionHistory(
 async function buildPersonaDynamicContext(
   userId: string,
   safeText: string,
+  channel: string,
 ): Promise<string | undefined> {
   if (!config.PERSONA_ENABLED) {
     return undefined;
@@ -244,9 +275,28 @@ async function buildPersonaDynamicContext(
     profiler.formatForContext(userId),
   ]);
 
-  const mood = personaEngine.detectMood(safeText, profile?.currentTopics ?? []);
+  const recentTopics = profile?.currentTopics ?? [];
+  const mood = personaEngine.detectMood(safeText, recentTopics);
   const expertise = personaEngine.detectExpertise(profile, safeText);
   const topicCategory = personaEngine.detectTopicCategory(safeText);
+
+  // Detect session start: check if the last message in this channel was > 2 hours ago
+  let isSessionStart = false;
+  try {
+    const history = await sessionStore.getSessionHistory(userId, channel, 1);
+    if (history.length === 0) {
+      isSessionStart = true;
+    } else {
+      const lastTimestamp = (history[0] as { timestamp?: number }).timestamp ?? 0;
+      const gapMs = Date.now() - lastTimestamp;
+      isSessionStart = gapMs > 2 * 60 * 60 * 1000; // 2 hours
+    }
+  } catch {
+    // Session store unavailable — default to non-session-start
+  }
+
+  const currentHour = new Date().getHours();
+  const situation = personaEngine.detectSituation(safeText, currentHour, isSessionStart, recentTopics);
 
   return personaEngine.buildDynamicContext(
     {
@@ -254,6 +304,7 @@ async function buildPersonaDynamicContext(
       userExpertise: expertise,
       topicCategory,
       urgency: mood === "stressed",
+      situation,
     },
     profileSummary,
   );
@@ -314,6 +365,8 @@ function launchAsyncSideEffects(
   safeText: string,
   response: string,
   retrievedMemoryIds: string[],
+  taskType?: string,
+  generationLatencyMs?: number,
 ): void {
   // These are deferred because they improve future context quality and should
   // never delay delivery of the current reply.
@@ -376,6 +429,17 @@ function launchAsyncSideEffects(
         log.warn("KB sync scheduler tick failed", { userId, err }),
       );
   }
+
+  // Phase H.4: Record classification outcome for feedback analysis
+  if (taskType && generationLatencyMs !== undefined) {
+    classifierFeedback.recordSimple(
+      safeText,
+      taskType as import("../engines/types.js").TaskType,
+      "unknown", // engine name is internal to orchestrator
+      generationLatencyMs,
+      response.length,
+    );
+  }
 }
 
 function computeProvisionalReward(retrievedMemoryIds: string[]): number {
@@ -409,7 +473,33 @@ async function processMessageInternal(
   }
   const safeText = inputSafety.sanitized;
 
+  // Emit event after input safety check succeeds (fire-and-forget, no latency added)
+  eventBus.dispatch("user.message.received", {
+    userId,
+    content: safeText,
+    channel: options.channel ?? "unknown",
+    timestamp: Date.now(),
+  });
+
+  // Stage 1.5: Token budget enforcement
+  const budgetCheck = await tokenBudget.checkBudget(userId);
+  if (!budgetCheck.allowed) {
+    log.warn("token budget exceeded", { userId, channel, remaining: budgetCheck.remaining });
+    return {
+      response: budgetCheck.message ?? "Token budget exceeded.",
+      retrievedMemoryIds: [],
+      provisionalReward: 0,
+    };
+  }
+
   // Stage 2: Persist user input and build retrieval context
+  // Phase H.2: Check if retrieval is needed before calling memory.buildContext().
+  // Skipping retrieval for trivial messages saves 200-500ms per turn.
+  const skipRetrieval = !needsRetrieval(safeText);
+  if (skipRetrieval) {
+    log.info("retrieval skipped for trivial message", { userId, channel, preview: safeText.slice(0, 40) });
+  }
+
   const { messages, systemContext, retrievedMemoryIds } =
     await persistUserMessageAndBuildContext(
       userId,
@@ -417,13 +507,14 @@ async function processMessageInternal(
       rawText,
       safeText,
       inputSafety,
+      skipRetrieval,
     );
 
   // Stage 2.5: Opportunistic session compaction (best effort)
   await maybeCompactSessionHistory(userId, channel);
 
   // Stage 3 + 4: Persona detection and system prompt assembly
-  let dynamicContext = await buildPersonaDynamicContext(userId, safeText);
+  let dynamicContext = await buildPersonaDynamicContext(userId, safeText, channel);
 
   // Phase 13: Knowledge base query classification + context injection
   if (config.KNOWLEDGE_BASE_ENABLED) {
@@ -459,13 +550,39 @@ async function processMessageInternal(
   // Avoids sending trivial queries (greetings, yes/no) to expensive reasoning models.
   const taskType = classifyTask(safeText);
 
-  // Stage 5: LLM generation
+  // Stage 5: LLM generation (streaming or non-streaming)
   const prompt = buildGenerationPrompt(systemContext, safeText);
-  const raw = await orchestrator.generate(taskType, {
+  const generateOptions = {
     prompt,
     context: messages,
     systemPrompt,
-  });
+  };
+
+  let raw: string;
+  const generationStartMs = Date.now();
+
+  if (options.stream && options.streamChannel) {
+    // Attempt streaming delivery when requested and channel context is provided
+    const streamIterable = orchestrator.generateStream(taskType, generateOptions);
+
+    if (streamIterable) {
+      log.debug("using streaming generation", { userId, channel, taskType });
+      const streamResult = await streamingDelivery.collect(streamIterable);
+      raw = streamResult.fullText;
+    } else {
+      // Engine does not support streaming — fall back to non-streaming
+      log.debug("streaming not available, falling back to non-streaming", {
+        userId,
+        channel,
+        taskType,
+      });
+      raw = await orchestrator.generate(taskType, generateOptions);
+    }
+  } else {
+    raw = await orchestrator.generate(taskType, generateOptions);
+  }
+
+  const generationLatencyMs = Date.now() - generationStartMs;
 
   // Stage 6: Critique and refinement
   const critiqued = await responseCritic.critiqueAndRefine(
@@ -495,8 +612,16 @@ async function processMessageInternal(
     scanResult,
   );
 
+  // Emit event after response is persisted (fire-and-forget, no latency added)
+  eventBus.dispatch("user.message.sent", {
+    userId,
+    content: response,
+    channel: options.channel ?? "unknown",
+    timestamp: Date.now(),
+  });
+
   // Stage 9: Async side effects (fire-and-forget)
-  launchAsyncSideEffects(userId, safeText, response, retrievedMemoryIds);
+  launchAsyncSideEffects(userId, safeText, response, retrievedMemoryIds, taskType, generationLatencyMs);
 
   return {
     response,
