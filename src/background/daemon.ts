@@ -26,6 +26,8 @@ import { heartbeat } from "./heartbeat.js"
 import { isWithinHardQuietHours } from "./quiet-hours.js"
 import { calendarService } from "../services/calendar.js"
 import { userPreferenceEngine } from "../memory/user-preference.js"
+import { briefingComposer } from "./briefing-composer.js"
+import { getAggregatedHealth } from "../core/health.js"
 
 const logger = createLogger("daemon")
 const TRIGGERS_FILE = "permissions/triggers.yaml"
@@ -39,6 +41,9 @@ export class EDITHDaemon {
   private eventSubscriptionsInitialized = false
   private lastTemporalMaintenanceAt = new Map<string, number>()
   private readonly credential: AgentCredential
+
+  /** Track last known health status per component for change detection. */
+  private readonly lastKnownHealthStatus = new Map<string, string>()
 
   constructor() {
     this.credential = acpRouter.registerAgent(
@@ -179,7 +184,9 @@ export class EDITHDaemon {
       await pairingManager.cleanupExpired()
 
       await this.checkForActivity(userId)
-      await this.checkCalendarAlerts(userId) // Phase 8: Calendar proactive alerts
+      await this.checkBriefing(userId)            // JARVIS: proactive briefings
+      await this.checkCalendarAlerts(userId)       // Phase 8: calendar proactive alerts
+      await this.checkSystemHealthAlerts(userId)   // JARVIS: ambient system monitoring
       await this.maybeRunTemporalMaintenance(userId)
 
       const now = new Date()
@@ -252,6 +259,115 @@ export class EDITHDaemon {
       }
     } catch (error) {
       logger.error("Daemon cycle failed", error)
+    }
+  }
+
+  /**
+   * JARVIS: Check if a proactive briefing should be sent and compose it.
+   * Gated behind VoI, quiet hours, and permission checks.
+   */
+  private async checkBriefing(userId: string): Promise<void> {
+    try {
+      const now = new Date()
+      if (isWithinHardQuietHours(now)) {
+        return
+      }
+
+      const check = await briefingComposer.shouldBrief(userId)
+      if (!check.should) {
+        logger.debug("Briefing check: skipped", { userId, reason: check.reason })
+        return
+      }
+
+      const allowed = await sandbox.check(PermissionAction.PROACTIVE_MESSAGE, userId)
+      if (!allowed) {
+        logger.debug("Briefing blocked by permissions", { userId })
+        return
+      }
+
+      const message = await briefingComposer.compose(userId)
+      const sent = await channelManager.send(userId, message)
+      if (sent) {
+        briefingComposer.recordBriefingSent(userId)
+        this.lastActivityTime = Date.now()
+        heartbeat.recordActivity(this.lastActivityTime)
+        logger.info("JARVIS briefing sent", { userId })
+      }
+    } catch (error) {
+      logger.error("Failed to check/send briefing", { error })
+    }
+  }
+
+  /**
+   * JARVIS: Monitor system health and alert the user when something degrades.
+   * Only alerts on status *changes* (not every cycle) to avoid spam.
+   * JARVIS-style: "Sir, the Groq API appears to be experiencing issues."
+   */
+  private async checkSystemHealthAlerts(userId: string): Promise<void> {
+    try {
+      const now = new Date()
+      if (isWithinHardQuietHours(now)) {
+        return
+      }
+
+      const health = await getAggregatedHealth()
+
+      for (const [name, component] of Object.entries(health.components)) {
+        const previousStatus = this.lastKnownHealthStatus.get(name)
+        const currentStatus = component.status
+
+        // Only alert on status changes
+        if (previousStatus === currentStatus) {
+          continue
+        }
+
+        this.lastKnownHealthStatus.set(name, currentStatus)
+
+        // Skip initial population — don't alert on first discovery
+        if (previousStatus === undefined) {
+          continue
+        }
+
+        // Alert on degradation (healthy → unhealthy or degraded)
+        if (previousStatus === "healthy" && currentStatus !== "healthy") {
+          const allowed = await sandbox.check(PermissionAction.PROACTIVE_MESSAGE, userId)
+          if (!allowed) {
+            continue
+          }
+
+          const alertMessage = component.message
+            ? `Sir, ${name} appears to be experiencing issues — ${component.message}. Status: ${currentStatus}.`
+            : `Sir, ${name} has changed status to ${currentStatus}. I'm monitoring the situation.`
+
+          const sent = await channelManager.send(userId, alertMessage)
+          if (sent) {
+            logger.info("System health alert sent", { userId, component: name, status: currentStatus })
+            eventBus.dispatch("system.health.changed", {
+              component: name,
+              previousStatus,
+              newStatus: currentStatus,
+              message: component.message,
+              timestamp: Date.now(),
+            })
+          }
+        }
+
+        // Notify on recovery (unhealthy → healthy)
+        if (previousStatus !== "healthy" && currentStatus === "healthy") {
+          const allowed = await sandbox.check(PermissionAction.PROACTIVE_MESSAGE, userId)
+          if (!allowed) {
+            continue
+          }
+
+          const recoveryMessage = `Sir, ${name} has recovered and is operating normally.`
+          const sent = await channelManager.send(userId, recoveryMessage)
+          if (sent) {
+            logger.info("System health recovery alert sent", { userId, component: name })
+          }
+        }
+      }
+    } catch (error) {
+      logger.error("Failed to check system health alerts", { error })
     }
   }
 

@@ -95,6 +95,7 @@ vi.mock("../persona.js", () => ({
     detectMood: vi.fn().mockReturnValue("neutral"),
     detectExpertise: vi.fn().mockReturnValue("general"),
     detectTopicCategory: vi.fn().mockReturnValue("general"),
+    detectSituation: vi.fn().mockReturnValue("routine"),
     buildDynamicContext: vi.fn().mockReturnValue(""),
   },
 }))
@@ -143,6 +144,38 @@ vi.mock("../../memory/knowledge/retrieval-engine.js", () => ({
 vi.mock("../../memory/knowledge/sync-scheduler.js", () => ({
   syncScheduler: {
     tick: vi.fn().mockResolvedValue(undefined),
+  },
+}))
+
+vi.mock("../task-classifier.js", () => ({
+  classifyTask: vi.fn().mockReturnValue("fast"),
+  needsRetrieval: vi.fn().mockReturnValue(true),
+}))
+
+vi.mock("../classifier-feedback.js", () => ({
+  classifierFeedback: {
+    recordSimple: vi.fn(),
+    record: vi.fn(),
+  },
+}))
+
+vi.mock("../../channels/streaming-delivery.js", () => ({
+  streamingDelivery: {
+    collect: vi.fn().mockResolvedValue({ fullText: "streamed response" }),
+  },
+}))
+
+vi.mock("../../observability/token-budget.js", () => ({
+  tokenBudget: {
+    checkBudget: vi.fn().mockResolvedValue({ allowed: true, remaining: 100000 }),
+  },
+}))
+
+vi.mock("../event-bus.js", () => ({
+  eventBus: {
+    dispatch: vi.fn(),
+    on: vi.fn(),
+    emit: vi.fn().mockReturnValue(true),
   },
 }))
 
@@ -200,11 +233,11 @@ describe("processMessage", () => {
     expect(result.response).toBe("Hello from EDITH!")
   })
 
-  it("calls orchestrator.generate with reasoning task type", async () => {
+  it("calls orchestrator.generate with fast task type for simple greetings", async () => {
     await processMessage("user-1", "hello", { channel: "cli" })
 
     expect(generateMock).toHaveBeenCalledWith(
-      "reasoning",
+      "fast",
       expect.objectContaining({ prompt: expect.any(String) }),
     )
   })
