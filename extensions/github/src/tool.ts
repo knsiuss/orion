@@ -1,192 +1,94 @@
 /**
  * @file tool.ts
- * @description GitHub integration — repos, issues, PRs, commits.
+ * @description GitHub integration tool for EDITH — exposes issue/PR/repo
+ *   operations as agent-callable skills.
  *
  * ARCHITECTURE / INTEGRATION:
- *   Uses GitHub REST API v3 (2022-11-28) via native fetch.
- *   Requires a Personal Access Token with appropriate scopes.
+ *   Loaded by the skills system. Calls the GitHub REST API using Octokit.
+ *   Requires GITHUB_TOKEN in config.
  */
 
-import { createLogger } from "../../../src/logger.js"
+import config from "../../src/config.js"
+import { createLogger } from "../../src/logger.js"
 
 const log = createLogger("ext.github")
-const API = "https://api.github.com"
 
-export class GitHubTool {
-  constructor(private readonly token: string) {}
+const GITHUB_API_BASE = "https://api.github.com"
 
-  private get h(): Record<string, string> {
-    return {
-      Authorization: `Bearer ${this.token}`,
+interface GitHubIssue {
+  number: number
+  title: string
+  state: string
+  html_url: string
+}
+
+interface GitHubRepo {
+  full_name: string
+  description: string | null
+  html_url: string
+  stargazers_count: number
+}
+
+async function githubFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = config.GITHUB_TOKEN
+  if (!token?.trim()) {
+    throw new Error("GITHUB_TOKEN is not configured")
+  }
+
+  const response = await fetch(`${GITHUB_API_BASE}${path}`, {
+    ...options,
+    headers: {
       Accept: "application/vnd.github.v3+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    }
+      Authorization: `Bearer ${token}`,
+      "User-Agent": "EDITH-AI",
+      ...options.headers,
+    },
+  })
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "")
+    throw new Error(`GitHub API ${response.status}: ${body.slice(0, 200)}`)
   }
 
-  async getRepo(
-    owner: string,
-    repo: string,
-  ): Promise<{
-    name: string
-    description: string
-    stars: number
-    openIssues: number
-    url: string
-  }> {
-    const r = await fetch(`${API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, {
-      headers: this.h,
-    })
-    if (!r.ok) throw new Error(`GitHub getRepo failed: ${r.status}`)
-    const d = (await r.json()) as {
-      name: string
-      description: string
-      stargazers_count: number
-      open_issues_count: number
-      html_url: string
-    }
-    return {
-      name: d.name,
-      description: d.description,
-      stars: d.stargazers_count,
-      openIssues: d.open_issues_count,
-      url: d.html_url,
-    }
-  }
+  return response.json() as Promise<T>
+}
 
-  async listOpenIssues(
-    owner: string,
-    repo: string,
-    limit = 10,
-  ): Promise<
-    Array<{ number: number; title: string; url: string; labels: string[] }>
-  > {
-    const r = await fetch(
-      `${API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=open&per_page=${limit}`,
-      { headers: this.h },
-    )
-    if (!r.ok) throw new Error(`GitHub listIssues failed: ${r.status}`)
-    const d = (await r.json()) as Array<{
-      number: number
-      title: string
-      html_url: string
-      labels: Array<{ name: string }>
-    }>
-    return d.map((i) => ({
-      number: i.number,
-      title: i.title,
-      url: i.html_url,
-      labels: i.labels.map((l) => l.name),
-    }))
-  }
+/** List open issues for a repository. */
+export async function listIssues(owner: string, repo: string, limit = 10): Promise<GitHubIssue[]> {
+  log.debug("listing issues", { owner, repo, limit })
+  return githubFetch<GitHubIssue[]>(
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=open&per_page=${limit}`,
+  )
+}
 
-  async listOpenPRs(
-    owner: string,
-    repo: string,
-    limit = 10,
-  ): Promise<
-    Array<{
-      number: number
-      title: string
-      author: string
-      url: string
-      draft: boolean
-    }>
-  > {
-    const r = await fetch(
-      `${API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=open&per_page=${limit}`,
-      { headers: this.h },
-    )
-    if (!r.ok) throw new Error(`GitHub listPRs failed: ${r.status}`)
-    const d = (await r.json()) as Array<{
-      number: number
-      title: string
-      user: { login: string }
-      html_url: string
-      draft: boolean
-    }>
-    return d.map((p) => ({
-      number: p.number,
-      title: p.title,
-      author: p.user.login,
-      url: p.html_url,
-      draft: p.draft,
-    }))
-  }
+/** Create a new issue. */
+export async function createIssue(
+  owner: string,
+  repo: string,
+  title: string,
+  body: string,
+): Promise<GitHubIssue> {
+  log.debug("creating issue", { owner, repo, title })
+  return githubFetch<GitHubIssue>(
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, body }),
+    },
+  )
+}
 
-  async createIssue(
-    owner: string,
-    repo: string,
-    title: string,
-    body: string,
-    labels: string[] = [],
-  ): Promise<number> {
-    const r = await fetch(
-      `${API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues`,
-      {
-        method: "POST",
-        headers: this.h,
-        body: JSON.stringify({ title, body, labels }),
-      },
-    )
-    if (!r.ok) throw new Error(`GitHub createIssue failed: ${r.status}`)
-    const d = (await r.json()) as { number: number }
-    log.info("issue created", { owner, repo, number: d.number })
-    return d.number
-  }
+/** Get basic repository info. */
+export async function getRepo(owner: string, repo: string): Promise<GitHubRepo> {
+  return githubFetch<GitHubRepo>(
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+  )
+}
 
-  async getLatestCommits(
-    owner: string,
-    repo: string,
-    limit = 5,
-  ): Promise<
-    Array<{ sha: string; message: string; author: string; date: string }>
-  > {
-    const r = await fetch(
-      `${API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?per_page=${limit}`,
-      { headers: this.h },
-    )
-    if (!r.ok) throw new Error(`GitHub getCommits failed: ${r.status}`)
-    const d = (await r.json()) as Array<{
-      sha: string
-      commit: { message: string; author: { name: string; date: string } }
-    }>
-    return d.map((c) => ({
-      sha: c.sha.slice(0, 7),
-      message: c.commit.message.split("\n")[0] ?? "",
-      author: c.commit.author.name,
-      date: c.commit.author.date,
-    }))
-  }
-
-  async getMyRepos(
-    limit = 20,
-  ): Promise<
-    Array<{
-      name: string
-      fullName: string
-      private: boolean
-      stars: number
-      url: string
-    }>
-  > {
-    const r = await fetch(
-      `${API}/user/repos?sort=pushed&per_page=${limit}`,
-      { headers: this.h },
-    )
-    if (!r.ok) throw new Error(`GitHub getMyRepos failed: ${r.status}`)
-    const d = (await r.json()) as Array<{
-      name: string
-      full_name: string
-      private: boolean
-      stargazers_count: number
-      html_url: string
-    }>
-    return d.map((repo) => ({
-      name: repo.name,
-      fullName: repo.full_name,
-      private: repo.private,
-      stars: repo.stargazers_count,
-      url: repo.html_url,
-    }))
-  }
+/** Tool metadata for the skills loader. */
+export const toolMeta = {
+  name: "github",
+  description: "GitHub integration — list issues, create issues, get repo info",
+  functions: { listIssues, createIssue, getRepo },
 }

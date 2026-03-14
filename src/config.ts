@@ -1,55 +1,49 @@
-﻿/**
- * @file config.ts
- * @description Central Zod-validated configuration  single source of truth for all env vars.
- *
- * ARCHITECTURE / INTEGRATION:
- *   Parsed once at startup; validated using Zod schemas.
- *   Import the default-exported config object throughout the codebase.
- */
-import dotenv from "dotenv"
-import { z } from "zod"
+import dotenv from "dotenv";
+import { z } from "zod";
 
-const envFilePath = typeof process.env.EDITH_ENV_FILE === "string" && process.env.EDITH_ENV_FILE.trim().length > 0
-  ? process.env.EDITH_ENV_FILE.trim()
-  : ".env"
+const envFilePath =
+  typeof process.env.EDITH_ENV_FILE === "string" &&
+  process.env.EDITH_ENV_FILE.trim().length > 0
+    ? process.env.EDITH_ENV_FILE.trim()
+    : ".env";
 
-dotenv.config({ path: envFilePath })
+dotenv.config({ path: envFilePath });
 
 const boolFromEnv = z.preprocess((value) => {
   if (typeof value === "boolean") {
-    return value
+    return value;
   }
   if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase()
-    return normalized === "true" || normalized === "1" || normalized === "yes"
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "1" || normalized === "yes";
   }
-  return false
-}, z.boolean())
+  return false;
+}, z.boolean());
 
 const intFromEnv = z.preprocess((value) => {
   if (typeof value === "number") {
-    return value
+    return value;
   }
   if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number.parseInt(value, 10)
-    return Number.isNaN(parsed) ? undefined : parsed
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
   }
-  return undefined
-}, z.number().int())
+  return undefined;
+}, z.number().int());
 
 const floatFromEnv = z.preprocess((value) => {
   if (typeof value === "number") {
-    return value
+    return value;
   }
   if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number.parseFloat(value)
-    return Number.isFinite(parsed) ? parsed : undefined
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
   }
-  return undefined
-}, z.number())
+  return undefined;
+}, z.number());
 
-const logLevelSchema = z.enum(["debug", "info", "warn", "error"])
-const whatsAppModeSchema = z.enum(["baileys", "cloud"])
+const logLevelSchema = z.enum(["debug", "info", "warn", "error"]);
+const whatsAppModeSchema = z.enum(["baileys", "cloud"]);
 
 const ConfigSchema = z.object({
   ANTHROPIC_API_KEY: z.string().default(""),
@@ -73,8 +67,6 @@ const ConfigSchema = z.object({
   WHATSAPP_CLOUD_API_VERSION: z.string().default("v20.0"),
   SIGNAL_PHONE_NUMBER: z.string().default(""),
   SIGNAL_CLI_PATH: z.string().default(""),
-  /** Base URL of the signal-cli REST API daemon (e.g. http://localhost:8080). Leave empty to use CLI mode. */
-  SIGNAL_REST_API_URL: z.string().default(""),
   LINE_CHANNEL_TOKEN: z.string().default(""),
   LINE_CHANNEL_SECRET: z.string().default(""),
   MATRIX_HOMESERVER: z.string().default(""),
@@ -104,17 +96,13 @@ const ConfigSchema = z.object({
   AUTO_START_GATEWAY: boolFromEnv.default(false),
   // Email configuration (T-1.3)
   EMAIL_HOST: z.string().default(""),
-  EMAIL_PORT: z.string().default("993"),
+  EMAIL_PORT: intFromEnv.default(993),
   EMAIL_USER: z.string().default(""),
   EMAIL_PASS: z.string().default(""),
   EMAIL_SMTP_HOST: z.string().default(""),
-  EMAIL_SMTP_PORT: z.string().default("587"),
+  EMAIL_SMTP_PORT: intFromEnv.default(587),
   // Vision configuration (T-1.7)
   VISION_ENGINE: z.string().default("gemini"),
-  VISION_GEMINI_MODEL: z.string().default("gemini-1.5-flash"),
-  VISION_OPENAI_MODEL: z.string().default("gpt-4o"),
-  VISION_CLAUDE_MODEL: z.string().default("claude-opus-4-5"),
-  VISION_OLLAMA_MODEL: z.string().default("llava"),
   // Voice configuration (T-3)
   VOICE_WHISPER_MODEL: z.string().default("base"),
   // Phase I-0: Hybrid Search
@@ -139,19 +127,13 @@ const ConfigSchema = z.object({
   OUTLOOK_CLIENT_SECRET: z.string().default(""),
   OUTLOOK_REFRESH_TOKEN: z.string().default(""),
   // Phase 8: Calendar (Google + Outlook OAuth2)
+  GCAL_ENABLED: boolFromEnv.default(false),
   GCAL_CLIENT_ID: z.string().default(""),
   GCAL_CLIENT_SECRET: z.string().default(""),
   GCAL_REFRESH_TOKEN: z.string().default(""),
   OUTLOOK_CALENDAR_CLIENT_ID: z.string().default(""),
   OUTLOOK_CALENDAR_CLIENT_SECRET: z.string().default(""),
   OUTLOOK_CALENDAR_REFRESH_TOKEN: z.string().default(""),
-  /**
-   * Runtime bearer token for Microsoft Graph Calendar API.
-   * Populated at startup by CalendarService.initOutlook() via OAuth2
-   * refresh-token exchange.  Can also be set directly via env var for
-   * service-principal / CI flows that supply a short-lived token directly.
-   */
-  OUTLOOK_CALENDAR_ACCESS_TOKEN: z.string().default(""),
   // Phase 8: SMS (Twilio + Android ADB)
   TWILIO_ACCOUNT_SID: z.string().default(""),
   TWILIO_AUTH_TOKEN: z.string().default(""),
@@ -159,10 +141,6 @@ const ConfigSchema = z.object({
   // Phase 8: Phone (Twilio Voice)
   TWILIO_TWIML_APP_SID: z.string().default(""),
   PHONE_WEBHOOK_URL: z.string().default(""),
-  /** Enable the PhoneChannel WebSocket audio server. */
-  PHONE_ENABLED: boolFromEnv.default(false),
-  /** Port for the standalone Twilio Media Streams WebSocket server. */
-  PHONE_WS_PORT: intFromEnv.default(8082),
   // Phase 8: Android ADB (self-hosted SMS fallback)
   ANDROID_ADB_HOST: z.string().default("127.0.0.1"),
   ANDROID_ADB_PORT: intFromEnv.default(5037),
@@ -180,16 +158,6 @@ const ConfigSchema = z.object({
   KOKORO_TTS_ENABLED: boolFromEnv.default(false),
   KOKORO_TTS_DTYPE: z.enum(["fp32", "fp16", "q8", "q4"]).default("q8"),
   KOKORO_TTS_VOICE: z.string().default("af_heart"),
-  // Fish Audio TTS (S1 / S1-mini / Fish-Speech 1.5)
-  FISH_AUDIO_ENABLED: boolFromEnv.default(false),
-  FISH_AUDIO_API_KEY: z.string().default(""),
-  // Default reference_id â€” S1-mini public model or your custom clone
-  FISH_AUDIO_MODEL_ID: z.string().default("s1"),
-  // Latency mode: "normal" | "balanced" (balanced is faster, slightly lower quality)
-  FISH_AUDIO_LATENCY: z.enum(["normal", "balanced"]).default("balanced"),
-  // Optional per-emotion reference_id overrides (comma-separated key:id pairs)
-  // e.g. "warm:abc123,urgent:def456" â€” if empty, FISH_AUDIO_MODEL_ID is used for all
-  FISH_AUDIO_EMOTION_MODELS: z.string().default(""),
   // nodejs-whisper offline STT
   WHISPER_CPP_ENABLED: boolFromEnv.default(false),
   WHISPER_CPP_MODEL: z.string().default("base"),
@@ -197,9 +165,11 @@ const ConfigSchema = z.object({
   // UserPreferenceEngine inference
   PERSONALIZATION_ENABLED: boolFromEnv.default(true),
   PREFERENCE_INFERENCE_INTERVAL_MS: intFromEnv.default(5 * 60 * 1000), // every 5 min
-  PREFERENCE_ALPHA: floatFromEnv.default(0.15),  // learning rate for slider updates
+  PREFERENCE_ALPHA: floatFromEnv.default(0.15), // learning rate for slider updates
   // PersonalityEngine
-  DEFAULT_TONE_PRESET: z.enum(["jarvis", "friday", "cortana", "hal", "custom"]).default("jarvis"),
+  DEFAULT_TONE_PRESET: z
+    .enum(["jarvis", "friday", "cortana", "hal", "custom"])
+    .default("jarvis"),
   DEFAULT_TITLE_WORD: z.string().default("Sir"),
   // HabitModel
   HABIT_MODEL_ENABLED: boolFromEnv.default(true),
@@ -216,189 +186,53 @@ const ConfigSchema = z.object({
   NOTION_DATABASE_IDS: z.string().default(""),
   OBSIDIAN_VAULT_PATH: z.string().default(""),
   OCR_ENABLED: boolFromEnv.default(false),
-  // Phase 14: Calendar extended config
-  GCAL_ENABLED: boolFromEnv.default(false),
-  GCAL_TIMEZONE: z.string().default("Asia/Jakarta"),
-  GCAL_CALENDARS: z.string().default("primary"),
-  CALENDAR_ALERT_MINUTES: intFromEnv.default(15),
-  ICAL_FEED_URLS: z.string().default(""),
-  // Phase 15: Browser Agent config
-  BROWSER_SESSION_DIR: z.string().default(".edith/browser-sessions"),
-  BROWSER_MAX_TABS: intFromEnv.default(5),
-  BROWSER_HEADLESS: boolFromEnv.default(true),
-  // Phase 16: Mobile push notification config
-  EXPO_PUSH_ACCESS_TOKEN: z.string().default(""),
-  FCM_PROJECT_ID: z.string().default(""),
-  FCM_CLIENT_EMAIL: z.string().default(""),
-  FCM_PRIVATE_KEY: z.string().default(""),
-  PUSH_QUIET_HOURS_START: z.string().default("23:00"),
-  PUSH_QUIET_HOURS_END: z.string().default("07:00"),
-  PUSH_MAX_DAILY_LOW_PRIORITY: intFromEnv.default(10),
-  PUSH_DRY_RUN: boolFromEnv.default(false),
-  // Phase 23: Hardware Bridge
-  HARDWARE_ENABLED: boolFromEnv.default(false),
-  HARDWARE_SERIAL_PORTS: z.string().default(""),
-  HARDWARE_MQTT_BROKER: z.string().default(""),
-  HARDWARE_LED_ENABLED: boolFromEnv.default(false),
-  HARDWARE_MONITOR_DDC_BUS: intFromEnv.default(0),
-  OCTOPRINT_URL: z.string().default(""),
-  OCTOPRINT_API_KEY: z.string().default(""),
-  /** Telegram bot token used to verify webhook signatures (HMAC-SHA256). */
-  TELEGRAM_WEBHOOK_SECRET: z.string().default(""),
-  /** WhatsApp Cloud API app secret for X-Hub-Signature-256 verification. */
-  WHATSAPP_APP_SECRET: z.string().default(""),
-  /** Discord application public key for Ed25519 webhook verification. */
-  DISCORD_PUBLIC_KEY: z.string().default(""),
-  // Security: pipeline rate limiter
-  PIPELINE_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(60),
-  /** Number of daily log files to retain before pruning. */
-  LOG_RETAIN_DAYS: z.coerce.number().int().positive().default(7),
+  // Multi-key rotation (comma-separated)
+  ANTHROPIC_API_KEYS: z.string().default(""),
+  OPENAI_API_KEYS: z.string().default(""),
+  GEMINI_API_KEYS: z.string().default(""),
+  // Additional LLM providers
+  DEEPSEEK_API_KEY: z.string().default(""),
+  MISTRAL_API_KEY: z.string().default(""),
+  TOGETHER_API_KEY: z.string().default(""),
+  FIREWORKS_API_KEY: z.string().default(""),
+  COHERE_API_KEY: z.string().default(""),
 
-  // Channel outbound rate limits (tokens per second, per channel API)
-  CHANNEL_RATE_LIMIT_TELEGRAM_PER_S: z.coerce.number().positive().default(30),
-  CHANNEL_RATE_LIMIT_DISCORD_PER_S: z.coerce.number().positive().default(5),
-  CHANNEL_RATE_LIMIT_WHATSAPP_PER_S: z.coerce.number().positive().default(10),
-  CHANNEL_RATE_LIMIT_SMS_PER_S: z.coerce.number().positive().default(1),
-  CHANNEL_RATE_LIMIT_EMAIL_PER_S: z.coerce.number().positive().default(0.5),
-  /** Fallback rate for any channel not listed above (tokens/second). */
-  CHANNEL_RATE_LIMIT_DEFAULT_PER_S: z.coerce.number().positive().default(10),
-  // Phase 28: Security hardening
-  DM_POLICY_MODE: z.enum(['open', 'allowlist', 'blocklist', 'admin-only']).default('open'),
-  ADMIN_USER_ID: z.string().default(''),
-  /** Comma-separated list of allowed user IDs (used when DM_POLICY_MODE=allowlist). */
-  ALLOWED_USER_IDS: z.string().default(""),
-  /** Comma-separated list of blocked user IDs (used when DM_POLICY_MODE=blocklist). */
-  BLOCKED_USER_IDS: z.string().default(""),
-  // Phase 30: Multi-account key rotation
-  ANTHROPIC_API_KEYS: z.string().default(''),
-  OPENAI_API_KEYS: z.string().default(''),
-  GEMINI_API_KEYS: z.string().default(''),
-  // Phase 31: New LLM providers
-  GITHUB_TOKEN: z.string().default(''),
-  DEEPSEEK_API_KEY: z.string().default(''),
-  MISTRAL_API_KEY: z.string().default(''),
-  TOGETHER_API_KEY: z.string().default(''),
-  FIREWORKS_API_KEY: z.string().default(''),
-  COHERE_API_KEY: z.string().default(''),
-  /** API token for authenticating REST requests when gateway is non-localhost. */
-  EDITH_API_TOKEN: z.string().default(""),
-  /** Directory where hourly SQLite backups are written. */
-  EDITH_BACKUP_DIR: z.string().default(".edith/backups"),
-  /** Interval between backups in hours. */
-  EDITH_BACKUP_INTERVAL_HOURS: z.coerce.number().int().positive().default(1),
-  /** Number of backup files to retain (oldest are pruned). */
-  EDITH_BACKUP_RETAIN_COUNT: z.coerce.number().int().positive().default(24),
-  // Protocol config (Phase 36)
-  MORNING_BRIEFING_ENABLED: z.string().default('true'),
-  MORNING_BRIEFING_TIME: z.string().default('07:00'),
-  // Ambient monitor (Phase 37)
-  USER_LATITUDE: z.string().default(''),
-  USER_LONGITUDE: z.string().default(''),
-  NEWS_ENABLED: z.string().default('false'),
-  NEWS_API_KEY: z.string().default(''),
-  // Voice wake word (Phase 40)
-  WAKE_WORD_ENABLED: z.string().default('false'),
-  WAKE_WORD_PHRASE: z.string().default('hey edith'),
-  // API compatibility (Phase 42)
-  OPENAI_COMPAT_API_ENABLED: z.string().default('false'),
-  // MCP server mode (Phase 43)
-  MCP_SERVER_ENABLED: z.string().default('false'),
-  /** User ID to receive self-monitoring alerts (empty = alerts disabled). */
-  ALERT_USER_ID: z.string().default(""),
-  /** Outbox dead-letter count threshold that triggers an alert. */
-  ALERT_DEAD_LETTER_THRESHOLD: z.coerce.number().int().positive().default(5),
-  /** Error rate per minute threshold that triggers an alert. */
-  ALERT_ERROR_RATE_THRESHOLD: z.coerce.number().int().positive().default(10),
-  /** Number of days to retain Message rows before deletion. */
-  MESSAGE_RETENTION_DAYS: z.coerce.number().int().positive().default(365),
-  /** Number of days to retain AuditRecord rows before deletion. */
-  AUDIT_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
-  /** Run prisma migrate deploy on startup to ensure DB schema is up-to-date. */
-  // z.coerce.boolean() coerces any non-empty string (including "false") to true.
-  // z.preprocess handles "false"/"0"/"no" strings correctly.
-  RUN_MIGRATIONS_ON_STARTUP: z.preprocess(
-    (v) => typeof v === "string" && (v === "false" || v === "0" || v === "no") ? false : true,
-    z.boolean().default(true),
-  ),
-  /** Heap usage ratio (0-1) above which session eviction is triggered. */
-  MEMORY_WARN_THRESHOLD: z.coerce.number().min(0.1).max(1).default(0.8),
-  /** Heap usage ratio (0-1) above which graceful shutdown is triggered. */
-  MEMORY_CRITICAL_THRESHOLD: z.coerce.number().min(0.1).max(1).default(0.95),
-  /** Enable session persistence to disk across restarts. */
-  SESSION_PERSIST_ENABLED: z.coerce.boolean().default(true),
-  /** Maximum number of sessions to persist on shutdown. */
-  SESSION_PERSIST_MAX: z.coerce.number().int().positive().default(50),
-  /** Redis connection URL. When set, sessions are stored in Redis with sliding TTL. */
-  REDIS_URL: z.string().default(""),
-  /** Session TTL in seconds (default 24h). Reset on every activity (sliding expiry). */
-  REDIS_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
-  /** Sentry DSN for error tracking. Leave empty to disable. */
-  SENTRY_DSN: z.string().default(""),
-  /** Daily LLM cost budget in USD. Alert triggers when exceeded. */
-  LLM_DAILY_BUDGET_USD: z.coerce.number().default(10),
-})
+  // Extension tokens
+  GITHUB_TOKEN: z.string().default(""),
+  NOTION_TOKEN: z.string().default(""),
+  HA_URL: z.string().default(""),
+  HA_TOKEN: z.string().default(""),
+});
 
-const parsed = ConfigSchema.safeParse(process.env)
+const parsed = ConfigSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error("[EDITH Config Error] Invalid environment configuration.")
+  console.error("[EDITH Config Error] Invalid environment configuration.");
   for (const issue of parsed.error.issues) {
-    const key = issue.path.join(".")
-    console.error(`  - ${key}: ${issue.message}`)
+    const key = issue.path.join(".");
+    console.error(`  - ${key}: ${issue.message}`);
   }
-  process.exit(1)
+  process.exit(1);
 }
 
-export type Config = z.infer<typeof ConfigSchema>
+export type Config = z.infer<typeof ConfigSchema>;
 
-export const config: Config = parsed.data
+export const config: Config = parsed.data;
 
 export function validateRequired(keys: Array<keyof Config>): void {
   const missing = keys.filter((key) => {
-    const value = config[key]
-    return typeof value === "string" ? value.trim().length === 0 : value === undefined
-  })
+    const value = config[key];
+    return typeof value === "string"
+      ? value.trim().length === 0
+      : value === undefined;
+  });
 
   if (missing.length > 0) {
     console.error(
       `[EDITH Config Error] Missing required environment variables: ${missing.join(", ")}`,
-    )
-    process.exit(1)
+    );
+    process.exit(1);
   }
 }
 
-/**
- * Merge credentials from edith.json into the runtime config object.
- * Called once at startup (before orchestrator.init) so desktop users
- * never need to touch .env.  Server/Docker users continue using .env as normal.
- *
- * Priority: edith.json credentials > .env / system env (already in `config`)
- */
-export async function mergeEdithJsonCredentials(): Promise<void> {
-  try {
-    // Dynamic import avoids a potential circular dependency at module load time
-    const { loadEDITHConfig } = await import("./config/edith-config.js")
-    const edithConfig = await loadEDITHConfig()
-
-    const creds = edithConfig.credentials
-    const configAsMutable = config as Record<string, unknown>
-
-    // Override each credential only when edith.json provides a non-empty value
-    for (const [key, value] of Object.entries(creds)) {
-      if (typeof value === "string" && value.trim() !== "" && key in configAsMutable) {
-        configAsMutable[key] = value
-      }
-    }
-
-    // Override feature flags from edith.json features section
-    const features = edithConfig.features
-    if (features.voice !== undefined) config.VOICE_ENABLED = features.voice
-    if (features.knowledgeBase !== undefined) config.KNOWLEDGE_BASE_ENABLED = features.knowledgeBase
-    if (features.computerUse !== undefined) config.VISION_ENABLED = features.computerUse
-
-  } catch {
-    // Silent fallback â€” let .env values stand
-  }
-}
-
-export default config
+export default config;

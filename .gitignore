@@ -74,10 +74,8 @@ workbenches/
 apps/desktop/dist/
 .pnpm-store/
 
-# Claude worktrees / clones
-.clone/
-.claude/worktrees/
-tsc_out.txt
+# TypeScript build artifacts
 tsc_errors.txt
-prisma/*.db-shm
-prisma/*.db-wal
+tsc_out.txt
+*.tsbuildinfo
+*.tgz

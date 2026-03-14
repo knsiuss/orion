@@ -1,14 +1,10 @@
 /**
  * @file daemon.ts
- * @description EDITHDaemon — background loop that evaluates proactive triggers and dispatches
- *              autonomous messages to users based on schedule, inactivity, and context signals.
+ * @description Background daemon loop that evaluates proactive triggers, schedules tasks, and manages the heartbeat cycle.
  *
  * ARCHITECTURE / INTEGRATION:
- *   - Reads trigger definitions from triggers.ts (TriggerEngine) and quiet-hours.ts.
- *   - Dispatches outbound messages via ChannelManager (channels/manager.ts).
- *   - Integrates with ContextPredictor, VOICalculator, ACPRouter, MissionManager,
- *     WellnessDetector, and LearningReport for enriched proactive behaviour.
- *   - Wired into startup.ts; singleton exported as `edithDaemon`.
+ *   Uses background/triggers.ts for trigger evaluation and background/heartbeat.ts for health checks.
+ *   Dispatches messages through channels/manager.ts; started by core/startup.ts.
  */
 
 import crypto from "node:crypto"
@@ -29,12 +25,9 @@ import { eventBus } from "../core/event-bus.js"
 import { heartbeat } from "./heartbeat.js"
 import { isWithinHardQuietHours } from "./quiet-hours.js"
 import { calendarService } from "../services/calendar.js"
-import { wellnessDetector } from "../emotion/wellness-detector.js"
-import { missionManager } from "../mission/mission-manager.js"
-import { learningReport } from "../self-improve/learning-report.js"
-import { databaseBackup } from "../database/backup.js"
-import { alertingService } from "../observability/alerting.js"
-import { retentionService } from "../database/retention.js"
+import { userPreferenceEngine } from "../memory/user-preference.js"
+import { briefingComposer } from "./briefing-composer.js"
+import { getAggregatedHealth } from "../core/health.js"
 
 const logger = createLogger("daemon")
 const TRIGGERS_FILE = "permissions/triggers.yaml"
@@ -48,6 +41,9 @@ export class EDITHDaemon {
   private eventSubscriptionsInitialized = false
   private lastTemporalMaintenanceAt = new Map<string, number>()
   private readonly credential: AgentCredential
+
+  /** Track last known health status per component for change detection. */
+  private readonly lastKnownHealthStatus = new Map<string, string>()
 
   constructor() {
     this.credential = acpRouter.registerAgent(
@@ -66,8 +62,6 @@ export class EDITHDaemon {
     this.lastActivityTime = Date.now()
     heartbeat.recordActivity(this.lastActivityTime)
     this.initializeEventSubscriptions()
-    databaseBackup.start()
-    retentionService.start()
     logger.info("Daemon started (heartbeat mode)")
     await this.runCycle()
     heartbeat.start()
@@ -112,8 +106,6 @@ export class EDITHDaemon {
 
   stop(): void {
     heartbeat.stop()
-    databaseBackup.stop()
-    retentionService.stop()
     this.cycleInProgress = false
     this.running = false
     logger.info("Daemon stopped")
@@ -192,13 +184,10 @@ export class EDITHDaemon {
       await pairingManager.cleanupExpired()
 
       await this.checkForActivity(userId)
-      await this.checkCalendarAlerts(userId) // Phase 8: Calendar proactive alerts
+      await this.checkBriefing(userId)            // JARVIS: proactive briefings
+      await this.checkCalendarAlerts(userId)       // Phase 8: calendar proactive alerts
+      await this.checkSystemHealthAlerts(userId)   // JARVIS: ambient system monitoring
       await this.maybeRunTemporalMaintenance(userId)
-      await this.checkWellness(userId) // Phase 21: Emotional wellness monitoring
-      await missionManager.checkpointAll() // Phase 22: Mission health monitoring
-      await this.maybeGenerateLearningReport() // Phase 24: Weekly self-improvement report
-      void alertingService.check()
-        .catch((err) => logger.warn("alerting check failed", { err: String(err) }))
 
       const now = new Date()
       const blockedByQuietHours = isWithinHardQuietHours(now)
@@ -218,6 +207,16 @@ export class EDITHDaemon {
 
           const channel = "webchat"
           const context = await contextPredictor.predict(trigger.userId, channel)
+
+          // Fetch user's proactivity preference to modulate VoI threshold
+          let proactivityLevel = 3
+          try {
+            const prefs = await userPreferenceEngine.getSnapshot(trigger.userId)
+            proactivityLevel = prefs.proactivity
+          } catch {
+            // Preference unavailable — use default
+          }
+
           const voi = voiCalculator.calculate({
             userId: trigger.userId,
             messageContent: trigger.message,
@@ -225,6 +224,7 @@ export class EDITHDaemon {
             triggerPriority: trigger.priority ?? "normal",
             currentHour: new Date().getHours(),
             context,
+            proactivityLevel,
           })
 
           if (!voi.shouldSend) {
@@ -263,51 +263,111 @@ export class EDITHDaemon {
   }
 
   /**
-   * Checks for emotional wellness concerns and logs alerts.
-   * Phase 21: Detects burnout risk, persistent sadness, or overwork patterns.
-   *
-   * @param userId - User to check wellness for
+   * JARVIS: Check if a proactive briefing should be sent and compose it.
+   * Gated behind VoI, quiet hours, and permission checks.
    */
-  private async checkWellness(userId: string): Promise<void> {
+  private async checkBriefing(userId: string): Promise<void> {
     try {
-      const signal = await wellnessDetector.check(userId)
-      if (signal.signal !== "none") {
-        logger.info("wellness signal detected", {
-          userId,
-          signal: signal.signal,
-          confidence: signal.confidence,
-          reason: signal.reason,
-        })
+      const now = new Date()
+      if (isWithinHardQuietHours(now)) {
+        return
+      }
+
+      const check = await briefingComposer.shouldBrief(userId)
+      if (!check.should) {
+        logger.debug("Briefing check: skipped", { userId, reason: check.reason })
+        return
+      }
+
+      const allowed = await sandbox.check(PermissionAction.PROACTIVE_MESSAGE, userId)
+      if (!allowed) {
+        logger.debug("Briefing blocked by permissions", { userId })
+        return
+      }
+
+      const message = await briefingComposer.compose(userId)
+      const sent = await channelManager.send(userId, message)
+      if (sent) {
+        briefingComposer.recordBriefingSent(userId)
+        this.lastActivityTime = Date.now()
+        heartbeat.recordActivity(this.lastActivityTime)
+        logger.info("JARVIS briefing sent", { userId })
       }
     } catch (error) {
-      logger.warn("wellness check failed", { userId, error })
+      logger.error("Failed to check/send briefing", { error })
     }
   }
 
   /**
-   * Generate a weekly learning report on Sunday midnight.
-   * Phase 24: Self-improvement reporting.
+   * JARVIS: Monitor system health and alert the user when something degrades.
+   * Only alerts on status *changes* (not every cycle) to avoid spam.
+   * JARVIS-style: "Sir, the Groq API appears to be experiencing issues."
    */
-  private async maybeGenerateLearningReport(): Promise<void> {
-    const now = new Date()
-    // Only run on Sundays (0) at midnight (0:00-0:05 window)
-    if (now.getDay() !== 0 || now.getHours() !== 0 || now.getMinutes() > 5) return
-
-    const previous = this.lastTemporalMaintenanceAt.get("__learning_report__") ?? 0
-    if (Date.now() - previous < WEEK_MS) return
-
+  private async checkSystemHealthAlerts(userId: string): Promise<void> {
     try {
-      const report = learningReport.generate()
-      const formatted = learningReport.format(report)
-      logger.info("weekly learning report generated", {
-        weekOf: report.weekOf,
-        totalInteractions: report.totalInteractions,
-        improvements: report.improvements.length,
-      })
-      logger.debug("learning report content", { report: formatted.slice(0, 200) })
-      this.lastTemporalMaintenanceAt.set("__learning_report__", Date.now())
-    } catch (err) {
-      logger.warn("learning report generation failed", { err })
+      const now = new Date()
+      if (isWithinHardQuietHours(now)) {
+        return
+      }
+
+      const health = await getAggregatedHealth()
+
+      for (const [name, component] of Object.entries(health.components)) {
+        const previousStatus = this.lastKnownHealthStatus.get(name)
+        const currentStatus = component.status
+
+        // Only alert on status changes
+        if (previousStatus === currentStatus) {
+          continue
+        }
+
+        this.lastKnownHealthStatus.set(name, currentStatus)
+
+        // Skip initial population — don't alert on first discovery
+        if (previousStatus === undefined) {
+          continue
+        }
+
+        // Alert on degradation (healthy → unhealthy or degraded)
+        if (previousStatus === "healthy" && currentStatus !== "healthy") {
+          const allowed = await sandbox.check(PermissionAction.PROACTIVE_MESSAGE, userId)
+          if (!allowed) {
+            continue
+          }
+
+          const alertMessage = component.message
+            ? `Sir, ${name} appears to be experiencing issues — ${component.message}. Status: ${currentStatus}.`
+            : `Sir, ${name} has changed status to ${currentStatus}. I'm monitoring the situation.`
+
+          const sent = await channelManager.send(userId, alertMessage)
+          if (sent) {
+            logger.info("System health alert sent", { userId, component: name, status: currentStatus })
+            eventBus.dispatch("system.health.changed", {
+              component: name,
+              previousStatus,
+              newStatus: currentStatus,
+              message: component.message,
+              timestamp: Date.now(),
+            })
+          }
+        }
+
+        // Notify on recovery (unhealthy → healthy)
+        if (previousStatus !== "healthy" && currentStatus === "healthy") {
+          const allowed = await sandbox.check(PermissionAction.PROACTIVE_MESSAGE, userId)
+          if (!allowed) {
+            continue
+          }
+
+          const recoveryMessage = `Sir, ${name} has recovered and is operating normally.`
+          const sent = await channelManager.send(userId, recoveryMessage)
+          if (sent) {
+            logger.info("System health recovery alert sent", { userId, component: name })
+          }
+        }
+      }
+    } catch (error) {
+      logger.error("Failed to check system health alerts", { error })
     }
   }
 

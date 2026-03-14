@@ -1,17 +1,8 @@
 {
-  "name": "edith-ai",
+  "name": "edith",
   "version": "0.1.0",
   "packageManager": "pnpm@10.30.1",
   "type": "module",
-  "files": [
-    "dist/",
-    "bin/",
-    "scripts/postinstall.mjs",
-    "prisma/schema.prisma",
-    "prisma/migrations/",
-    "permissions/",
-    ".env.example"
-  ],
   "bin": {
     "edith": "./bin/edith.js"
   },
@@ -20,42 +11,32 @@
     "all": "tsx src/main.ts --mode all",
     "gateway": "tsx src/main.ts --mode gateway",
     "gateway:watch": "tsx watch src/main.ts --mode gateway",
-    "build": "tsup",
+    "build": "tsup src/main.ts --format esm --dts --external playwright",
     "start": "node dist/main.js",
     "test": "vitest run",
-    "test:unit": "vitest run -c vitest.unit.config.ts",
+    "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:channels": "vitest run --config vitest.channels.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "test:live": "LIVE=1 vitest run --config vitest.live.config.ts",
+    "test:live": "vitest run --config vitest.live.config.ts",
     "test:coverage": "vitest run --coverage",
-    "test:integration": "vitest run -c vitest.integration.config.ts",
     "test:ci": "vitest run",
-    "check:circular": "dpdm --circular --no-warning src/main.ts",
-    "lint": "oxlint src/",
-    "knip": "knip",
     "typecheck": "tsc --noEmit",
     "doctor": "tsx src/cli/doctor.ts",
     "onboard": "tsx src/cli/onboard.ts",
     "quickstart": "tsx src/cli/onboard.ts --flow quickstart",
     "setup": "tsx src/cli/onboard.ts --flow quickstart",
-    "setup:autostart": "node scripts/setup-autostart.mjs",
     "wa:scan": "tsx src/cli/onboard.ts --flow quickstart --channel whatsapp --whatsapp-mode scan",
     "wa:cloud": "tsx src/cli/onboard.ts --flow quickstart --channel whatsapp --whatsapp-mode cloud",
-    "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev",
-    "db:generate": "prisma generate",
     "dedupe:causal-graph": "tsx src/cli/causal-graph-dedupe.ts --apply",
     "dedupe:causal-graph:dry-run": "tsx src/cli/causal-graph-dedupe.ts --dry-run",
-    "postinstall": "node scripts/postinstall.mjs",
-    "prepare": "node -e \"try{require('child_process').execSync('husky',{stdio:'inherit',shell:true})}catch{}\"",
-    "prepublishOnly": "pnpm build"
+    "lint": "oxlint src/",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.46",
     "@ai-sdk/google": "^3.0.30",
     "@ai-sdk/openai": "^3.0.30",
     "@anthropic-ai/sdk": "^0.78.0",
-    "@clack/prompts": "^1.1.0",
     "@fastify/static": "^9.0.0",
     "@fastify/websocket": "^11.2.0",
     "@google/generative-ai": "^0.24.1",
@@ -76,6 +57,7 @@
     "groq-sdk": "^0.37.0",
     "js-yaml": "^4.1.0",
     "kokoro-js": "^1.2.1",
+    "msedge-tts": "^2.0.4",
     "node-cron": "^4.2.1",
     "nodejs-whisper": "^0.2.9",
     "openai": "^6.22.0",
@@ -88,9 +70,8 @@
     "@types/node": "^25.3.0",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.0.18",
-    "dpdm": "^3.15.1",
     "minimatch": "^10.2.4",
-    "oxlint": "^1.2.0",
+    "oxlint": "^1.52.0",
     "prisma": "^6.19.2",
     "rollup": "^4.59.0",
     "tsup": "^8.5.1",
@@ -99,7 +80,6 @@
     "vitest": "^4.0.18"
   },
   "optionalDependencies": {
-    "msedge-tts": "^2.0.4",
     "playwright": "^1.58.2"
   }
 }

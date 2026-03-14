@@ -14,8 +14,10 @@
 import crypto from "node:crypto"
 
 import { createLogger } from "../logger.js"
+import { auditLogger } from "../observability/audit-logger.js"
 
 const log = createLogger("security.camel-guard")
+const audit = auditLogger.createAuditLogger("security.camel-guard")
 
 const DEFAULT_CAPABILITY_TTL_MS = 5 * 60 * 1000
 const CAPABILITY_VERSION = 1
@@ -52,6 +54,9 @@ function getCapabilitySecret(): string {
       "EDITH_CAPABILITY_SECRET not set — using insecure dev fallback. Set this env var in production.",
     )
     return "edith-local-dev-capability-secret"
+  }
+  if (secret.length < 32) {
+    throw new Error("EDITH_CAPABILITY_SECRET must be at least 32 characters")
   }
   return secret
 }
@@ -172,13 +177,30 @@ export class CamelGuard {
     }
 
     if (isReadOnlyToolAction(input.toolName, input.action)) {
+      audit.log({
+        actor: input.actorId,
+        action: `${input.toolName}.${input.action}`,
+        resource: input.toolName,
+        outcome: "allow",
+        reason: "read-only tool action",
+        metadata: { taintedSources },
+      })
       return { allowed: true }
     }
 
     if (!input.capabilityToken) {
+      const reason = `CaMeL guard blocked tainted ${input.toolName}.${input.action} without capability token`
+      audit.log({
+        actor: input.actorId,
+        action: `${input.toolName}.${input.action}`,
+        resource: input.toolName,
+        outcome: "deny",
+        reason,
+        metadata: { taintedSources },
+      })
       return {
         allowed: false,
-        reason: `CaMeL guard blocked tainted ${input.toolName}.${input.action} without capability token`,
+        reason,
       }
     }
 
@@ -189,6 +211,22 @@ export class CamelGuard {
         toolName: input.toolName,
         action: input.action,
         reason: validation.reason,
+      })
+      audit.log({
+        actor: input.actorId,
+        action: `${input.toolName}.${input.action}`,
+        resource: input.toolName,
+        outcome: "deny",
+        reason: validation.reason,
+        metadata: { taintedSources },
+      })
+    } else {
+      audit.log({
+        actor: input.actorId,
+        action: `${input.toolName}.${input.action}`,
+        resource: input.toolName,
+        outcome: "allow",
+        metadata: { taintedSources },
       })
     }
     return validation

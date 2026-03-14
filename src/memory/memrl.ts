@@ -16,6 +16,7 @@ import config from "../config.js"
 import { prisma } from "../database/index.js"
 import { createLogger } from "../logger.js"
 import { sanitizeUserId, clamp, parseJsonSafe } from "../utils/index.js"
+import { lanceFilter } from "./lance-filter.js"
 
 /** Minimal shape of a memory search result â€” mirrors store.SearchResult. */
 type SearchResult = { id: string; content: string; metadata: Record<string, unknown>; score: number }
@@ -374,7 +375,7 @@ export class MemRLUpdater {
       // Phase 1: Vector similarity search
       const rawRows = await table
         .vectorSearch(queryVector)
-        .where(`userId = '${sanitizedUserId}'`)
+        .where(lanceFilter.eq("userId", sanitizedUserId))
         .limit(candidateLimit)
         .toArray() as LanceSearchRow[]
 

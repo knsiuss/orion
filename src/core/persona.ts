@@ -1,10 +1,22 @@
-﻿/**
+/**
  * @file persona.ts
- * @description PersonaEngine  dynamic conversation-context detector (time-of-day, urgency, mood).
+ * @description Dynamic conversation context engine computing user mood, expertise, and topic from runtime signals.
  *
  * ARCHITECTURE / INTEGRATION:
- *   Provides runtime context fragments injected into the system prompt by
- *   system-prompt-builder.ts on every turn.
+ *   Output injected via core/system-prompt-builder.ts after SOUL.md bootstrap.
+ *   Uses memory/profiler.ts for user profile data.
+ *
+ * PersonaEngine — Dynamic conversation context engine.
+ *
+ * Design intent (OpenClaw paradigm):
+ *   - Static identity (who EDITH is, values, tone) lives in workspace/SOUL.md
+ *   - Dynamic context (current user mood, expertise, topic) is computed here
+ *
+ * The output of buildDynamicContext() is passed as `extraContext` to
+ * buildSystemPrompt(), which injects it AFTER the SOUL.md bootstrap file.
+ * This ensures the static persona always takes precedence over runtime annotations.
+ *
+ * @module core/persona
  */
 
 import { createLogger } from "../logger.js"
@@ -17,8 +29,21 @@ export type UserExpertise = "beginner" | "intermediate" | "expert"
 export type TopicCategory = "work" | "personal" | "technical" | "creative" | "casual"
 
 /**
+ * JARVIS-inspired situational mode.
+ * Determines EDITH's overall demeanor for this conversation turn.
+ * Detected from time, message content, conversation patterns, and urgency signals.
+ */
+export type SituationalMode =
+  | "routine"    // Normal day, calm operation
+  | "briefing"   // Morning or session-start, reporting mode
+  | "deep-work"  // User is focused on a task, minimize interrupts
+  | "deadline"   // Time pressure detected, crisp and tactical
+  | "crisis"     // Something urgent/broken, maximum efficiency
+  | "casual"     // Off-hours relaxed chat
+
+/**
  * Runtime context detected for the current conversation turn.
- * These are dynamic, not static â€” they change based on the user's message.
+ * These are dynamic, not static — they change based on the user's message.
  */
 export interface ConversationContext {
   /** Detected emotional state of the user */
@@ -29,12 +54,14 @@ export interface ConversationContext {
   topicCategory: TopicCategory
   /** Whether the message indicates urgency */
   urgency: boolean
+  /** JARVIS-style situational mode determining overall demeanor */
+  situation: SituationalMode
 }
 
 /**
  * Adapts EDITH's responses based on real-time detection of user context.
  * 
- * This engine does NOT define EDITH's personality â€” that lives in SOUL.md.
+ * This engine does NOT define EDITH's personality — that lives in SOUL.md.
  * It only computes context annotations that help the LLM adapt tone and depth.
  */
 export class PersonaEngine {
@@ -58,6 +85,16 @@ export class PersonaEngine {
     personal: "Use empathetic but grounded wording.",
     creative: "Encourage exploration while keeping structure.",
     casual: "Stay natural and concise.",
+  }
+
+  /** JARVIS-style situational mode adaptations. */
+  private readonly situationAdaptations: Record<SituationalMode, string> = {
+    routine: "Normal operation. Be warmly professional with occasional dry wit.",
+    briefing: "Session start or morning. Lead with a brief status summary if relevant. Structured, actionable, bullet points preferred. Offer to elaborate.",
+    "deep-work": "User is focused. Be concise — only interrupt with urgent information. Minimal preamble.",
+    deadline: "Time pressure detected. Be crisp, tactical, skip pleasantries. Action-first responses. Short sentences.",
+    crisis: "Crisis mode. Terse language. No preamble. Actionable information only. Confirm before destructive actions.",
+    casual: "Off-hours or relaxed context. More humor, more personality, still precise and helpful.",
   }
 
   /**
@@ -166,6 +203,12 @@ export class PersonaEngine {
   buildDynamicContext(context: ConversationContext, profileSummary: string): string {
     const parts: string[] = []
 
+    // Situational mode — JARVIS-style demeanor adaptation (highest priority)
+    const situationAdaptation = this.situationAdaptations[context.situation]
+    if (situationAdaptation) {
+      parts.push(`Situation: ${situationAdaptation}`)
+    }
+
     const moodAdaptation = this.moodAdaptations[context.userMood]
     if (moodAdaptation) {
       parts.push(`Current context note: ${moodAdaptation}`)
@@ -193,6 +236,7 @@ export class PersonaEngine {
       mood: context.userMood,
       expertise: context.userExpertise,
       topic: context.topicCategory,
+      situation: context.situation,
       urgency: context.urgency,
       hasProfileSummary: profileSummary.trim().length > 0,
     })
@@ -203,6 +247,74 @@ export class PersonaEngine {
     }
 
     return parts.join("\n")
+  }
+
+  /**
+   * Detect the JARVIS-style situational mode for this conversation turn.
+   *
+   * Uses a combination of time-of-day, message content, conversation patterns,
+   * and whether this is the start of a new session to determine EDITH's overall
+   * demeanor. Priority order: crisis > deadline > briefing > deep-work > casual > routine.
+   *
+   * @param message        - Current user message
+   * @param currentHour    - Local hour (0-23)
+   * @param isSessionStart - Whether this is the first message after a long gap
+   * @param recentTopics   - Topics from recent conversation history
+   * @returns Detected situational mode
+   */
+  detectSituation(
+    message: string,
+    currentHour: number,
+    isSessionStart: boolean,
+    recentTopics: string[],
+  ): SituationalMode {
+    const lower = message.toLowerCase()
+
+    // Priority 1: Crisis — something is broken or urgent
+    const crisisPatterns = [
+      "down", "broken", "crashed", "emergency", "not working",
+      "help urgent", "server down", "production", "critical",
+      "rusak", "mati", "darurat", "error fatal",
+    ]
+    if (crisisPatterns.some((p) => lower.includes(p))) {
+      return "crisis"
+    }
+
+    // Priority 2: Deadline — time pressure
+    const deadlinePatterns = [
+      "deadline", "due in", "by tomorrow", "before meeting",
+      "tenggat", "harus selesai", "besok harus", "sebelum rapat",
+    ]
+    if (deadlinePatterns.some((p) => lower.includes(p))) {
+      return "deadline"
+    }
+
+    // Priority 3: Briefing — session start during morning hours
+    if (isSessionStart && currentHour >= 5 && currentHour <= 11) {
+      return "briefing"
+    }
+
+    // Priority 4: Briefing — session start at any time (when returning after inactivity)
+    if (isSessionStart) {
+      return "briefing"
+    }
+
+    // Priority 5: Deep work — sustained same-topic technical conversation
+    const technicalTopics = recentTopics.filter((t) =>
+      ["technical", "code", "debug", "api", "database"].includes(t),
+    )
+    if (technicalTopics.length >= 3) {
+      return "deep-work"
+    }
+
+    // Priority 6: Casual — late hours, no urgency, casual/personal topic
+    const casualHours = currentHour >= 20 || currentHour <= 4
+    const casualTopic = /^(lol|haha|wkwk|btw|anyway|ngomong-ngomong|eh |oi )/.test(lower)
+    if (casualHours && (casualTopic || lower.length < 20)) {
+      return "casual"
+    }
+
+    return "routine"
   }
 
   /**

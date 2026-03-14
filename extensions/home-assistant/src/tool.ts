@@ -1,158 +1,98 @@
 /**
  * @file tool.ts
- * @description Home Assistant integration — entity states, service calls, automation.
+ * @description Home Assistant integration tool for EDITH — control devices,
+ *   query states, and trigger automations via the HA REST API.
  *
  * ARCHITECTURE / INTEGRATION:
- *   Uses Home Assistant REST API. Requires HA_BASE_URL + long-lived access token.
- *   Provides state queries, service calls, light/climate helpers, and history.
+ *   Loaded by the skills system. Calls the Home Assistant REST API.
+ *   Requires HA_URL and HA_TOKEN in config.
  */
 
-import { createLogger } from "../../../src/logger.js"
+import config from "../../src/config.js"
+import { createLogger } from "../../src/logger.js"
 
 const log = createLogger("ext.home-assistant")
 
-export interface HAConfig {
-  baseUrl: string
-  token: string
-}
-
-export interface HAEntity {
+interface HAState {
   entity_id: string
   state: string
   attributes: Record<string, unknown>
   last_changed: string
 }
 
-export interface HAServiceCall {
-  domain: string
-  service: string
-  data: Record<string, unknown>
+function getBaseUrl(): string {
+  const url = config.HA_URL
+  if (!url?.trim()) {
+    throw new Error("HA_URL is not configured")
+  }
+  return url.replace(/\/$/, "")
 }
 
-export class HomeAssistantTool {
-  constructor(private readonly cfg: HAConfig) {}
+async function haFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = config.HA_TOKEN
+  if (!token?.trim()) {
+    throw new Error("HA_TOKEN is not configured")
+  }
 
-  private get h(): Record<string, string> {
-    return {
-      Authorization: `Bearer ${this.cfg.token}`,
+  const baseUrl = getBaseUrl()
+  const response = await fetch(`${baseUrl}/api${path}`, {
+    ...options,
+    headers: {
+      "Authorization": `Bearer ${token}`,
       "Content-Type": "application/json",
-    }
-  }
-
-  private url(p: string): string {
-    return `${this.cfg.baseUrl}/api${p}`
-  }
-
-  async isOnline(): Promise<boolean> {
-    try {
-      const r = await fetch(this.url("/"), {
-        headers: this.h,
-        signal: AbortSignal.timeout(3000),
-      })
-      return r.ok
-    } catch {
-      return false
-    }
-  }
-
-  async getStates(): Promise<HAEntity[]> {
-    const r = await fetch(this.url("/states"), { headers: this.h })
-    if (!r.ok) throw new Error(`HA getStates failed: ${r.status}`)
-    return r.json() as Promise<HAEntity[]>
-  }
-
-  async getState(entityId: string): Promise<HAEntity> {
-    const r = await fetch(this.url(`/states/${encodeURIComponent(entityId)}`), {
-      headers: this.h,
-    })
-    if (!r.ok)
-      throw new Error(`HA getState failed: ${r.status} for ${entityId}`)
-    return r.json() as Promise<HAEntity>
-  }
-
-  async callService(
-    domain: string,
-    service: string,
-    data: Record<string, unknown>,
-  ): Promise<void> {
-    const r = await fetch(
-      this.url(
-        `/services/${encodeURIComponent(domain)}/${encodeURIComponent(service)}`,
-      ),
-      {
-        method: "POST",
-        headers: this.h,
-        body: JSON.stringify(data),
-      },
-    )
-    if (!r.ok) throw new Error(`HA service call failed: ${r.status}`)
-    log.debug("service called", { domain, service, data })
-  }
-
-  async turnOn(entityId: string): Promise<void> {
-    const domain = entityId.split(".")[0]
-    if (!domain) throw new Error(`Invalid entity_id: ${entityId}`)
-    await this.callService(domain, "turn_on", { entity_id: entityId })
-  }
-
-  async turnOff(entityId: string): Promise<void> {
-    const domain = entityId.split(".")[0]
-    if (!domain) throw new Error(`Invalid entity_id: ${entityId}`)
-    await this.callService(domain, "turn_off", { entity_id: entityId })
-  }
-
-  async toggle(entityId: string): Promise<void> {
-    const domain = entityId.split(".")[0]
-    if (!domain) throw new Error(`Invalid entity_id: ${entityId}`)
-    await this.callService(domain, "toggle", { entity_id: entityId })
-  }
-
-  async setLight(
-    entityId: string,
-    opts: {
-      brightness?: number
-      colorTemp?: number
-      rgbColor?: [number, number, number]
+      ...options.headers,
     },
-  ): Promise<void> {
-    await this.callService("light", "turn_on", {
+  })
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "")
+    throw new Error(`Home Assistant API ${response.status}: ${body.slice(0, 200)}`)
+  }
+
+  return response.json() as Promise<T>
+}
+
+/** Get all entity states from Home Assistant. */
+export async function getStates(): Promise<HAState[]> {
+  log.debug("fetching all HA states")
+  return haFetch<HAState[]>("/states")
+}
+
+/** Get a specific entity's state. */
+export async function getEntityState(entityId: string): Promise<HAState> {
+  log.debug("fetching entity state", { entityId })
+  return haFetch<HAState>(`/states/${encodeURIComponent(entityId)}`)
+}
+
+/** Call a Home Assistant service (e.g., turn on a light). */
+export async function callService(
+  domain: string,
+  service: string,
+  entityId: string,
+  data?: Record<string, unknown>,
+): Promise<void> {
+  log.debug("calling HA service", { domain, service, entityId })
+  await haFetch(`/services/${encodeURIComponent(domain)}/${encodeURIComponent(service)}`, {
+    method: "POST",
+    body: JSON.stringify({
       entity_id: entityId,
-      ...opts,
-    })
-  }
+      ...data,
+    }),
+  })
+}
 
-  async setClimate(entityId: string, temperature: number): Promise<void> {
-    await this.callService("climate", "set_temperature", {
-      entity_id: entityId,
-      temperature,
-    })
+/** Toggle an entity (on/off). */
+export async function toggleEntity(entityId: string): Promise<void> {
+  const [domain] = entityId.split(".")
+  if (!domain) {
+    throw new Error(`Invalid entity_id: ${entityId}`)
   }
+  await callService("homeassistant", "toggle", entityId)
+}
 
-  async getLights(): Promise<HAEntity[]> {
-    const all = await this.getStates()
-    return all.filter((e) => e.entity_id.startsWith("light."))
-  }
-
-  async getSensors(): Promise<HAEntity[]> {
-    const all = await this.getStates()
-    return all.filter((e) => e.entity_id.startsWith("sensor."))
-  }
-
-  async getHistory(
-    entityId: string,
-    hours = 24,
-  ): Promise<Array<{ state: string; last_changed: string }>> {
-    const start = new Date(Date.now() - hours * 3600_000).toISOString()
-    const r = await fetch(
-      this.url(
-        `/history/period/${start}?filter_entity_id=${encodeURIComponent(entityId)}`,
-      ),
-      { headers: this.h },
-    )
-    if (!r.ok) return []
-    const d = (await r.json()) as Array<
-      Array<{ state: string; last_changed: string }>
-    >
-    return d[0] ?? []
-  }
+/** Tool metadata for the skills loader. */
+export const toolMeta = {
+  name: "home-assistant",
+  description: "Home Assistant integration — get states, control devices, call services",
+  functions: { getStates, getEntityState, callService, toggleEntity },
 }

@@ -16,24 +16,32 @@
  * @module engines/ollama
  */
 
-import config from "../config.js"
-import { createLogger } from "../logger.js"
-import type { Engine, GenerateOptions } from "./types.js"
+import config from "../config.js";
+import { createLogger } from "../logger.js";
+import {
+  classifyEngineError,
+  EngineEmptyResponseError,
+  EngineError,
+  EngineUnavailableError,
+} from "./errors.js";
+import type { Engine, GenerateOptions } from "./types.js";
 
-const log = createLogger("engines.ollama")
+const log = createLogger("engines.ollama");
 
 /** Shape of the Ollama /api/tags response. */
 interface OllamaTagResponse {
-  models?: Array<{ name?: string }>
+  models?: Array<{ name?: string }>;
 }
 
 /**
  * Convert GenerateOptions to the Ollama chat message format.
  */
-function toMessages(options: GenerateOptions): Array<{ role: "user" | "assistant"; content: string }> {
-  const messages = [...(options.context ?? [])]
-  messages.push({ role: "user", content: options.prompt })
-  return messages
+function toMessages(
+  options: GenerateOptions,
+): Array<{ role: "user" | "assistant"; content: string }> {
+  const messages = [...(options.context ?? [])];
+  messages.push({ role: "user", content: options.prompt });
+  return messages;
 }
 
 /**
@@ -44,10 +52,10 @@ function toMessages(options: GenerateOptions): Array<{ role: "user" | "assistant
  */
 export class OllamaEngine implements Engine {
   /** Unique engine identifier used by the orchestrator. */
-  readonly name = "ollama"
+  readonly name = "ollama";
 
   /** Provider label for logging and telemetry. */
-  readonly provider = "ollama"
+  readonly provider = "ollama";
 
   /**
    * Returns the first available model name from Ollama's model list.
@@ -55,34 +63,45 @@ export class OllamaEngine implements Engine {
    */
   private async getFirstModel(): Promise<string | null> {
     try {
-      const response = await fetch(`${config.OLLAMA_BASE_URL}/api/tags`)
+      const response = await fetch(`${config.OLLAMA_BASE_URL}/api/tags`);
       if (!response.ok) {
-        return null
+        return null;
       }
 
-      const payload = (await response.json()) as OllamaTagResponse
-      const model = payload.models?.[0]?.name?.trim()
-      return model && model.length > 0 ? model : null
+      const payload = (await response.json()) as OllamaTagResponse;
+      const model = payload.models?.[0]?.name?.trim();
+      return model && model.length > 0 ? model : null;
     } catch (error) {
-      log.error("getFirstModel failed", error)
-      return null
+      log.error("getFirstModel failed", error);
+      return null;
     }
   }
 
   async isAvailable(): Promise<boolean> {
     try {
-      const response = await fetch(`${config.OLLAMA_BASE_URL}/api/tags`)
-      return response.status === 200
+      const response = await fetch(`${config.OLLAMA_BASE_URL}/api/tags`);
+      return response.status === 200;
     } catch {
-      return false
+      return false;
     }
   }
 
+  /**
+   * Generate a response from a local Ollama model.
+   *
+   * @throws {EngineError}              when no model is available locally
+   * @throws {EngineUnavailableError}   when the Ollama API returns a non-OK status
+   * @throws {EngineEmptyResponseError} when the API returns empty text content
+   * @throws {EngineError}              for all other failures (classified via classifyEngineError)
+   */
   async generate(options: GenerateOptions): Promise<string> {
     try {
-      const model = options.model ?? (await this.getFirstModel())
+      const model = options.model ?? (await this.getFirstModel());
       if (!model) {
-        return ""
+        throw new EngineError(
+          this.name,
+          "No local model available. Run 'ollama pull <model>' to download one.",
+        );
       }
 
       const response = await fetch(`${config.OLLAMA_BASE_URL}/api/chat`, {
@@ -100,22 +119,48 @@ export class OllamaEngine implements Engine {
             num_predict: options.maxTokens,
           },
         }),
-      })
+      });
 
       if (!response.ok) {
-        return ""
+        throw new EngineUnavailableError(this.name, response.status);
       }
 
       const payload = (await response.json()) as {
-        message?: { content?: string }
+        message?: { content?: string };
+      };
+
+      const text = payload.message?.content?.trim() ?? "";
+
+      if (text.length === 0) {
+        throw new EngineEmptyResponseError(this.name);
       }
 
-      return payload.message?.content ?? ""
+      return text;
     } catch (error) {
-      log.error("generate failed", error)
-      return ""
+      // Re-throw already-typed engine errors without double-wrapping.
+      if (error instanceof EngineError) {
+        if (error instanceof EngineEmptyResponseError) {
+          log.warn("empty response from Ollama", {
+            model: options.model ?? "auto",
+          });
+        } else {
+          log.error("generate failed", {
+            errorType: error.name,
+            message: error.message,
+          });
+        }
+        throw error;
+      }
+
+      // Classify raw fetch errors into typed EngineError subclasses.
+      const classified = classifyEngineError(this.name, error);
+      log.error("generate failed", {
+        errorType: classified.name,
+        message: classified.message,
+      });
+      throw classified;
     }
   }
 }
 
-export const ollamaEngine = new OllamaEngine()
+export const ollamaEngine = new OllamaEngine();

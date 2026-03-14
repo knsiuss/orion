@@ -60,6 +60,9 @@ export function pruneOldLogs(logsDir: string, now: Date, retainDays: number): vo
   }
 }
 
+/** Whether JSON structured logging is enabled (active when EDITH_ENV=production). */
+const isJsonMode = (process.env.EDITH_ENV ?? "").toLowerCase() === "production"
+
 function formatTimestamp(): string {
   return new Date().toISOString()
 }
@@ -72,6 +75,36 @@ function formatMessage(level: LogLevel, scope: string, message: string, meta?: u
     formatted += ` ${JSON.stringify(meta)}`
   }
   return formatted
+}
+
+/**
+ * Formats a log entry as a single-line JSON object for structured logging.
+ * Used in production mode (EDITH_ENV=production) for machine-parseable output.
+ *
+ * When `meta` is a plain object its keys are spread into the top-level entry;
+ * arrays and primitives are assigned to an explicit `meta` key instead.
+ *
+ * @param level   - Log severity level.
+ * @param scope   - Module scope string (e.g. "core.pipeline").
+ * @param message - Human-readable log message.
+ * @param meta    - Optional structured metadata to include.
+ * @returns Serialized JSON string (no trailing newline).
+ */
+function formatMessageJson(level: LogLevel, scope: string, message: string, meta?: unknown): string {
+  const entry: Record<string, unknown> = {
+    timestamp: new Date().toISOString(),
+    level,
+    scope,
+    message,
+  }
+  if (meta !== undefined) {
+    if (typeof meta === "object" && meta !== null && !Array.isArray(meta)) {
+      Object.assign(entry, meta)
+    } else {
+      entry.meta = meta
+    }
+  }
+  return JSON.stringify(entry)
 }
 
 /** Singleton write stream with daily rotation and retention pruning. */
@@ -174,7 +207,9 @@ function log(level: LogLevel, scope: string, message: string, meta?: unknown): v
     return
   }
 
-  const formatted = formatMessage(level, scope, message, meta)
+  const formatted = isJsonMode
+    ? formatMessageJson(level, scope, message, meta)
+    : formatMessage(level, scope, message, meta)
 
   switch (level) {
     case "debug":

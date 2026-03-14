@@ -1,13 +1,12 @@
 /**
  * @file event-bus.ts
- * @description Typed internal event bus for decoupled communication between EDITH subsystems.
+ * @description Centralized typed event bus for EDITH system events (messages, memory, triggers, etc.).
  *
  * ARCHITECTURE / INTEGRATION:
- *   Singleton EventEmitter (`eventBus`) exported for use by any module that needs to
- *   publish or subscribe to system-wide events (e.g. message received, memory save,
- *   trigger fired, email draft created). Consumed by message-pipeline.ts, channels/email.ts,
- *   and background/daemon.ts to decouple producers from consumers without direct imports.
+ *   Published to by core/message-pipeline.ts, background/daemon.ts, and memory subsystems.
+ *   Consumed by any module needing reactive event handling.
  */
+
 import { EventEmitter } from "node:events"
 
 import { createLogger } from "../logger.js"
@@ -70,32 +69,29 @@ export type EDITHEvent =
     timestamp: number
   }
   | {
-    type: "hardware.print.completed"
-    jobId: string
-    filePath: string
-  }
-  | {
-    type: "hardware.print.failed"
-    jobId: string
-    filePath: string
-    reason: string
-  }
-  | {
-    type: "voice.handoff.initiated"
-    fromDeviceId: string
-    toDeviceId: string
-  }
-  | {
-    type: "voice.handoff.completed"
-    fromDeviceId: string
-    toDeviceId: string
-  }
-  | {
-    /** Emitted by SecretStore when one or more env-file secrets are rotated. */
-    type: "security.secrets_rotated"
-    /** Names of the keys that changed — values are never included. */
+    type: "config.reloaded"
+    /** Top-level keys in edith.json that changed. */
     changedKeys: string[]
-    rotatedAt: string
+    timestamp: number
+  }
+  | {
+    type: "engine.degraded"
+    engineName: string
+    reason: string
+    timestamp: number
+  }
+  | {
+    type: "engine.recovered"
+    engineName: string
+    timestamp: number
+  }
+  | {
+    type: "system.health.changed"
+    component: string
+    previousStatus: string
+    newStatus: string
+    message?: string
+    timestamp: number
   }
 
 class EDITHEventBus extends EventEmitter {

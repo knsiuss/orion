@@ -18,6 +18,7 @@ import { getHistory, saveMessage } from "../database/index.js"
 import { validateMemoryEntries, type MemoryEntry } from "../security/memory-validator.js"
 import { createLogger } from "../logger.js"
 import { sanitizeUserId, parseJsonSafe } from "../utils/index.js"
+import { lanceFilter } from "./lance-filter.js"
 import { hiMeS } from "./himes.js"
 import { memrlUpdater, type TaskFeedback } from "./memrl.js"
 import { proMem } from "./promem.js"
@@ -394,6 +395,11 @@ export class MemoryStore {
     return fallback
   }
 
+  /** Returns true when the LanceDB vector store has been successfully initialized. */
+  isInitialized(): boolean {
+    return this.initialized
+  }
+
   getFallbackEmbeddingCount(): number {
     return this.hashFallbackCount
   }
@@ -471,7 +477,7 @@ export class MemoryStore {
 
     const results = await this.table
       .vectorSearch(queryVector)
-      .where(`userId = '${sanitizedUserId}'`)
+      .where(lanceFilter.eq("userId", sanitizedUserId))
       .limit(limit * 2)
       .toArray()
 
@@ -594,8 +600,7 @@ export class MemoryStore {
     }
 
     try {
-      const sanitizedId = id.replace(/'/g, "")
-      await this.table.delete(`id = '${sanitizedId}'`)
+      await this.table.delete(lanceFilter.eq("id", id))
       log.debug("memory entry deleted", { id })
       return true
     } catch (error) {
@@ -611,7 +616,7 @@ export class MemoryStore {
 
     try {
       const sanitizedUserId = sanitizeUserId(userId)
-      await this.table.delete(`userId = '${sanitizedUserId}'`)
+      await this.table.delete(lanceFilter.eq("userId", sanitizedUserId))
       log.info("memory cleared for user", { userId })
     } catch (error) {
       log.error("failed to clear memory", error)

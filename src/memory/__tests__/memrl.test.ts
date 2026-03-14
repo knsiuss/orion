@@ -49,4 +49,36 @@ describe("MemRL helpers", () => {
     expect(__memrlTestUtils.computeEffectiveReward(-10, false)).toBe(0)
     expect(__memrlTestUtils.computeEffectiveReward(10, true)).toBe(1)
   })
+
+  it("handles missing distance with neutral fallback", () => {
+    const score = __memrlTestUtils.toSimilarityScore(makeRow({}))
+    expect(score).toBe(0.5)
+  })
+
+  it("passes through 0-1 scores unchanged", () => {
+    const score = __memrlTestUtils.toSimilarityScore(makeRow({ score: 0.75 }))
+    expect(score).toBeCloseTo(0.75)
+  })
+
+  it("converts large distance to near-zero score", () => {
+    const score = __memrlTestUtils.toSimilarityScore(makeRow({ _distance: 999 }))
+    expect(score).toBeGreaterThan(0)
+    expect(score).toBeLessThan(0.01)
+  })
+
+  it("extractIntent limits intent to 200 chars", () => {
+    const long = "a".repeat(500)
+    expect(__memrlTestUtils.extractIntent(long).length).toBeLessThanOrEqual(200)
+  })
+
+  it("normalizeSimilarityThreshold clamps between 0 and 1", () => {
+    expect(__memrlTestUtils.normalizeSimilarityThreshold(5)).toBe(1)
+    expect(__memrlTestUtils.normalizeSimilarityThreshold(-1)).toBe(0)
+    expect(__memrlTestUtils.normalizeSimilarityThreshold(0.4)).toBeCloseTo(0.4)
+  })
+
+  it("normalizeSimilarityThreshold handles Infinity as non-finite fallback", () => {
+    expect(__memrlTestUtils.normalizeSimilarityThreshold(Infinity)).toBe(0.3)
+    expect(__memrlTestUtils.normalizeSimilarityThreshold(NaN)).toBe(0.3)
+  })
 })

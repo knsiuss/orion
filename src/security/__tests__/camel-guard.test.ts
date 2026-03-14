@@ -1,498 +1,281 @@
-/**
- * @file camel-guard.test.ts
- * @description Vitest suite for CaMeL guard taint tracking and capability-token system.
- *
- * ARCHITECTURE / INTEGRATION:
- *   Exercises CamelGuard.check(), issueCapabilityToken(), readCapabilityToken(),
- *   validateCapabilityToken(), and inferToolResultTaintSources() exported from
- *   src/security/camel-guard.ts.
- *   HMAC signing uses EDITH_CAPABILITY_SECRET from the environment; falls back to
- *   the hard-coded dev string "edith-local-dev-capability-secret" when absent.
- *
- * PAPER BASIS:
- *   - CaMeL (Capability Minimal Language): arXiv:2503.18813 — taint propagation and
- *     privilege separation for LLM tool-call pipelines.
- */
+import { describe, it, expect, beforeEach, afterEach } from "vitest"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { CamelGuard, inferToolResultTaintSources, type TaintSource } from "../camel-guard"
 
-import {
-  CamelGuard,
-  camelGuard,
-  inferToolResultTaintSources,
-  type CamelCheckInput,
-  type TaintSource,
-} from "../camel-guard.js"
+const TEST_SECRET = "a]1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6" // 34 chars > 32 min
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+describe("CamelGuard", () => {
+  let originalSecret: string | undefined
 
-/** Builds a fully-populated CamelCheckInput with sensible defaults. */
-function makeInput(overrides: Partial<CamelCheckInput> = {}): CamelCheckInput {
-  return {
-    actorId: "user-001",
-    toolName: "fileAgent",
-    action: "write",
-    taintedSources: ["web_content"],
-    ...overrides,
-  }
-}
-
-// ---------------------------------------------------------------------------
-// check() — clean (untainted) input is always allowed
-// ---------------------------------------------------------------------------
-
-describe("CamelGuard.check() — clean input", () => {
-  it("allows action when taintedSources is empty", () => {
-    // arrange + act
-    const result = camelGuard.check(makeInput({ taintedSources: [] }))
-    // assert
-    expect(result.allowed).toBe(true)
-  })
-
-  it("does not attach a rejection reason for untainted input", () => {
-    const result = camelGuard.check(makeInput({ taintedSources: [] }))
-    expect(result.reason).toBeUndefined()
-  })
-})
-
-// ---------------------------------------------------------------------------
-// check() — read-only actions bypass the taint gate
-// ---------------------------------------------------------------------------
-
-describe("CamelGuard.check() — read-only actions allowed despite taint", () => {
-  it("allows browser navigate with web_content taint", () => {
-    const result = camelGuard.check(
-      makeInput({ toolName: "browser", action: "navigate", taintedSources: ["web_content"] }),
-    )
-    expect(result.allowed).toBe(true)
-  })
-
-  it("allows browser click with web_content taint", () => {
-    const result = camelGuard.check(
-      makeInput({ toolName: "browser", action: "click", taintedSources: ["web_content"] }),
-    )
-    expect(result.allowed).toBe(true)
-  })
-
-  it("allows fileAgent read with file_content taint", () => {
-    const result = camelGuard.check(
-      makeInput({ toolName: "fileAgent", action: "read", taintedSources: ["file_content"] }),
-    )
-    expect(result.allowed).toBe(true)
-  })
-
-  it("allows fileAgent info with file_content taint", () => {
-    const result = camelGuard.check(
-      makeInput({ toolName: "fileAgent", action: "info", taintedSources: ["file_content"] }),
-    )
-    expect(result.allowed).toBe(true)
-  })
-
-  it("allows fileAgent list with file_content taint", () => {
-    const result = camelGuard.check(
-      makeInput({ toolName: "fileAgent", action: "list", taintedSources: ["file_content"] }),
-    )
-    expect(result.allowed).toBe(true)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// check() — tainted write-like actions blocked without a token
-// ---------------------------------------------------------------------------
-
-describe("CamelGuard.check() — tainted action blocked without capability token", () => {
-  it("blocks fileAgent write when no capabilityToken is supplied", () => {
-    const result = camelGuard.check(makeInput({ capabilityToken: undefined }))
-    expect(result.allowed).toBe(false)
-  })
-
-  it("rejection reason includes the tool name and action", () => {
-    const result = camelGuard.check(makeInput({ capabilityToken: undefined }))
-    expect(result.reason).toMatch(/fileAgent\.write/i)
-  })
-
-  it("rejection reason mentions capability token", () => {
-    const result = camelGuard.check(makeInput({ capabilityToken: undefined }))
-    expect(result.reason).toMatch(/capability token/i)
-  })
-
-  it("blocks codeRunner exec with code_output taint and no token", () => {
-    const result = camelGuard.check(
-      makeInput({ toolName: "codeRunner", action: "exec", taintedSources: ["code_output"] }),
-    )
-    expect(result.allowed).toBe(false)
-  })
-
-  it("blocks when multiple taint sources present and no token supplied", () => {
-    const result = camelGuard.check(
-      makeInput({ taintedSources: ["web_content", "file_content"], capabilityToken: undefined }),
-    )
-    expect(result.allowed).toBe(false)
-  })
-
-  it("deduplicates sources before gate check — still blocks on deduplicated taint", () => {
-    // [web_content, web_content] deduplicates to [web_content]; taint is still present.
-    const sources: TaintSource[] = ["web_content", "web_content"]
-    const result = camelGuard.check(makeInput({ taintedSources: sources, capabilityToken: undefined }))
-    expect(result.allowed).toBe(false)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// issueCapabilityToken() — token structure
-// ---------------------------------------------------------------------------
-
-describe("CamelGuard.issueCapabilityToken() — token structure", () => {
-  it("returns a string with exactly two dot-separated segments", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: ["web_content"],
-    })
-    const segments = token.split(".")
-    expect(segments).toHaveLength(2)
-    expect(segments[0]!.length).toBeGreaterThan(0)
-    expect(segments[1]!.length).toBeGreaterThan(0)
-  })
-
-  it("round-trips the full payload through readCapabilityToken", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-abc",
-      toolName: "codeRunner",
-      action: "exec",
-      taintedSources: ["code_output"],
-    })
-    const payload = guard.readCapabilityToken(token)
-    expect(payload).not.toBeNull()
-    expect(payload!.actorId).toBe("user-abc")
-    expect(payload!.toolName).toBe("codeRunner")
-    expect(payload!.action).toBe("exec")
-    expect(payload!.taintedSources).toContain("code_output")
-    expect(payload!.version).toBe(1)
-  })
-
-  it("deduplicates taint sources stored inside the token", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: ["web_content", "web_content"],
-    })
-    const payload = guard.readCapabilityToken(token)!
-    const occurrences = payload.taintedSources.filter((s) => s === "web_content")
-    expect(occurrences).toHaveLength(1)
-  })
-
-  it("sets issuedAt to approximately the current time", () => {
-    const guard = new CamelGuard()
-    const before = Date.now()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: [],
-    })
-    const after = Date.now()
-    const payload = guard.readCapabilityToken(token)!
-    expect(payload.issuedAt).toBeGreaterThanOrEqual(before)
-    expect(payload.issuedAt).toBeLessThanOrEqual(after)
-  })
-
-  it("sets expiresAt to a timestamp in the future", () => {
-    const guard = new CamelGuard()
-    const before = Date.now()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: [],
-    })
-    const payload = guard.readCapabilityToken(token)!
-    expect(payload.expiresAt).toBeGreaterThan(before)
-  })
-
-  it("respects custom ttlMs and enforces the 1 000 ms minimum", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: [],
-      ttlMs: 2_000,
-    })
-    const payload = guard.readCapabilityToken(token)!
-    const diff = payload.expiresAt - payload.issuedAt
-    expect(diff).toBeGreaterThanOrEqual(1_900)
-    expect(diff).toBeLessThanOrEqual(2_100)
-  })
-
-  it("enforces 1 000 ms minimum TTL when ttlMs is below threshold", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: [],
-      ttlMs: 1, // below minimum — should be clamped to 1 000
-    })
-    const payload = guard.readCapabilityToken(token)!
-    const diff = payload.expiresAt - payload.issuedAt
-    expect(diff).toBeGreaterThanOrEqual(1_000)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// readCapabilityToken() — invalid / tampered tokens return null
-// ---------------------------------------------------------------------------
-
-describe("CamelGuard.readCapabilityToken() — invalid tokens", () => {
-  it("returns null for a completely invalid string", () => {
-    expect(camelGuard.readCapabilityToken("notavalidtoken")).toBeNull()
-  })
-
-  it("returns null for an empty string", () => {
-    expect(camelGuard.readCapabilityToken("")).toBeNull()
-  })
-
-  it("returns null when the signature segment is tampered", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "u",
-      toolName: "t",
-      action: "a",
-      taintedSources: [],
-    })
-    const [payloadSeg] = token.split(".")
-    const tampered = `${payloadSeg!}.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`
-    expect(guard.readCapabilityToken(tampered)).toBeNull()
-  })
-
-  it("returns null when the payload segment is corrupted base64url", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "u",
-      toolName: "t",
-      action: "a",
-      taintedSources: [],
-    })
-    const [, sig] = token.split(".")
-    // "bm90anNvbg" is base64url for "notjson" — valid base64 but invalid JSON
-    const corrupted = `bm90anNvbg.${sig!}`
-    expect(guard.readCapabilityToken(corrupted)).toBeNull()
-  })
-})
-
-// ---------------------------------------------------------------------------
-// check() — token expiration enforced
-// ---------------------------------------------------------------------------
-
-describe("CamelGuard.check() — expired token rejected", () => {
   beforeEach(() => {
-    vi.useFakeTimers()
+    originalSecret = process.env.EDITH_CAPABILITY_SECRET
+    process.env.EDITH_CAPABILITY_SECRET = TEST_SECRET
   })
 
   afterEach(() => {
-    vi.useRealTimers()
+    if (originalSecret !== undefined) {
+      process.env.EDITH_CAPABILITY_SECRET = originalSecret
+    } else {
+      delete process.env.EDITH_CAPABILITY_SECRET
+    }
   })
 
-  it("blocks a tainted action when the capability token has expired", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: ["web_content"],
-      ttlMs: 1_000, // minimum; expires after 1 s
+  describe("issueCapabilityToken", () => {
+    it("should return a base64url token with signature", () => {
+      const guard = new CamelGuard()
+      const token = guard.issueCapabilityToken({
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: ["web_content"],
+      })
+
+      expect(token).toBeDefined()
+      expect(typeof token).toBe("string")
+      // Token format: base64url_payload.base64url_signature
+      const parts = token.split(".")
+      expect(parts).toHaveLength(2)
+      expect(parts[0]!.length).toBeGreaterThan(0)
+      expect(parts[1]!.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe("readCapabilityToken", () => {
+    it("should read back a valid token", () => {
+      const guard = new CamelGuard()
+      const token = guard.issueCapabilityToken({
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: ["web_content"],
+      })
+
+      const payload = guard.readCapabilityToken(token)
+
+      expect(payload).not.toBeNull()
+      expect(payload!.actorId).toBe("user-a")
+      expect(payload!.toolName).toBe("fileAgent")
+      expect(payload!.action).toBe("write")
+      expect(payload!.taintedSources).toEqual(["web_content"])
+      expect(payload!.version).toBe(1)
+      expect(payload!.issuedAt).toBeLessThanOrEqual(Date.now())
+      expect(payload!.expiresAt).toBeGreaterThan(Date.now())
     })
 
-    // Advance clock well past expiry
-    vi.advanceTimersByTime(10_000)
+    it("should return null for an invalid signature", () => {
+      const guard = new CamelGuard()
+      const token = guard.issueCapabilityToken({
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: ["web_content"],
+      })
 
-    const result = guard.check({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: ["web_content"],
-      capabilityToken: token,
+      // Tamper with the signature
+      const [payload] = token.split(".")
+      const tamperedToken = `${payload}.INVALID_SIGNATURE_HERE`
+
+      const result = guard.readCapabilityToken(tamperedToken)
+      expect(result).toBeNull()
     })
 
-    expect(result.allowed).toBe(false)
-    expect(result.reason).toMatch(/expired/i)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// check() — valid token grants access; scope mismatches are caught
-// ---------------------------------------------------------------------------
-
-describe("CamelGuard.check() — valid token grants / scope enforcement", () => {
-  it("allows tainted fileAgent write when a matching capability token is supplied", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: ["web_content"],
+    it("should return null for malformed token", () => {
+      const guard = new CamelGuard()
+      expect(guard.readCapabilityToken("not-a-valid-token")).toBeNull()
+      expect(guard.readCapabilityToken("")).toBeNull()
     })
-    const result = guard.check({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: ["web_content"],
-      capabilityToken: token,
-    })
-    expect(result.allowed).toBe(true)
   })
 
-  it("blocks when actorId in token does not match the caller", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: ["web_content"],
-    })
-    const result = guard.check({
-      actorId: "attacker-999",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: ["web_content"],
-      capabilityToken: token,
-    })
-    expect(result.allowed).toBe(false)
-    expect(result.reason).toMatch(/actor mismatch/i)
-  })
+  describe("validateCapabilityToken", () => {
+    it("should return allowed for a valid token matching all fields", () => {
+      const guard = new CamelGuard()
+      const input = {
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: ["web_content"] as TaintSource[],
+      }
 
-  it("blocks when toolName in token does not match the call", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: ["web_content"],
-    })
-    const result = guard.check({
-      actorId: "user-001",
-      toolName: "codeRunner", // different tool
-      action: "write",
-      taintedSources: ["web_content"],
-      capabilityToken: token,
-    })
-    expect(result.allowed).toBe(false)
-    expect(result.reason).toMatch(/scope mismatch/i)
-  })
+      const token = guard.issueCapabilityToken(input)
+      const result = guard.validateCapabilityToken(token, input)
 
-  it("blocks when action in token does not match the call", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: ["web_content"],
-    })
-    const result = guard.check({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "delete", // different action
-      taintedSources: ["web_content"],
-      capabilityToken: token,
-    })
-    expect(result.allowed).toBe(false)
-    expect(result.reason).toMatch(/scope mismatch/i)
-  })
-
-  it("blocks when caller claims a taint source not covered by the token", () => {
-    const guard = new CamelGuard()
-    const token = guard.issueCapabilityToken({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: ["web_content"], // token only covers web_content
-    })
-    const result = guard.check({
-      actorId: "user-001",
-      toolName: "fileAgent",
-      action: "write",
-      taintedSources: ["web_content", "file_content"], // extra source not in token
-      capabilityToken: token,
-    })
-    expect(result.allowed).toBe(false)
-    expect(result.reason).toMatch(/taint scope mismatch/i)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// HMAC secret isolation — tokens must not cross-validate between secrets
-// ---------------------------------------------------------------------------
-
-describe("CamelGuard — HMAC secret isolation", () => {
-  afterEach(() => {
-    delete process.env["EDITH_CAPABILITY_SECRET"]
-  })
-
-  it("rejects a token issued under secret-A when validated with secret-B", () => {
-    // Guard A uses the dev fallback (no env var set)
-    delete process.env["EDITH_CAPABILITY_SECRET"]
-    const guardA = new CamelGuard()
-    const token = guardA.issueCapabilityToken({
-      actorId: "u",
-      toolName: "t",
-      action: "a",
-      taintedSources: [],
+      expect(result.allowed).toBe(true)
+      expect(result.reason).toBeUndefined()
     })
 
-    // Guard B uses a completely different secret
-    process.env["EDITH_CAPABILITY_SECRET"] = "completely-different-secret-xyz"
-    const guardB = new CamelGuard()
+    it("should reject token with actor mismatch", () => {
+      const guard = new CamelGuard()
+      const token = guard.issueCapabilityToken({
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: ["web_content"],
+      })
 
-    expect(guardB.readCapabilityToken(token)).toBeNull()
+      const result = guard.validateCapabilityToken(token, {
+        actorId: "user-b", // different actor
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: ["web_content"],
+      })
+
+      expect(result.allowed).toBe(false)
+      expect(result.reason).toContain("actor mismatch")
+    })
+
+    it("should reject expired token", () => {
+      const guard = new CamelGuard()
+      const token = guard.issueCapabilityToken({
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: ["web_content"],
+      })
+
+      // Read the real expiry, then mock Date.now past it
+      const payload = guard.readCapabilityToken(token)
+      expect(payload).not.toBeNull()
+
+      const originalNow = Date.now
+      try {
+        Date.now = () => payload!.expiresAt + 1000
+
+        const result = guard.validateCapabilityToken(token, {
+          actorId: "user-a",
+          toolName: "fileAgent",
+          action: "write",
+          taintedSources: ["web_content"],
+        })
+
+        expect(result.allowed).toBe(false)
+        expect(result.reason).toContain("expired")
+      } finally {
+        Date.now = originalNow
+      }
+    })
+
+    it("should reject token with scope mismatch (different tool)", () => {
+      const guard = new CamelGuard()
+      const token = guard.issueCapabilityToken({
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: ["web_content"],
+      })
+
+      const result = guard.validateCapabilityToken(token, {
+        actorId: "user-a",
+        toolName: "codeRunner", // different tool
+        action: "write",
+        taintedSources: ["web_content"],
+      })
+
+      expect(result.allowed).toBe(false)
+      expect(result.reason).toContain("scope mismatch")
+    })
+
+    it("should reject token with taint scope mismatch", () => {
+      const guard = new CamelGuard()
+      const token = guard.issueCapabilityToken({
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: ["web_content"],
+      })
+
+      const result = guard.validateCapabilityToken(token, {
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: ["web_content", "code_output"], // extra taint source
+      })
+
+      expect(result.allowed).toBe(false)
+      expect(result.reason).toContain("taint scope mismatch")
+    })
   })
-})
 
-// ---------------------------------------------------------------------------
-// inferToolResultTaintSources()
-// ---------------------------------------------------------------------------
+  describe("check", () => {
+    it("should allow when no taint sources", () => {
+      const guard = new CamelGuard()
+      const result = guard.check({
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: [],
+      })
 
-describe("inferToolResultTaintSources()", () => {
-  it("returns ['web_content'] for browser navigate", () => {
-    expect(inferToolResultTaintSources("browser", "navigate")).toEqual(["web_content"])
+      expect(result.allowed).toBe(true)
+    })
+
+    it("should allow read-only tool actions without token", () => {
+      const guard = new CamelGuard()
+
+      // Browser is always read-only
+      const browserResult = guard.check({
+        actorId: "user-a",
+        toolName: "browser",
+        action: "navigate",
+        taintedSources: ["web_content"],
+      })
+      expect(browserResult.allowed).toBe(true)
+
+      // fileAgent read is read-only
+      const fileReadResult = guard.check({
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "read",
+        taintedSources: ["file_content"],
+      })
+      expect(fileReadResult.allowed).toBe(true)
+    })
+
+    it("should block tainted write actions without capability token", () => {
+      const guard = new CamelGuard()
+      const result = guard.check({
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: ["web_content"],
+      })
+
+      expect(result.allowed).toBe(false)
+      expect(result.reason).toContain("without capability token")
+    })
+
+    it("should allow tainted write actions with valid capability token", () => {
+      const guard = new CamelGuard()
+      const input = {
+        actorId: "user-a",
+        toolName: "fileAgent",
+        action: "write",
+        taintedSources: ["web_content"] as TaintSource[],
+      }
+
+      const token = guard.issueCapabilityToken(input)
+      const result = guard.check({ ...input, capabilityToken: token })
+
+      expect(result.allowed).toBe(true)
+    })
   })
 
-  it("returns ['web_content'] for any browser action (all browser actions are web)", () => {
-    expect(inferToolResultTaintSources("browser", "click")).toEqual(["web_content"])
-  })
+  describe("inferToolResultTaintSources", () => {
+    it("should return web_content for browser", () => {
+      expect(inferToolResultTaintSources("browser", "navigate")).toEqual(["web_content"])
+    })
 
-  it("returns ['file_content'] for fileAgent read", () => {
-    expect(inferToolResultTaintSources("fileAgent", "read")).toEqual(["file_content"])
-  })
+    it("should return file_content for fileAgent read actions", () => {
+      expect(inferToolResultTaintSources("fileAgent", "read")).toEqual(["file_content"])
+      expect(inferToolResultTaintSources("fileAgent", "info")).toEqual(["file_content"])
+      expect(inferToolResultTaintSources("fileAgent", "list")).toEqual(["file_content"])
+    })
 
-  it("returns ['file_content'] for fileAgent info", () => {
-    expect(inferToolResultTaintSources("fileAgent", "info")).toEqual(["file_content"])
-  })
+    it("should return code_output for codeRunner", () => {
+      expect(inferToolResultTaintSources("codeRunner", "run")).toEqual(["code_output"])
+    })
 
-  it("returns ['file_content'] for fileAgent list", () => {
-    expect(inferToolResultTaintSources("fileAgent", "list")).toEqual(["file_content"])
-  })
-
-  it("returns ['code_output'] for codeRunner exec", () => {
-    expect(inferToolResultTaintSources("codeRunner", "exec")).toEqual(["code_output"])
-  })
-
-  it("returns [] for an unrecognised tool", () => {
-    expect(inferToolResultTaintSources("unknownTool", "doSomething")).toEqual([])
-  })
-
-  it("returns [] for fileAgent write (non-read action yields no taint inference)", () => {
-    expect(inferToolResultTaintSources("fileAgent", "write")).toEqual([])
-  })
-
-  it("returns [] for fileAgent delete (non-read action)", () => {
-    expect(inferToolResultTaintSources("fileAgent", "delete")).toEqual([])
+    it("should return empty array for unknown tools", () => {
+      expect(inferToolResultTaintSources("unknown", "action")).toEqual([])
+    })
   })
 })

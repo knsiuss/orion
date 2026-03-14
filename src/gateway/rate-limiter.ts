@@ -359,3 +359,72 @@ export function createRateLimiter(options: RateLimiterOptions): RateLimiter {
 
   return new MemoryRateLimiter(options.maxRequests, options.windowMs)
 }
+
+/**
+ * Factory that creates a user-level rate limiter instance.
+ * Identical to `createRateLimiter` but named explicitly so callers can
+ * distinguish the purpose of the returned limiter (user-level vs IP-level).
+ *
+ * @param options - Rate limiter configuration.
+ * @returns A new RateLimiter scoped to user-level limiting.
+ */
+export function createUserRateLimiter(options: RateLimiterOptions): RateLimiter {
+  return createRateLimiter(options)
+}
+
+/**
+ * Wraps both an IP-level and a user-level rate limiter, checking both on every
+ * request. If either limiter is exceeded the request is rate-limited.
+ *
+ * Usage:
+ * ```ts
+ * const composite = createCompositeRateLimiter(
+ *   { maxRequests: 100, windowMs: 60_000 },
+ *   { maxRequests: 30,  windowMs: 60_000 },
+ * )
+ * const decision = composite.consume(req.ip, userId)
+ * ```
+ */
+export class CompositeRateLimiter {
+  /**
+   * @param ipLimiter   - Limiter keyed by IP address.
+   * @param userLimiter - Limiter keyed by authenticated user ID.
+   */
+  constructor(
+    private readonly ipLimiter: RateLimiter,
+    private readonly userLimiter: RateLimiter,
+  ) {}
+
+  /** Check both IP and user limits. Returns limited if EITHER is exceeded. */
+  consume(ip: string, userId?: string): RateLimitDecision {
+    const ipResult = this.ipLimiter.consume(ip)
+    if (!userId) return ipResult
+    const userResult = this.userLimiter.consume(userId)
+    // Return the more restrictive result
+    if (userResult.limited) return userResult
+    return ipResult
+  }
+
+  /** Prune stale entries from both underlying limiters. */
+  cleanup(now?: number): void {
+    this.ipLimiter.cleanup(now)
+    this.userLimiter.cleanup(now)
+  }
+}
+
+/**
+ * Factory that creates a CompositeRateLimiter from IP-level and user-level options.
+ *
+ * @param ipOptions   - Configuration for the per-IP rate limiter.
+ * @param userOptions - Configuration for the per-user rate limiter.
+ * @returns A CompositeRateLimiter that enforces both limits.
+ */
+export function createCompositeRateLimiter(
+  ipOptions: RateLimiterOptions,
+  userOptions: RateLimiterOptions,
+): CompositeRateLimiter {
+  return new CompositeRateLimiter(
+    createRateLimiter(ipOptions),
+    createRateLimiter(userOptions),
+  )
+}
